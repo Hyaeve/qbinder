@@ -1,5 +1,5 @@
 services:
-  nestify:
+  qbinder:
     image: ghcr.io/hyaeve/qbinder:latest
     container_name: qBinder
     network_mode: bridge
