@@ -142,6 +142,7 @@ func main() {
 	mux.HandleFunc("/api/lanes/", server.withAuth(server.handleLaneSubroutes))
 	mux.HandleFunc("/api/cards", server.withAuth(server.handleCards))
 	mux.HandleFunc("/api/cards/", server.withAuth(server.handleCardSubroutes))
+	mux.HandleFunc("/api/tags/", server.withAuth(server.handleTagSubroutes))
 	mux.HandleFunc("/", server.handleStatic)
 
 	fmt.Printf("qBinder listening on %s\n", port)
@@ -568,6 +569,10 @@ func (s *Server) handleCardSubroutes(w http.ResponseWriter, r *http.Request, con
 		s.updateCard(w, r, config, parts[0])
 		return
 	}
+	if len(parts) == 1 && r.Method == http.MethodDelete {
+		s.deleteCard(w, config, parts[0])
+		return
+	}
 	if len(parts) == 2 && parts[1] == "upload" && r.Method == http.MethodPost {
 		s.uploadCard(w, r, config, parts[0])
 		return
@@ -600,6 +605,37 @@ func (s *Server) updateCard(w http.ResponseWriter, r *http.Request, config Confi
 		}
 	}
 	writeErrorText(w, http.StatusNotFound, "Card not found")
+}
+
+func (s *Server) deleteCard(w http.ResponseWriter, config Config, id string) {
+	if _, ok := findCard(config.Cards, id); !ok {
+		writeErrorText(w, http.StatusNotFound, "Card not found")
+		return
+	}
+	config.Cards = filterCardByID(config.Cards, id)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleTagSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodDelete {
+		methodNotAllowed(w)
+		return
+	}
+	tag, err := url.PathUnescape(strings.TrimPrefix(r.URL.Path, "/api/tags/"))
+	if err != nil || strings.TrimSpace(tag) == "" {
+		writeErrorText(w, http.StatusBadRequest, "Tag is required")
+		return
+	}
+	config.TagPool = filterTag(config.TagPool, tag)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
 }
 
 func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Config, id string) {
@@ -990,6 +1026,26 @@ func filterCardsByLane(cards []Card, laneID string) []Card {
 	for _, item := range cards {
 		if item.LaneID != laneID {
 			next = append(next, item)
+		}
+	}
+	return next
+}
+
+func filterCardByID(cards []Card, id string) []Card {
+	next := []Card{}
+	for _, item := range cards {
+		if item.ID != id {
+			next = append(next, item)
+		}
+	}
+	return next
+}
+
+func filterTag(tags []string, target string) []string {
+	next := []string{}
+	for _, tag := range tags {
+		if tag != target {
+			next = append(next, tag)
 		}
 	}
 	return next

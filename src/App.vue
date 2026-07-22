@@ -187,7 +187,12 @@
             <button v-for="tag in editingCard.tags" :key="tag" :style="{ background: pickColor(tag) }" @click="removeTag(tag)">{{ tag }}<X /></button>
             <input v-model="tagInput" placeholder="输入后回车" @keydown.enter.prevent="addTag(tagInput)" />
           </div>
-          <div class="tag-hints"><button v-for="tag in tagHints" :key="tag" @click="addTag(tag)">{{ tag }}</button></div>
+          <div class="tag-hints">
+            <button v-for="tag in tagHints" :key="tag" class="tag-hint" @click="addTag(tag)">
+              <span>{{ tag }}</span>
+              <X class="tag-delete" title="删除标签" @click.stop="deletePoolTag(tag)" />
+            </button>
+          </div>
         </div>
         <div class="field-block">
           <span><ImageIcon />封面显示</span>
@@ -200,7 +205,10 @@
             <label class="file-button">上传图片<input type="file" accept="image/*" hidden @change="loadLocalCover" /></label>
           </div>
         </div>
-        <button class="primary-button" @click="saveCard"><Save />保存卡片</button>
+        <div class="modal-actions split">
+          <button class="danger-button" @click="deleteCard"><X />删除卡片</button>
+          <button class="primary-button" @click="saveCard"><Save />保存卡片</button>
+        </div>
       </section>
     </div>
   </div>
@@ -473,6 +481,11 @@ function removeTag(tag) {
   editingCard.value.tags = editingCard.value.tags.filter((item) => item !== tag);
 }
 
+async function deletePoolTag(tag) {
+  if (!window.confirm(`确认从标签池删除“${tag}”？`)) return;
+  config.value = await api(`/api/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' });
+}
+
 function setImageUrl(event) {
   editingCard.value.cover = { type: 'image', value: event.target.value };
 }
@@ -490,6 +503,12 @@ function loadLocalCover(event) {
 async function saveCard() {
   const payload = { ...editingCard.value, cover: coverMode.value === 'monet' ? { type: 'monet', value: '' } : editingCard.value.cover };
   config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  editingCard.value = null;
+}
+
+async function deleteCard() {
+  if (!window.confirm(`确认删除卡片“${editingCard.value.name}”？`)) return;
+  config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'DELETE' });
   editingCard.value = null;
 }
 

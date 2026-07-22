@@ -640,7 +640,8 @@ select:focus {
   font-weight: 900;
 }
 
-.tag-editor button svg {
+.tag-editor button svg,
+.tag-delete {
   width: 12px;
   height: 12px;
 }
@@ -664,6 +665,20 @@ select:focus {
 
 .tag-hints button {
   background: #eef0f6;
+}
+
+.tag-hint .tag-delete {
+  color: #8a8794;
+}
+
+.tag-hint .tag-delete:hover {
+  color: #b94d55;
+}
+
+.modal-actions.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .segmented {
