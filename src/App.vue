@@ -97,14 +97,24 @@
 
         <form class="lane-create" @submit.prevent="addLane">
           <input v-model="laneName" placeholder="新增横栏名称" />
-          <button class="primary-button"><Plus />添加横栏</button>
+          <button class="primary-button icon-only" title="添加横栏" aria-label="添加横栏"><Plus /></button>
         </form>
 
         <div v-if="activeLanes.length === 0" class="empty-state">当前 qB 账户下还没有横栏。</div>
-        <section v-for="lane in activeLanes" :key="lane.id" class="lane">
+        <section v-for="(lane, laneIndex) in activeLanes" :key="lane.id" class="lane">
           <div class="lane-title">
-            <h2>{{ lane.name }}</h2>
-            <button class="icon-button" title="添加卡片" @click="createCard(lane.id)"><Plus /></button>
+            <form v-if="editingLaneId === lane.id" class="lane-edit" @submit.prevent="saveLaneName(lane)">
+              <input v-model="editingLaneName" aria-label="横栏名称" />
+              <button class="icon-button" title="保存横栏名称" aria-label="保存横栏名称"><CheckCircle2 /></button>
+              <button type="button" class="icon-button" title="取消编辑" aria-label="取消编辑" @click="cancelLaneEdit"><X /></button>
+            </form>
+            <h2 v-else>{{ lane.name }}</h2>
+            <div class="lane-actions">
+              <button class="icon-button" title="编辑横栏名称" aria-label="编辑横栏名称" @click="editLane(lane)"><Pencil /></button>
+              <button class="icon-button" title="上移横栏" aria-label="上移横栏" :disabled="laneIndex === 0" @click="moveLane(lane, 'up')"><ArrowUp /></button>
+              <button class="icon-button" title="下移横栏" aria-label="下移横栏" :disabled="laneIndex === activeLanes.length - 1" @click="moveLane(lane, 'down')"><ArrowDown /></button>
+              <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
+            </div>
           </div>
           <div class="card-row">
             <article v-for="card in cardsForLane(lane.id)" :key="card.id" class="binder-card" :style="coverStyle(card)">
@@ -184,6 +194,8 @@
 
 <script setup>
 import {
+  ArrowDown,
+  ArrowUp,
   Boxes,
   CheckCircle2,
   FolderDown,
@@ -192,6 +204,7 @@ import {
   Layers,
   Loader2,
   LogOut,
+  Pencil,
   Plus,
   Save,
   Settings,
@@ -221,6 +234,8 @@ const tagInput = ref('');
 const uploadingCardId = ref('');
 const fileInputs = reactive({});
 const editQbMessage = ref('');
+const editingLaneId = ref('');
+const editingLaneName = ref('');
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -344,6 +359,27 @@ async function addLane() {
   if (!activeQb.value || !laneName.value.trim()) return;
   config.value = await api('/api/lanes', { method: 'POST', body: JSON.stringify({ qbId: activeQb.value.id, name: laneName.value.trim() }) });
   laneName.value = '';
+}
+
+function editLane(lane) {
+  editingLaneId.value = lane.id;
+  editingLaneName.value = lane.name;
+}
+
+function cancelLaneEdit() {
+  editingLaneId.value = '';
+  editingLaneName.value = '';
+}
+
+async function saveLaneName(lane) {
+  const name = editingLaneName.value.trim();
+  if (!name) return;
+  config.value = await api(`/api/lanes/${lane.id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+  cancelLaneEdit();
+}
+
+async function moveLane(lane, direction) {
+  config.value = await api(`/api/lanes/${lane.id}`, { method: 'PUT', body: JSON.stringify({ direction }) });
 }
 
 async function createCard(laneId) {

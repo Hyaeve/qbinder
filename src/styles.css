@@ -304,6 +304,12 @@ select:focus {
   margin-bottom: 26px;
 }
 
+.icon-only {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+}
+
 .lane {
   margin-bottom: 34px;
 }
@@ -312,6 +318,7 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
@@ -327,12 +334,35 @@ select:focus {
   font-size: 24px;
 }
 
-.lane-title h2::before {
+.lane-title h2::before,
+.lane-edit::before {
   content: '';
   width: 5px;
   height: 24px;
+  flex: 0 0 auto;
   border-radius: 999px;
   background: #8d68ef;
+}
+
+.lane-actions,
+.lane-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lane-actions {
+  flex-shrink: 0;
+}
+
+.lane-edit {
+  flex: 1;
+  min-width: 220px;
+}
+
+.lane-edit input {
+  max-width: 360px;
+  height: 40px;
 }
 
 .icon-button {

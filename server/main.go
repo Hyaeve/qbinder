@@ -139,6 +139,7 @@ func main() {
 	mux.HandleFunc("/api/qb", server.withAuth(server.handleQBCreate))
 	mux.HandleFunc("/api/qb/", server.withAuth(server.handleQBDelete))
 	mux.HandleFunc("/api/lanes", server.withAuth(server.handleLanes))
+	mux.HandleFunc("/api/lanes/", server.withAuth(server.handleLaneSubroutes))
 	mux.HandleFunc("/api/cards", server.withAuth(server.handleCards))
 	mux.HandleFunc("/api/cards/", server.withAuth(server.handleCardSubroutes))
 	mux.HandleFunc("/", server.handleStatic)
@@ -459,6 +460,64 @@ func (s *Server) handleLanes(w http.ResponseWriter, r *http.Request, config Conf
 	}
 	lane := Lane{ID: randomID(), QBID: payload.QBID, Name: strings.TrimSpace(payload.Name), CreatedAt: time.Now().Format(time.RFC3339)}
 	config.Lanes = append(config.Lanes, lane)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleLaneSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/lanes/")
+	if r.Method == http.MethodPut {
+		s.updateLane(w, r, config, id)
+		return
+	}
+	methodNotAllowed(w)
+}
+
+func (s *Server) updateLane(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	var payload struct {
+		Name      string `json:"name"`
+		Direction string `json:"direction"`
+	}
+	if !decodeJSON(w, r, &payload) {
+		return
+	}
+	laneIndex := -1
+	for index := range config.Lanes {
+		if config.Lanes[index].ID == id {
+			laneIndex = index
+			break
+		}
+	}
+	if laneIndex < 0 {
+		writeErrorText(w, http.StatusNotFound, "Lane not found")
+		return
+	}
+	if strings.TrimSpace(payload.Name) != "" {
+		config.Lanes[laneIndex].Name = strings.TrimSpace(payload.Name)
+	}
+	switch payload.Direction {
+	case "up":
+		for index := laneIndex - 1; index >= 0; index-- {
+			if config.Lanes[index].QBID == config.Lanes[laneIndex].QBID {
+				config.Lanes[index], config.Lanes[laneIndex] = config.Lanes[laneIndex], config.Lanes[index]
+				break
+			}
+		}
+	case "down":
+		for index := laneIndex + 1; index < len(config.Lanes); index++ {
+			if config.Lanes[index].QBID == config.Lanes[laneIndex].QBID {
+				config.Lanes[index], config.Lanes[laneIndex] = config.Lanes[laneIndex], config.Lanes[index]
+				break
+			}
+		}
+	case "", "none":
+	default:
+		writeErrorText(w, http.StatusBadRequest, "Invalid lane direction")
+		return
+	}
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
