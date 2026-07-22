@@ -334,7 +334,7 @@ func (s *Server) handleQBTest(w http.ResponseWriter, r *http.Request, config Con
 	if !decodeJSON(w, r, &payload) {
 		return
 	}
-	if err := validateQB(payload); err != nil {
+	if err := validateQB(payload, true); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -354,20 +354,13 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 	if !decodeJSON(w, r, &payload) {
 		return
 	}
-	if err := validateQB(payload); err != nil {
+	if err := validateQB(payload, true); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	_, cookie, err := loginQB(payload)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	protocol := payload.Protocol
-	if protocol == "" {
-		protocol = "http"
-	}
-	account := QBAccount{ID: randomID(), Alias: strings.TrimSpace(payload.Alias), Protocol: protocol, Host: cleanHost(payload.Host), Port: payload.Port, Username: payload.Username, Password: payload.Password, Cookie: cookie, LastVerifiedAt: time.Now().Format(time.RFC3339)}
+	account := normalizeQBAccount(payload)
+	account.ID = randomID()
+	account.LastError = ""
 	config.QBittorrents = append(config.QBittorrents, account)
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -377,11 +370,15 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 }
 
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/qb/")
+	if r.Method == http.MethodPut {
+		s.updateQB(w, r, config, id)
+		return
+	}
 	if r.Method != http.MethodDelete {
 		methodNotAllowed(w)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/qb/")
 	config.QBittorrents = filterQB(config.QBittorrents, id)
 	config.Lanes = filterLanes(config.Lanes, id)
 	config.Cards = filterCardsByQB(config.Cards, id)
@@ -390,6 +387,37 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 		return
 	}
 	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) updateQB(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	var payload QBAccount
+	if !decodeJSON(w, r, &payload) {
+		return
+	}
+	if err := validateQB(payload, false); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	for index := range config.QBittorrents {
+		if config.QBittorrents[index].ID == id {
+			updated := normalizeQBAccount(payload)
+			updated.ID = id
+			if strings.TrimSpace(updated.Password) == "" {
+				updated.Password = config.QBittorrents[index].Password
+			}
+			updated.Cookie = ""
+			updated.LastVerifiedAt = ""
+			updated.LastError = ""
+			config.QBittorrents[index] = updated
+			if err := s.writeConfig(config); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, publicConfig(config))
+			return
+		}
+	}
+	writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
 }
 
 func (s *Server) handleLanes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -578,7 +606,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filepath.Join(s.distDir, "index.html"))
 }
 
-func validateQB(account QBAccount) error {
+func validateQB(account QBAccount, requirePassword bool) error {
 	missing := []string{}
 	if strings.TrimSpace(account.Alias) == "" {
 		missing = append(missing, "alias")
@@ -592,13 +620,28 @@ func validateQB(account QBAccount) error {
 	if strings.TrimSpace(account.Username) == "" {
 		missing = append(missing, "username")
 	}
-	if strings.TrimSpace(account.Password) == "" {
+	if requirePassword && strings.TrimSpace(account.Password) == "" {
 		missing = append(missing, "password")
 	}
 	if len(missing) > 0 {
 		return errors.New("Missing fields: " + strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+func normalizeQBAccount(account QBAccount) QBAccount {
+	protocol := strings.TrimSpace(account.Protocol)
+	if protocol == "" {
+		protocol = "http"
+	}
+	return QBAccount{
+		Alias:    strings.TrimSpace(account.Alias),
+		Protocol: protocol,
+		Host:     cleanHost(account.Host),
+		Port:     account.Port,
+		Username: strings.TrimSpace(account.Username),
+		Password: account.Password,
+	}
 }
 
 func loginQB(account QBAccount) (string, string, error) {

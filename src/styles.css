@@ -503,9 +503,21 @@ select:focus {
   display: block;
 }
 
-.account-row span {
+.account-row span,
+.account-row em {
   margin-top: 4px;
   color: #8a8794;
+}
+
+.account-row em {
+  font-style: normal;
+  color: #9a7b52;
+}
+
+.account-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .empty-state,

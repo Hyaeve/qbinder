@@ -61,7 +61,7 @@
           <p v-if="message" :class="verified ? 'form-ok' : 'form-error'">{{ message }}</p>
           <div class="button-row">
             <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
-            <button type="button" class="primary-button" :disabled="!verified" @click="addQb"><Plus />添加</button>
+            <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
           </div>
         </section>
       </section>
@@ -73,8 +73,12 @@
           <div>
             <strong>{{ account.alias }}</strong>
             <span>{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
+            <em>{{ accountStatus(account) }}</em>
           </div>
-          <button class="danger-button" @click="deleteQb(account.id)">删除</button>
+          <div class="account-actions">
+            <button class="secondary-button" @click="editQb(account)">编辑</button>
+            <button class="danger-button" @click="deleteQb(account.id)">删除</button>
+          </div>
         </div>
       </section>
     </div>
@@ -123,6 +127,26 @@
           </div>
         </section>
       </template>
+    </div>
+
+    <div v-if="editingQb" class="modal-backdrop">
+      <section class="modal">
+        <header>
+          <h2>编辑 qBittorrent</h2>
+          <button class="icon-button" @click="editingQb = null"><X /></button>
+        </header>
+        <label>别名<input v-model="editingQb.alias" /></label>
+        <label>协议<select v-model="editingQb.protocol"><option>http</option><option>https</option></select></label>
+        <label>地址<input v-model="editingQb.host" /></label>
+        <label>端口<input v-model="editingQb.port" /></label>
+        <label>账号<input v-model="editingQb.username" /></label>
+        <label>新密码<input v-model="editingQb.password" type="password" placeholder="留空则不修改" /></label>
+        <p v-if="editQbMessage" class="form-error">{{ editQbMessage }}</p>
+        <div class="button-row">
+          <button class="secondary-button" @click="testEditingQb"><CheckCircle2 />验证</button>
+          <button class="primary-button" @click="saveQb"><Save />保存</button>
+        </div>
+      </section>
     </div>
 
     <div v-if="editingCard" class="modal-backdrop">
@@ -191,10 +215,12 @@ const message = ref('');
 const laneName = ref('');
 const activeQbId = ref('');
 const editingCard = ref(null);
+const editingQb = ref(null);
 const coverMode = ref('monet');
 const tagInput = ref('');
 const uploadingCardId = ref('');
 const fileInputs = reactive({});
+const editQbMessage = ref('');
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -276,10 +302,38 @@ async function testQb() {
 }
 
 async function addQb() {
-  config.value = await api('/api/qb', { method: 'POST', body: JSON.stringify({ ...qbForm, port: Number(qbForm.port) }) });
-  Object.assign(qbForm, { alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
-  verified.value = false;
-  message.value = '已添加 qB 账户';
+  try {
+    config.value = await api('/api/qb', { method: 'POST', body: JSON.stringify({ ...qbForm, port: Number(qbForm.port) }) });
+    Object.assign(qbForm, { alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
+    verified.value = false;
+    message.value = '已添加 qB 账户，可稍后编辑并重新验证';
+  } catch (requestError) {
+    message.value = requestError.message;
+  }
+}
+
+function editQb(account) {
+  editingQb.value = { ...account, password: '', port: String(account.port) };
+  editQbMessage.value = '';
+}
+
+async function testEditingQb() {
+  editQbMessage.value = '';
+  try {
+    await api('/api/qb/test', { method: 'POST', body: JSON.stringify({ ...editingQb.value, port: Number(editingQb.value.port) }) });
+    editQbMessage.value = '连接验证成功';
+  } catch (requestError) {
+    editQbMessage.value = requestError.message;
+  }
+}
+
+async function saveQb() {
+  try {
+    config.value = await api(`/api/qb/${editingQb.value.id}`, { method: 'PUT', body: JSON.stringify({ ...editingQb.value, port: Number(editingQb.value.port) }) });
+    editingQb.value = null;
+  } catch (requestError) {
+    editQbMessage.value = requestError.message;
+  }
 }
 
 async function deleteQb(id) {
@@ -355,6 +409,10 @@ async function saveCard() {
   const payload = { ...editingCard.value, cover: coverMode.value === 'monet' ? { type: 'monet', value: '' } : editingCard.value.cover };
   config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'PUT', body: JSON.stringify(payload) });
   editingCard.value = null;
+}
+
+function accountStatus(account) {
+  return account.lastVerifiedAt ? '已验证' : '未验证';
 }
 
 function pickColor(seed, palette = monetColors) {
