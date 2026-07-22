@@ -297,7 +297,7 @@ async function testQb() {
     verified.value = true;
     message.value = '连接验证成功';
   } catch (requestError) {
-    message.value = requestError.message;
+    message.value = `${requestError.message}，可先添加，详细原因见容器日志`;
   }
 }
 
@@ -323,7 +323,7 @@ async function testEditingQb() {
     await api('/api/qb/test', { method: 'POST', body: JSON.stringify({ ...editingQb.value, port: Number(editingQb.value.port) }) });
     editQbMessage.value = '连接验证成功';
   } catch (requestError) {
-    editQbMessage.value = requestError.message;
+    editQbMessage.value = `${requestError.message}，可先保存，详细原因见容器日志`;
   }
 }
 

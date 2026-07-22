@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
@@ -99,6 +100,23 @@ type Server struct {
 	mu         sync.Mutex
 	configPath string
 	distDir    string
+}
+
+type qBLoginError struct {
+	BaseURL    string
+	StatusCode int
+	Body       string
+	Err        error
+}
+
+func (e qBLoginError) Error() string {
+	if e.Err != nil {
+		return "qBittorrent request failed: " + e.Err.Error()
+	}
+	if e.StatusCode > 0 {
+		return fmt.Sprintf("qBittorrent authentication failed: status=%d body=%q", e.StatusCode, e.Body)
+	}
+	return "qBittorrent authentication failed"
 }
 
 func main() {
@@ -339,9 +357,11 @@ func (s *Server) handleQBTest(w http.ResponseWriter, r *http.Request, config Con
 		return
 	}
 	if _, _, err := loginQB(payload); err != nil {
+		logQBFailure("verify", payload, err)
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	logQBEvent("verify_success", payload, "qBittorrent connection verified")
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -362,6 +382,7 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 	account.ID = randomID()
 	account.LastError = ""
 	config.QBittorrents = append(config.QBittorrents, account)
+	logQBEvent("account_saved", account, "qBittorrent account saved without mandatory verification")
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -650,26 +671,48 @@ func loginQB(account QBAccount) (string, string, error) {
 		protocol = "http"
 	}
 	baseURL := protocol + "://" + cleanHost(account.Host) + ":" + strconv.Itoa(account.Port)
+	logQBEvent("login_start", account, "attempting qBittorrent WebUI login at "+baseURL+"/api/v2/auth/login")
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Timeout: 8 * time.Second, Jar: jar}
 	form := url.Values{"username": {account.Username}, "password": {account.Password}}
 	response, err := client.PostForm(baseURL+"/api/v2/auth/login", form)
 	if err != nil {
-		return "", "", err
+		return "", "", qBLoginError{BaseURL: baseURL, Err: err}
 	}
 	defer response.Body.Close()
 	content, _ := io.ReadAll(response.Body)
-	if response.StatusCode != http.StatusOK || strings.TrimSpace(string(content)) != "Ok." {
-		return "", "", errors.New("qBittorrent authentication failed")
+	body := strings.TrimSpace(string(content))
+	logQBEvent("login_response", account, fmt.Sprintf("status=%d body=%q cookies=%d", response.StatusCode, truncateLog(body, 500), len(response.Cookies())))
+	if response.StatusCode != http.StatusOK || body != "Ok." {
+		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: truncateLog(body, 500)}
 	}
 	cookies := []string{}
 	for _, cookie := range response.Cookies() {
 		cookies = append(cookies, cookie.Name+"="+cookie.Value)
 	}
 	if len(cookies) == 0 {
-		return "", "", errors.New("qBittorrent did not return a session cookie")
+		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: "login succeeded but qBittorrent did not return a session cookie"}
 	}
 	return baseURL, strings.Join(cookies, "; "), nil
+}
+
+func logQBEvent(action string, account QBAccount, message string) {
+	log.Printf("qb action=%s alias=%q protocol=%s host=%s port=%d username=%q message=%s", action, account.Alias, fallback(account.Protocol, "http"), cleanHost(account.Host), account.Port, account.Username, message)
+}
+
+func logQBFailure(action string, account QBAccount, err error) {
+	if details, ok := err.(qBLoginError); ok {
+		log.Printf("qb action=%s alias=%q protocol=%s host=%s port=%d username=%q base_url=%s status=%d body=%q error=%v", action, account.Alias, fallback(account.Protocol, "http"), cleanHost(account.Host), account.Port, account.Username, details.BaseURL, details.StatusCode, details.Body, details.Err)
+		return
+	}
+	log.Printf("qb action=%s alias=%q protocol=%s host=%s port=%d username=%q error=%v", action, account.Alias, fallback(account.Protocol, "http"), cleanHost(account.Host), account.Port, account.Username, err)
+}
+
+func truncateLog(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit] + "..."
 }
 
 func cleanHost(host string) string {
@@ -732,6 +775,7 @@ func writeError(w http.ResponseWriter, status int, err error) {
 }
 
 func writeErrorText(w http.ResponseWriter, status int, message string) {
+	log.Printf("api_error status=%d message=%q", status, message)
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
