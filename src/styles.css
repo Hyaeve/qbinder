@@ -344,7 +344,11 @@ select:focus {
 
 .lane-title h2 {
   min-width: 0;
-  cursor: text;
+  cursor: grab;
+}
+
+.lane-title h2:active {
+  cursor: grabbing;
 }
 
 .lane-title h2::before {
@@ -354,20 +358,6 @@ select:focus {
   flex: 0 0 auto;
   border-radius: 999px;
   background: #8d68ef;
-}
-
-.lane-drag-handle {
-  width: 10px;
-  height: 26px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #9b73f1, #7f61e8);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
-  cursor: grab;
-}
-
-.lane-drag-handle:active {
-  cursor: grabbing;
 }
 
 .lane-name-input {

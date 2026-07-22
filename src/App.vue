@@ -111,13 +111,6 @@
         >
           <div class="lane-title">
             <div class="lane-heading">
-              <span
-                class="lane-drag-handle"
-                draggable="true"
-                title="拖拽移动横栏"
-                @dragstart="startLaneDrag(lane.id, $event)"
-                @dragend="draggingLaneId = ''"
-              ></span>
               <input
                 v-if="editingLaneId === lane.id"
                 :ref="setLaneInput(lane.id)"
@@ -127,7 +120,14 @@
                 @keydown.enter.prevent="finishLaneEdit(lane)"
                 @blur="finishLaneEdit(lane)"
               />
-              <h2 v-else @dblclick="editLane(lane)">{{ lane.name }}</h2>
+              <h2
+                v-else
+                draggable="true"
+                title="拖拽移动横栏，双击编辑名称"
+                @dragstart="startLaneDrag(lane.id, $event)"
+                @dragend="draggingLaneId = ''"
+                @dblclick="editLane(lane)"
+              >{{ lane.name }}</h2>
             </div>
             <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
           </div>
