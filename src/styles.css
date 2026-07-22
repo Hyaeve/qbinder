@@ -322,6 +322,14 @@ select:focus {
   margin-bottom: 16px;
 }
 
+.lane-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
 .lane-title h2,
 .accounts-list h2,
 .setting-panel h2 {
@@ -334,8 +342,12 @@ select:focus {
   font-size: 24px;
 }
 
-.lane-title h2::before,
-.lane-edit::before {
+.lane-title h2 {
+  min-width: 0;
+  cursor: text;
+}
+
+.lane-title h2::before {
   content: '';
   width: 5px;
   height: 24px;
@@ -344,25 +356,27 @@ select:focus {
   background: #8d68ef;
 }
 
-.lane-actions,
-.lane-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.lane-drag-handle {
+  width: 10px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9b73f1, #7f61e8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  cursor: grab;
 }
 
-.lane-actions {
-  flex-shrink: 0;
+.lane-drag-handle:active {
+  cursor: grabbing;
 }
 
-.lane-edit {
-  flex: 1;
-  min-width: 220px;
+.lane-name-input {
+  width: min(420px, 100%);
+  height: 42px;
 }
 
-.lane-edit input {
-  max-width: 360px;
-  height: 40px;
+.lane.dragging {
+  opacity: .72;
 }
 
 .icon-button {
@@ -398,26 +412,6 @@ select:focus {
   inset: 0;
   background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(37,39,49,.32));
   pointer-events: none;
-}
-
-.card-settings {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  color: #fff;
-  background: rgba(54, 54, 66, .42);
-  backdrop-filter: blur(10px);
-}
-
-.card-settings svg {
-  width: 18px;
-  height: 18px;
 }
 
 .card-content {

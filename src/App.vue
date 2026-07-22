@@ -101,25 +101,39 @@
         </form>
 
         <div v-if="activeLanes.length === 0" class="empty-state">当前 qB 账户下还没有横栏。</div>
-        <section v-for="(lane, laneIndex) in activeLanes" :key="lane.id" class="lane">
+        <section
+          v-for="(lane, laneIndex) in activeLanes"
+          :key="lane.id"
+          class="lane"
+          :class="{ dragging: draggingLaneId === lane.id }"
+          @dragover.prevent
+          @drop="dropLane(laneIndex)"
+        >
           <div class="lane-title">
-            <form v-if="editingLaneId === lane.id" class="lane-edit" @submit.prevent="saveLaneName(lane)">
-              <input v-model="editingLaneName" aria-label="横栏名称" />
-              <button class="icon-button" title="保存横栏名称" aria-label="保存横栏名称"><CheckCircle2 /></button>
-              <button type="button" class="icon-button" title="取消编辑" aria-label="取消编辑" @click="cancelLaneEdit"><X /></button>
-            </form>
-            <h2 v-else>{{ lane.name }}</h2>
-            <div class="lane-actions">
-              <button class="icon-button" title="编辑横栏名称" aria-label="编辑横栏名称" @click="editLane(lane)"><Pencil /></button>
-              <button class="icon-button" title="上移横栏" aria-label="上移横栏" :disabled="laneIndex === 0" @click="moveLane(lane, 'up')"><ArrowUp /></button>
-              <button class="icon-button" title="下移横栏" aria-label="下移横栏" :disabled="laneIndex === activeLanes.length - 1" @click="moveLane(lane, 'down')"><ArrowDown /></button>
-              <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
+            <div class="lane-heading">
+              <span
+                class="lane-drag-handle"
+                draggable="true"
+                title="拖拽移动横栏"
+                @dragstart="startLaneDrag(lane.id, $event)"
+                @dragend="draggingLaneId = ''"
+              ></span>
+              <input
+                v-if="editingLaneId === lane.id"
+                :ref="setLaneInput(lane.id)"
+                v-model="editingLaneName"
+                class="lane-name-input"
+                aria-label="横栏名称"
+                @keydown.enter.prevent="finishLaneEdit(lane)"
+                @blur="finishLaneEdit(lane)"
+              />
+              <h2 v-else @dblclick="editLane(lane)">{{ lane.name }}</h2>
             </div>
+            <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
           </div>
           <div class="card-row">
-            <article v-for="card in cardsForLane(lane.id)" :key="card.id" class="binder-card" :style="coverStyle(card)">
+            <article v-for="card in cardsForLane(lane.id)" :key="card.id" class="binder-card" :style="coverStyle(card)" @contextmenu.prevent="editingCard = cloneCard(card)">
               <input :ref="setFileInput(card.id)" type="file" multiple accept=".torrent,application/x-bittorrent" hidden @change="uploadFiles(card, $event)" />
-              <button class="card-settings" title="卡片设置" @click="editingCard = cloneCard(card)"><Settings /></button>
               <div class="card-content">
                 <FolderDown />
                 <h3>{{ card.name }}</h3>
@@ -194,8 +208,6 @@
 
 <script setup>
 import {
-  ArrowDown,
-  ArrowUp,
   Boxes,
   CheckCircle2,
   FolderDown,
@@ -204,7 +216,6 @@ import {
   Layers,
   Loader2,
   LogOut,
-  Pencil,
   Plus,
   Save,
   Settings,
@@ -212,7 +223,7 @@ import {
   UploadCloud,
   X
 } from '@lucide/vue';
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
 const accentColors = ['#7d8fd7', '#8eb7a4', '#d0a49b', '#bfa6d9', '#d7bc76', '#8fb7c8', '#c6b4a4'];
@@ -236,6 +247,9 @@ const fileInputs = reactive({});
 const editQbMessage = ref('');
 const editingLaneId = ref('');
 const editingLaneName = ref('');
+const committingLaneEdit = ref(false);
+const draggingLaneId = ref('');
+const laneInputs = reactive({});
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -364,22 +378,54 @@ async function addLane() {
 function editLane(lane) {
   editingLaneId.value = lane.id;
   editingLaneName.value = lane.name;
+  nextTick(() => {
+    laneInputs[lane.id]?.focus();
+    laneInputs[lane.id]?.select();
+  });
 }
 
-function cancelLaneEdit() {
+function setLaneInput(id) {
+  return (element) => {
+    if (element) laneInputs[id] = element;
+  };
+}
+
+function resetLaneEdit() {
   editingLaneId.value = '';
   editingLaneName.value = '';
+  committingLaneEdit.value = false;
 }
 
-async function saveLaneName(lane) {
+async function finishLaneEdit(lane) {
+  if (committingLaneEdit.value || editingLaneId.value !== lane.id) return;
+  committingLaneEdit.value = true;
   const name = editingLaneName.value.trim();
-  if (!name) return;
-  config.value = await api(`/api/lanes/${lane.id}`, { method: 'PUT', body: JSON.stringify({ name }) });
-  cancelLaneEdit();
+  if (!name) {
+    if (window.confirm(`确认删除横栏“${lane.name}”？该横栏下的卡片也会删除。`)) {
+      config.value = await api(`/api/lanes/${lane.id}`, { method: 'DELETE' });
+    }
+    resetLaneEdit();
+    return;
+  }
+  if (name !== lane.name && window.confirm(`确认将横栏“${lane.name}”改名为“${name}”？`)) {
+    config.value = await api(`/api/lanes/${lane.id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+  }
+  resetLaneEdit();
 }
 
-async function moveLane(lane, direction) {
-  config.value = await api(`/api/lanes/${lane.id}`, { method: 'PUT', body: JSON.stringify({ direction }) });
+function startLaneDrag(id, event) {
+  draggingLaneId.value = id;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', id);
+}
+
+async function dropLane(targetIndex) {
+  if (!draggingLaneId.value) return;
+  const sourceId = draggingLaneId.value;
+  const sourceIndex = activeLanes.value.findIndex((lane) => lane.id === sourceId);
+  draggingLaneId.value = '';
+  if (sourceIndex < 0 || sourceIndex === targetIndex) return;
+  config.value = await api(`/api/lanes/${sourceId}`, { method: 'PUT', body: JSON.stringify({ targetIndex }) });
 }
 
 async function createCard(laneId) {

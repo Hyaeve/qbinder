@@ -473,24 +473,23 @@ func (s *Server) handleLaneSubroutes(w http.ResponseWriter, r *http.Request, con
 		s.updateLane(w, r, config, id)
 		return
 	}
+	if r.Method == http.MethodDelete {
+		s.deleteLane(w, config, id)
+		return
+	}
 	methodNotAllowed(w)
 }
 
 func (s *Server) updateLane(w http.ResponseWriter, r *http.Request, config Config, id string) {
 	var payload struct {
-		Name      string `json:"name"`
-		Direction string `json:"direction"`
+		Name        string `json:"name"`
+		Direction   string `json:"direction"`
+		TargetIndex *int   `json:"targetIndex"`
 	}
 	if !decodeJSON(w, r, &payload) {
 		return
 	}
-	laneIndex := -1
-	for index := range config.Lanes {
-		if config.Lanes[index].ID == id {
-			laneIndex = index
-			break
-		}
-	}
+	laneIndex := findLaneIndex(config.Lanes, id)
 	if laneIndex < 0 {
 		writeErrorText(w, http.StatusNotFound, "Lane not found")
 		return
@@ -498,26 +497,34 @@ func (s *Server) updateLane(w http.ResponseWriter, r *http.Request, config Confi
 	if strings.TrimSpace(payload.Name) != "" {
 		config.Lanes[laneIndex].Name = strings.TrimSpace(payload.Name)
 	}
-	switch payload.Direction {
-	case "up":
-		for index := laneIndex - 1; index >= 0; index-- {
-			if config.Lanes[index].QBID == config.Lanes[laneIndex].QBID {
-				config.Lanes[index], config.Lanes[laneIndex] = config.Lanes[laneIndex], config.Lanes[index]
-				break
-			}
+	if payload.TargetIndex != nil {
+		config.Lanes = moveLaneToIndex(config.Lanes, laneIndex, *payload.TargetIndex)
+	} else {
+		switch payload.Direction {
+		case "up":
+			config.Lanes = moveLaneByDirection(config.Lanes, laneIndex, -1)
+		case "down":
+			config.Lanes = moveLaneByDirection(config.Lanes, laneIndex, 1)
+		case "", "none":
+		default:
+			writeErrorText(w, http.StatusBadRequest, "Invalid lane direction")
+			return
 		}
-	case "down":
-		for index := laneIndex + 1; index < len(config.Lanes); index++ {
-			if config.Lanes[index].QBID == config.Lanes[laneIndex].QBID {
-				config.Lanes[index], config.Lanes[laneIndex] = config.Lanes[laneIndex], config.Lanes[index]
-				break
-			}
-		}
-	case "", "none":
-	default:
-		writeErrorText(w, http.StatusBadRequest, "Invalid lane direction")
+	}
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) deleteLane(w http.ResponseWriter, config Config, id string) {
+	if findLaneIndex(config.Lanes, id) < 0 {
+		writeErrorText(w, http.StatusNotFound, "Lane not found")
+		return
+	}
+	config.Lanes = filterLaneByID(config.Lanes, id)
+	config.Cards = filterCardsByLane(config.Cards, id)
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -883,6 +890,61 @@ func findCard(cards []Card, id string) (Card, bool) {
 	return Card{}, false
 }
 
+func findLaneIndex(lanes []Lane, id string) int {
+	for index := range lanes {
+		if lanes[index].ID == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func moveLaneByDirection(lanes []Lane, laneIndex int, step int) []Lane {
+	for index := laneIndex + step; index >= 0 && index < len(lanes); index += step {
+		if lanes[index].QBID == lanes[laneIndex].QBID {
+			lanes[index], lanes[laneIndex] = lanes[laneIndex], lanes[index]
+			break
+		}
+	}
+	return lanes
+}
+
+func moveLaneToIndex(lanes []Lane, laneIndex int, targetIndex int) []Lane {
+	lane := lanes[laneIndex]
+	if targetIndex < 0 {
+		targetIndex = 0
+	}
+	currentLocalIndex := 0
+	for index := 0; index < laneIndex; index++ {
+		if lanes[index].QBID == lane.QBID {
+			currentLocalIndex++
+		}
+	}
+	if currentLocalIndex < targetIndex {
+		targetIndex--
+	}
+	if targetIndex < 0 {
+		targetIndex = 0
+	}
+	withoutLane := append(append([]Lane{}, lanes[:laneIndex]...), lanes[laneIndex+1:]...)
+	insertAt := len(withoutLane)
+	localIndex := 0
+	for index := range withoutLane {
+		if withoutLane[index].QBID != lane.QBID {
+			continue
+		}
+		if localIndex == targetIndex {
+			insertAt = index
+			break
+		}
+		localIndex++
+	}
+	withoutLane = append(withoutLane, Lane{})
+	copy(withoutLane[insertAt+1:], withoutLane[insertAt:])
+	withoutLane[insertAt] = lane
+	return withoutLane
+}
+
 func filterQB(accounts []QBAccount, id string) []QBAccount {
 	next := []QBAccount{}
 	for _, item := range accounts {
@@ -903,10 +965,30 @@ func filterLanes(lanes []Lane, qbID string) []Lane {
 	return next
 }
 
+func filterLaneByID(lanes []Lane, id string) []Lane {
+	next := []Lane{}
+	for _, item := range lanes {
+		if item.ID != id {
+			next = append(next, item)
+		}
+	}
+	return next
+}
+
 func filterCardsByQB(cards []Card, qbID string) []Card {
 	next := []Card{}
 	for _, item := range cards {
 		if item.QBID != qbID {
+			next = append(next, item)
+		}
+	}
+	return next
+}
+
+func filterCardsByLane(cards []Card, laneID string) []Card {
+	next := []Card{}
+	for _, item := range cards {
+		if item.LaneID != laneID {
 			next = append(next, item)
 		}
 	}
