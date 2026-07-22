@@ -1,23 +1,24 @@
-FROM node:22-alpine AS deps
+FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
-
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+RUN npm ci
+COPY index.html vite.config.js ./
+COPY public ./public
+COPY src ./src
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM golang:1.23-alpine AS backend
 WORKDIR /app
-ENV NODE_ENV=production
+COPY go.mod ./
+COPY server ./server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/qbinder ./server
+
+FROM alpine:3.20 AS runner
+WORKDIR /app
 ENV PORT=18086
 ENV QBINDER_DATA_DIR=/data
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/server ./server
-COPY --from=build /app/package.json ./package.json
 RUN mkdir -p /data
+COPY --from=backend /out/qbinder ./qbinder
+COPY --from=frontend /app/dist ./dist
 EXPOSE 18086
-CMD ["npm", "start"]
+CMD ["./qbinder"]

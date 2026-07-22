@@ -15,12 +15,20 @@ qBinder 是 qBittorrent Docker 的助手面板，用卡片把不同 qBittorrent 
 
 ## 本地开发
 
+前端使用 Vue + Vite，后端使用 Go 标准库。
+
 ```bash
 npm install
 npm run dev
 ```
 
-前端开发服务默认由 Vite 提供，后端 API 默认监听 `8080`。
+另开一个终端启动后端：
+
+```bash
+go run ./server
+```
+
+前端开发服务由 Vite 提供，`/api` 会代理到 Go 后端，后端默认监听 `18086`。
 
 ## Docker 运行
 
@@ -37,7 +45,7 @@ docker compose up -d
 工作流位于 `.github/workflows/docker-image.yml`。
 
 - 推送到 `main` 分支会构建并推送 `ghcr.io/hyaeve/qbinder:latest`
-- 推送 `v*.*.*` 标签会额外生成版本标签，例如 `v1.0.0`、`1.0.0`、`1.0`
+- 推送 `v*.*` 或 `v*.*.*` 标签会额外生成版本标签，例如 `v0.1`、`0.1`、`v1.0.0`、`1.0.0`、`1.0`
 - Pull Request 只构建验证，不推送镜像
 - 支持 `linux/amd64` 和 `linux/arm64`
 

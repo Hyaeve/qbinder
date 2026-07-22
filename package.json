@@ -4,28 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
-    "server:dev": "node --watch server/index.js",
-    "client:dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "start": "node server/index.js"
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "axios": "latest",
-    "bcryptjs": "latest",
-    "cookie-parser": "latest",
-    "cors": "latest",
-    "express": "latest",
-    "form-data": "latest",
-    "lucide-react": "latest",
-    "multer": "latest",
+    "@vitejs/plugin-vue": "latest",
     "vite": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "uuid": "latest"
+    "vue": "latest",
+    "@lucide/vue": "latest"
   },
-  "devDependencies": {
-    "concurrently": "latest"
-  }
+  "devDependencies": {}
 }
