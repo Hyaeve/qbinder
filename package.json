@@ -1,0 +1,31 @@
+{
+  "name": "qbinder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "node --watch server/index.js",
+    "client:dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "axios": "latest",
+    "bcryptjs": "latest",
+    "cookie-parser": "latest",
+    "cors": "latest",
+    "express": "latest",
+    "form-data": "latest",
+    "lucide-react": "latest",
+    "multer": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "uuid": "latest"
+  },
+  "devDependencies": {
+    "concurrently": "latest"
+  }
+}

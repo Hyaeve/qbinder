@@ -1,0 +1,12 @@
+services:
+  nestify:
+    image: ghcr.io/hyaeve/qbinder:latest
+    container_name: qBinder
+    network_mode: bridge
+    ports:
+      - 18086:18086
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: Asia/Shanghai
+    restart: unless-stopped
