@@ -196,7 +196,7 @@ const tagInput = ref('');
 const uploadingCardId = ref('');
 const fileInputs = reactive({});
 
-const loginForm = reactive({ username: 'qBinder', password: 'qBinder' });
+const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
 const qbForm = reactive({ alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
 
