@@ -682,16 +682,19 @@ func loginQB(account QBAccount) (string, string, error) {
 	defer response.Body.Close()
 	content, _ := io.ReadAll(response.Body)
 	body := strings.TrimSpace(string(content))
-	logQBEvent("login_response", account, fmt.Sprintf("status=%d body=%q cookies=%d", response.StatusCode, truncateLog(body, 500), len(response.Cookies())))
-	if response.StatusCode != http.StatusOK || body != "Ok." {
-		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: truncateLog(body, 500)}
-	}
 	cookies := []string{}
 	for _, cookie := range response.Cookies() {
 		cookies = append(cookies, cookie.Name+"="+cookie.Value)
 	}
+	logQBEvent("login_response", account, fmt.Sprintf("status=%d body=%q cookies=%d", response.StatusCode, truncateLog(body, 500), len(cookies)))
 	if len(cookies) == 0 {
-		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: "login succeeded but qBittorrent did not return a session cookie"}
+		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: "qBittorrent did not return a session cookie; response body=" + truncateLog(body, 500)}
+	}
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: truncateLog(body, 500)}
+	}
+	if response.StatusCode == http.StatusOK && body != "Ok." {
+		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: truncateLog(body, 500)}
 	}
 	return baseURL, strings.Join(cookies, "; "), nil
 }
