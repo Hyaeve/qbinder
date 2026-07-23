@@ -211,11 +211,8 @@ func (s *Server) ensureConfig() error {
 	if err := os.MkdirAll(filepath.Dir(s.configPath), 0700); err != nil {
 		return err
 	}
-	if err := os.Chmod(filepath.Dir(s.configPath), 0700); err != nil {
-		return err
-	}
 	if _, err := os.Stat(s.configPath); err == nil {
-		return os.Chmod(s.configPath, 0600)
+		return nil
 	}
 	config := Config{
 		Auth:     AuthConfig{Username: "qBinder", PasswordHash: hashPassword("qBinder")},
@@ -260,10 +257,6 @@ func (s *Server) writeConfigLocked(config Config) error {
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0600); err != nil {
-		temporary.Close()
-		return err
-	}
 	if _, err := temporary.Write(content); err != nil {
 		temporary.Close()
 		return err
