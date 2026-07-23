@@ -96,6 +96,15 @@ type PublicConfig struct {
 	TagPool      []string          `json:"tagPool"`
 }
 
+type BackupConfig struct {
+	Version      int         `json:"version"`
+	CreatedAt    string      `json:"createdAt"`
+	QBittorrents []QBAccount `json:"qbittorrents"`
+	Lanes        []Lane      `json:"lanes"`
+	Cards        []Card      `json:"cards"`
+	TagPool      []string    `json:"tagPool"`
+}
+
 type Server struct {
 	mu         sync.Mutex
 	configPath string
@@ -135,6 +144,8 @@ func main() {
 	mux.HandleFunc("/api/auth/logout", server.withAuth(server.handleLogout))
 	mux.HandleFunc("/api/auth/credentials", server.withAuth(server.handleCredentials))
 	mux.HandleFunc("/api/config", server.withAuth(server.handleConfig))
+	mux.HandleFunc("/api/config/backup", server.withAuth(server.handleConfigBackup))
+	mux.HandleFunc("/api/config/restore", server.withAuth(server.handleConfigRestore))
 	mux.HandleFunc("/api/qb/test", server.withAuth(server.handleQBTest))
 	mux.HandleFunc("/api/qb", server.withAuth(server.handleQBCreate))
 	mux.HandleFunc("/api/qb/", server.withAuth(server.handleQBDelete))
@@ -340,6 +351,43 @@ func (s *Server) handleCredentials(w http.ResponseWriter, r *http.Request, confi
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request, config Config, session Session) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleConfigBackup(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	backup := BackupConfig{
+		Version:      1,
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		QBittorrents: config.QBittorrents,
+		Lanes:        config.Lanes,
+		Cards:        config.Cards,
+		TagPool:      config.TagPool,
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="qbinder-backup.json"`)
+	writeJSON(w, http.StatusOK, backup)
+}
+
+func (s *Server) handleConfigRestore(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var backup BackupConfig
+	if !decodeJSON(w, r, &backup) {
+		return
+	}
+	config.QBittorrents = normalizeBackupQBAccounts(backup.QBittorrents)
+	config.Lanes = normalizeBackupLanes(backup.Lanes, config.QBittorrents)
+	config.Cards = normalizeBackupCards(backup.Cards, config.QBittorrents, config.Lanes)
+	config.TagPool = mergeTags(backup.TagPool, collectCardTags(config.Cards))
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, publicConfig(config))
@@ -906,6 +954,106 @@ func mergeTags(pool []string, tags []string) []string {
 		}
 	}
 	return merged
+}
+
+func collectCardTags(cards []Card) []string {
+	tags := []string{}
+	for _, card := range cards {
+		tags = append(tags, card.Tags...)
+	}
+	return tags
+}
+
+func normalizeBackupQBAccounts(accounts []QBAccount) []QBAccount {
+	normalized := []QBAccount{}
+	seen := map[string]bool{}
+	for _, account := range accounts {
+		item := account
+		item.ID = strings.TrimSpace(item.ID)
+		if item.ID == "" || seen[item.ID] {
+			item.ID = randomID()
+		}
+		seen[item.ID] = true
+		item.Alias = strings.TrimSpace(item.Alias)
+		if item.Alias == "" {
+			item.Alias = "qBittorrent"
+		}
+		item.Protocol = fallback(item.Protocol, "http")
+		item.Host = cleanHost(item.Host)
+		item.Username = strings.TrimSpace(item.Username)
+		item.Cookie = ""
+		item.LastError = ""
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
+func normalizeBackupLanes(lanes []Lane, accounts []QBAccount) []Lane {
+	accountIDs := map[string]bool{}
+	for _, account := range accounts {
+		accountIDs[account.ID] = true
+	}
+	normalized := []Lane{}
+	seen := map[string]bool{}
+	for _, lane := range lanes {
+		if !accountIDs[lane.QBID] {
+			continue
+		}
+		item := lane
+		item.ID = strings.TrimSpace(item.ID)
+		if item.ID == "" || seen[item.ID] {
+			item.ID = randomID()
+		}
+		seen[item.ID] = true
+		item.Name = strings.TrimSpace(item.Name)
+		if item.Name == "" {
+			item.Name = "未命名横栏"
+		}
+		if strings.TrimSpace(item.CreatedAt) == "" {
+			item.CreatedAt = time.Now().Format(time.RFC3339)
+		}
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
+func normalizeBackupCards(cards []Card, accounts []QBAccount, lanes []Lane) []Card {
+	accountIDs := map[string]bool{}
+	for _, account := range accounts {
+		accountIDs[account.ID] = true
+	}
+	laneIDs := map[string]bool{}
+	for _, lane := range lanes {
+		laneIDs[lane.ID] = true
+	}
+	normalized := []Card{}
+	seen := map[string]bool{}
+	for _, card := range cards {
+		if !accountIDs[card.QBID] || !laneIDs[card.LaneID] {
+			continue
+		}
+		item := card
+		item.ID = strings.TrimSpace(item.ID)
+		if item.ID == "" || seen[item.ID] {
+			item.ID = randomID()
+		}
+		seen[item.ID] = true
+		item.Name = strings.TrimSpace(item.Name)
+		if item.Name == "" {
+			item.Name = "未命名卡片"
+		}
+		if item.Tags == nil {
+			item.Tags = []string{}
+		}
+		if strings.TrimSpace(item.Cover.Type) == "" {
+			item.Cover = Cover{Type: "monet", Value: ""}
+		}
+		if strings.TrimSpace(item.CreatedAt) == "" {
+			item.CreatedAt = time.Now().Format(time.RFC3339)
+		}
+		normalized = append(normalized, item)
+	}
+	return normalized
 }
 
 func findQB(accounts []QBAccount, id string) (QBAccount, bool) {

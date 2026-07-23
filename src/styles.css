@@ -540,6 +540,30 @@ select:focus {
   box-shadow: 0 16px 38px rgba(76, 76, 90, .08);
 }
 
+.backup-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.backup-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.backup-summary span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f2effd;
+  color: #685f87;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.backup-panel .button-row {
+  justify-content: space-between;
+}
+
 .setting-panel h2 svg {
   width: 22px;
   height: 22px;

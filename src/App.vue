@@ -64,6 +64,22 @@
             <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
           </div>
         </section>
+
+        <section class="setting-panel backup-panel">
+          <h2><Save />配置备份</h2>
+          <div class="backup-summary">
+            <span>{{ config.qbittorrents.length }} 个 qB 账户</span>
+            <span>{{ config.lanes.length }} 个横栏</span>
+            <span>{{ config.cards.length }} 张卡片</span>
+            <span>{{ config.tagPool.length }} 个标签</span>
+          </div>
+          <p v-if="backupMessage" :class="backupOk ? 'form-ok' : 'form-error'">{{ backupMessage }}</p>
+          <input ref="backupFileInput" type="file" accept="application/json,.json" hidden @change="restoreBackup" />
+          <div class="button-row">
+            <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份当前配置</button>
+            <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份配置</button>
+          </div>
+        </section>
       </section>
 
       <section class="accounts-list">
@@ -218,6 +234,7 @@
 import {
   Boxes,
   CheckCircle2,
+  Download,
   FolderDown,
   Image as ImageIcon,
   KeyRound,
@@ -228,6 +245,7 @@ import {
   Save,
   Settings,
   Tags,
+  Upload,
   UploadCloud,
   X
 } from '@lucide/vue';
@@ -258,6 +276,10 @@ const editingLaneName = ref('');
 const committingLaneEdit = ref(false);
 const draggingLaneId = ref('');
 const laneInputs = reactive({});
+const backupFileInput = ref(null);
+const backupBusy = ref(false);
+const backupMessage = ref('');
+const backupOk = ref(false);
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -324,6 +346,55 @@ async function saveCredentials() {
   await api('/api/auth/credentials', { method: 'PUT', body: JSON.stringify(credentialForm) });
   config.value = { ...config.value, username: credentialForm.username };
   credentialForm.password = '';
+}
+
+function downloadJSON(name, value) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportBackup() {
+  backupBusy.value = true;
+  backupMessage.value = '';
+  backupOk.value = false;
+  try {
+    const backup = await api('/api/config/backup');
+    const date = new Date().toISOString().slice(0, 10);
+    downloadJSON(`qbinder-backup-${date}.json`, backup);
+    backupOk.value = true;
+    backupMessage.value = '已生成备份文件';
+  } catch (requestError) {
+    backupMessage.value = requestError.message;
+  } finally {
+    backupBusy.value = false;
+  }
+}
+
+async function restoreBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  backupBusy.value = true;
+  backupMessage.value = '';
+  backupOk.value = false;
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!window.confirm('确认用备份覆盖当前 qB 账户、横栏、卡片和标签池？')) return;
+    config.value = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(backup) });
+    activeQbId.value = config.value.qbittorrents[0]?.id || '';
+    backupOk.value = true;
+    backupMessage.value = '备份已加载';
+  } catch (requestError) {
+    backupMessage.value = requestError.message || '备份文件解析失败';
+  } finally {
+    backupBusy.value = false;
+    event.target.value = '';
+  }
 }
 
 async function testQb() {
