@@ -414,7 +414,8 @@ async function addQb() {
     config.value = await api('/api/qb', { method: 'POST', body: JSON.stringify({ ...qbForm, port: Number(qbForm.port) }) });
     Object.assign(qbForm, { alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
     verified.value = false;
-    message.value = '已添加 qB 账户，可稍后编辑并重新验证';
+    const added = config.value.qbittorrents.at(-1);
+    message.value = added?.lastVerifiedAt ? '已添加 qB 账户，连接验证成功' : '已添加 qB 账户，连接未验证，详细原因见容器日志';
   } catch (requestError) {
     message.value = requestError.message;
   }

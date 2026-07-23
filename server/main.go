@@ -430,9 +430,18 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 	}
 	account := normalizeQBAccount(payload)
 	account.ID = randomID()
-	account.LastError = ""
+	if _, cookie, err := loginQB(account); err != nil {
+		account.Cookie = ""
+		account.LastVerifiedAt = ""
+		account.LastError = err.Error()
+		logQBFailure("account_verify_on_save", account, err)
+	} else {
+		account.Cookie = cookie
+		account.LastVerifiedAt = time.Now().Format(time.RFC3339)
+		account.LastError = ""
+		logQBEvent("account_verified_on_save", account, "qBittorrent account saved and verified")
+	}
 	config.QBittorrents = append(config.QBittorrents, account)
-	logQBEvent("account_saved", account, "qBittorrent account saved without mandatory verification")
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
