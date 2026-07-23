@@ -371,12 +371,15 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, config Con
 		}
 	}
 	config.Sessions = next
+	// Always clear the browser session first. A read-only or permission-restricted
+	// bind mount must never prevent the current browser from signing out.
+	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	if err := s.writeConfig(config); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		log.Printf("logout session persistence failed: %v", err)
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "persisted": false})
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "persisted": true})
 }
 
 func (s *Server) handleCredentials(w http.ResponseWriter, r *http.Request, config Config, session Session) {

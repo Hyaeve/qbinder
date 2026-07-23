@@ -17,13 +17,8 @@ FROM alpine:3.20 AS runner
 WORKDIR /app
 ENV PORT=18086
 ENV QBINDER_DATA_DIR=/data
-ENV TMPDIR=/data/tmp
-RUN addgroup -S -g 10001 qbinder \
-    && adduser -S -D -H -u 10001 -G qbinder qbinder \
-    && mkdir -p /data/tmp \
-    && chown -R qbinder:qbinder /app /data
-COPY --from=backend --chown=qbinder:qbinder /out/qbinder ./qbinder
-COPY --from=frontend --chown=qbinder:qbinder /app/dist ./dist
-USER qbinder
+RUN mkdir -p /data
+COPY --from=backend /out/qbinder ./qbinder
+COPY --from=frontend /app/dist ./dist
 EXPOSE 18086
 CMD ["./qbinder"]
