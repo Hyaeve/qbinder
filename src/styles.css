@@ -45,45 +45,46 @@ button:disabled {
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(circle at 18% 18%, rgba(216, 232, 226, .78), transparent 34%),
-    radial-gradient(circle at 82% 20%, rgba(234, 223, 210, .72), transparent 33%),
-    radial-gradient(circle at 28% 82%, rgba(215, 221, 234, .76), transparent 36%),
-    radial-gradient(circle at 78% 78%, rgba(232, 217, 221, .72), transparent 34%),
-    linear-gradient(180deg, #fbfaf4 0%, #f5f6f2 52%, #f7f6ef 100%);
+    radial-gradient(circle at 16% 18%, rgba(132, 166, 218, .58), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(213, 181, 102, .52), transparent 32%),
+    radial-gradient(circle at 30% 84%, rgba(118, 163, 126, .48), transparent 36%),
+    radial-gradient(circle at 78% 78%, rgba(164, 134, 196, .5), transparent 35%),
+    linear-gradient(180deg, #f6f3e9 0%, #edf2ea 50%, #f1edf3 100%);
 }
 
 .login-page::before,
 .login-page::after {
   content: "";
   position: absolute;
-  inset: -24%;
+  inset: -28%;
   pointer-events: none;
 }
 
 .login-page::before {
   background:
-    radial-gradient(closest-side at 18% 24%, rgba(216, 232, 226, .62), transparent 72%),
-    radial-gradient(closest-side at 48% 18%, rgba(231, 224, 201, .58), transparent 70%),
-    radial-gradient(closest-side at 78% 32%, rgba(217, 210, 231, .54), transparent 72%),
-    radial-gradient(closest-side at 24% 76%, rgba(214, 227, 234, .58), transparent 74%),
-    radial-gradient(closest-side at 70% 78%, rgba(234, 223, 210, .62), transparent 72%);
-  background-size: 52% 48%, 46% 42%, 50% 46%, 48% 44%, 54% 50%;
-  background-position: 0% 12%, 42% 0%, 100% 18%, 8% 88%, 86% 82%;
-  filter: blur(28px) saturate(86%);
-  opacity: .9;
-  transform: scale(1.08);
-  animation: monetDrift 22s ease-in-out infinite alternate;
+    radial-gradient(closest-side at 14% 22%, rgba(98, 135, 197, .52), transparent 72%),
+    radial-gradient(closest-side at 42% 16%, rgba(205, 177, 83, .46), transparent 70%),
+    radial-gradient(closest-side at 76% 30%, rgba(145, 116, 181, .48), transparent 72%),
+    radial-gradient(closest-side at 24% 76%, rgba(104, 155, 115, .48), transparent 74%),
+    radial-gradient(closest-side at 70% 80%, rgba(198, 128, 116, .34), transparent 72%),
+    radial-gradient(closest-side at 92% 62%, rgba(90, 143, 188, .34), transparent 72%);
+  background-size: 56% 50%, 48% 44%, 52% 48%, 50% 46%, 56% 52%, 42% 44%;
+  background-position: 0% 14%, 38% 0%, 98% 18%, 8% 88%, 86% 82%, 104% 58%;
+  filter: blur(30px) saturate(78%);
+  opacity: .94;
+  transform: scale(1.1);
+  animation: monetDrift 42s ease-in-out infinite alternate;
 }
 
 .login-page::after {
   background:
-    linear-gradient(112deg, transparent 0 12%, rgba(255, 255, 255, .46) 12% 17%, transparent 17% 38%, rgba(255, 255, 255, .34) 38% 43%, transparent 43% 100%),
-    linear-gradient(28deg, rgba(216, 232, 226, .24), transparent 32%, rgba(232, 217, 221, .22) 58%, transparent 82%),
-    radial-gradient(circle at 60% 45%, rgba(255, 255, 255, .48), transparent 42%);
+    linear-gradient(112deg, transparent 0 10%, rgba(255, 255, 255, .36) 10% 15%, transparent 15% 38%, rgba(255, 255, 255, .26) 38% 43%, transparent 43% 100%),
+    linear-gradient(30deg, rgba(120, 158, 209, .24), transparent 30%, rgba(214, 184, 92, .2) 48%, rgba(130, 166, 126, .2) 62%, transparent 84%),
+    radial-gradient(circle at 60% 45%, rgba(155, 132, 186, .22), transparent 42%);
   opacity: .72;
-  filter: blur(12px) saturate(80%);
-  transform: scale(1.04);
-  animation: monetWash 30s ease-in-out infinite alternate;
+  filter: blur(14px) saturate(76%);
+  transform: scale(1.06);
+  animation: monetWash 58s ease-in-out infinite alternate;
 }
 
 .loading-screen {
@@ -246,31 +247,31 @@ select:focus {
 
 @keyframes monetDrift {
   0% {
-    background-position: 0% 12%, 42% 0%, 100% 18%, 8% 88%, 86% 82%;
-    transform: translate3d(-2%, -1%, 0) scale(1.08) rotate(-.8deg);
+    background-position: 0% 14%, 38% 0%, 98% 18%, 8% 88%, 86% 82%, 104% 58%;
+    transform: translate3d(-2%, -1%, 0) scale(1.1) rotate(-.7deg);
   }
-  45% {
-    background-position: 10% 4%, 36% 16%, 92% 8%, 0% 76%, 78% 94%;
-    transform: translate3d(1%, 2%, 0) scale(1.13) rotate(.7deg);
+  42% {
+    background-position: 12% 4%, 32% 18%, 88% 8%, 0% 76%, 76% 94%, 92% 48%;
+    transform: translate3d(1%, 2%, 0) scale(1.15) rotate(.6deg);
   }
   100% {
-    background-position: 18% 18%, 54% 8%, 82% 28%, 16% 96%, 96% 72%;
-    transform: translate3d(3%, -2%, 0) scale(1.1) rotate(-.4deg);
+    background-position: 20% 20%, 56% 8%, 80% 30%, 18% 96%, 98% 70%, 84% 70%;
+    transform: translate3d(3%, -2%, 0) scale(1.12) rotate(-.35deg);
   }
 }
 
 @keyframes monetWash {
   0% {
-    opacity: .56;
-    transform: translate3d(-5%, -3%, 0) scale(1.04);
+    opacity: .58;
+    transform: translate3d(-5%, -3%, 0) scale(1.06);
   }
   50% {
-    opacity: .78;
-    transform: translate3d(2%, 2%, 0) scale(1.08);
+    opacity: .76;
+    transform: translate3d(2%, 2%, 0) scale(1.1);
   }
   100% {
-    opacity: .64;
-    transform: translate3d(5%, 3%, 0) scale(1.06);
+    opacity: .62;
+    transform: translate3d(5%, 3%, 0) scale(1.08);
   }
 }
 

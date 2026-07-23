@@ -7,7 +7,7 @@
         <img src="/logo.svg" alt="qBinder" />
         <div>
           <strong>qBinder</strong>
-          <p class="brand-note">把下载、分类和封面放在一起。</p>
+          <p class="brand-note">qB的种子快捷分类添加助手。</p>
         </div>
       </div>
       <form class="login-form" @submit.prevent="login">
@@ -23,7 +23,7 @@
     <aside class="sidebar">
       <div class="brand-lockup">
         <img src="/logo.svg" alt="qBinder" />
-        <div><strong>qBinder</strong><span>v0.1</span></div>
+        <div><strong>qBinder</strong><span>v1.0</span></div>
       </div>
       <nav>
         <button :class="{ active: view === 'cards' }" @click="view = 'cards'"><Boxes />卡片</button>
