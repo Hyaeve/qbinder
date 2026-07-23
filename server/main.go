@@ -1,9 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthConfig struct {
@@ -105,6 +109,27 @@ type BackupConfig struct {
 	TagPool      []string    `json:"tagPool"`
 }
 
+const (
+	maxJSONBodySize   = 1 << 20
+	maxUploadBodySize = 32 << 20
+	maxUploadFiles    = 50
+	maxQBResponseSize = 64 << 10
+	sessionLifetime   = 14 * 24 * time.Hour
+)
+
+var qBHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		MaxIdleConns:          32,
+		MaxIdleConnsPerHost:   8,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   8 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	},
+}
+
 type Server struct {
 	mu         sync.Mutex
 	configPath string
@@ -156,8 +181,18 @@ func main() {
 	mux.HandleFunc("/api/tags/", server.withAuth(server.handleTagSubroutes))
 	mux.HandleFunc("/", server.handleStatic)
 
+	handler := securityHeaders(mux)
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       45 * time.Second,
+		WriteTimeout:      45 * time.Second,
+		IdleTimeout:       90 * time.Second,
+		MaxHeaderBytes:    16 << 10,
+	}
 	fmt.Printf("qBinder listening on %s\n", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		panic(err)
 	}
 }
@@ -173,11 +208,14 @@ func env(key string, fallback string) string {
 func (s *Server) ensureConfig() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(s.configPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.configPath), 0700); err != nil {
+		return err
+	}
+	if err := os.Chmod(filepath.Dir(s.configPath), 0700); err != nil {
 		return err
 	}
 	if _, err := os.Stat(s.configPath); err == nil {
-		return nil
+		return os.Chmod(s.configPath, 0600)
 	}
 	config := Config{
 		Auth:     AuthConfig{Username: "qBinder", PasswordHash: hashPassword("qBinder")},
@@ -215,7 +253,29 @@ func (s *Server) writeConfigLocked(config Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.configPath, content, 0644)
+	dir := filepath.Dir(s.configPath)
+	temporary, err := os.CreateTemp(dir, ".config-*")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0600); err != nil {
+		temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(content); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, s.configPath)
 }
 
 func normalizeConfig(config Config) Config {
@@ -289,20 +349,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if payload.Username != config.Auth.Username || !verifyPassword(payload.Password, config.Auth.PasswordHash) {
-		if !(strings.HasPrefix(config.Auth.PasswordHash, "$2") && payload.Password == "qBinder") {
-			writeErrorText(w, http.StatusUnauthorized, "Invalid credentials")
-			return
-		}
+		writeErrorText(w, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+	if passwordNeedsUpgrade(config.Auth.PasswordHash) {
 		config.Auth.PasswordHash = hashPassword(payload.Password)
 	}
 	token := randomID()
-	session := Session{Token: token, ExpiresAt: time.Now().Add(14 * 24 * time.Hour)}
+	session := Session{Token: token, ExpiresAt: time.Now().Add(sessionLifetime)}
 	config.Sessions = append(activeSessions(config.Sessions), session)
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 14 * 24 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(sessionLifetime.Seconds())})
 	writeJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"username": config.Auth.Username}, "config": publicConfig(config)})
 }
 
@@ -322,7 +382,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, config Con
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: "", Path: "/", MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: "qbinder_session", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -715,54 +775,76 @@ func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Confi
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := r.ParseMultipartForm(512 << 20); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBodySize)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		writeErrorText(w, http.StatusBadRequest, "Invalid or oversized torrent upload")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	files := r.MultipartForm.File["torrents"]
-	if len(files) == 0 {
-		writeErrorText(w, http.StatusBadRequest, "No torrent files selected")
+	if len(files) == 0 || len(files) > maxUploadFiles {
+		writeErrorText(w, http.StatusBadRequest, "Select between 1 and 50 torrent files")
 		return
 	}
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
 	for _, header := range files {
-		file, err := header.Open()
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		part, err := writer.CreateFormFile("torrents", header.Filename)
-		if err != nil {
-			file.Close()
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		_, err = io.Copy(part, file)
-		file.Close()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
+		if !strings.HasSuffix(strings.ToLower(header.Filename), ".torrent") {
+			writeErrorText(w, http.StatusBadRequest, "Only .torrent files are supported")
 			return
 		}
 	}
-	writer.WriteField("savepath", card.SavePath)
-	writer.WriteField("autoTMM", "false")
-	if len(card.Tags) > 0 {
-		writer.WriteField("tags", strings.Join(card.Tags, ","))
-	}
-	writer.Close()
 
-	request, err := http.NewRequest(http.MethodPost, baseURL+"/api/v2/torrents/add", body)
+	pipeReader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+	writeDone := make(chan error, 1)
+	go func() {
+		defer pipeWriter.Close()
+		for _, header := range files {
+			file, err := header.Open()
+			if err != nil {
+				writeDone <- err
+				return
+			}
+			part, err := writer.CreateFormFile("torrents", header.Filename)
+			if err == nil {
+				_, err = io.Copy(part, file)
+			}
+			file.Close()
+			if err != nil {
+				pipeWriter.CloseWithError(err)
+				writeDone <- err
+				return
+			}
+		}
+		if err := writer.WriteField("savepath", card.SavePath); err == nil {
+			err = writer.WriteField("autoTMM", "false")
+		}
+		if err == nil && len(card.Tags) > 0 {
+			err = writer.WriteField("tags", strings.Join(card.Tags, ","))
+		}
+		if err == nil {
+			err = writer.Close()
+		}
+		writeDone <- err
+	}()
+
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/api/v2/torrents/add", pipeReader)
 	if err != nil {
+		pipeReader.Close()
+		<-writeDone
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("Cookie", cookie)
-	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
+	response, err := qBHTTPClient.Do(request)
+	pipeReader.Close()
+	writeErr := <-writeDone
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if writeErr != nil {
+		writeError(w, http.StatusBadRequest, writeErr)
 		return
 	}
 	defer response.Body.Close()
@@ -778,11 +860,18 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		writeErrorText(w, http.StatusNotFound, "Not found")
 		return
 	}
-	path := filepath.Join(s.distDir, filepath.Clean(r.URL.Path))
-	if info, err := os.Stat(path); err == nil && !info.IsDir() {
-		http.ServeFile(w, r, path)
-		return
+	requestedPath := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+	path := filepath.Join(s.distDir, requestedPath)
+	if relative, err := filepath.Rel(s.distDir, path); err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			if strings.Contains(filepath.Base(path), ".") {
+				w.Header().Set("Cache-Control", "public, max-age=86400")
+			}
+			http.ServeFile(w, r, path)
+			return
+		}
 	}
+	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFile(w, r, filepath.Join(s.distDir, "index.html"))
 }
 
@@ -810,7 +899,7 @@ func validateQB(account QBAccount, requirePassword bool) error {
 }
 
 func normalizeQBAccount(account QBAccount) QBAccount {
-	protocol := strings.TrimSpace(account.Protocol)
+	protocol := strings.ToLower(strings.TrimSpace(account.Protocol))
 	if protocol == "" {
 		protocol = "http"
 	}
@@ -825,21 +914,27 @@ func normalizeQBAccount(account QBAccount) QBAccount {
 }
 
 func loginQB(account QBAccount) (string, string, error) {
-	protocol := account.Protocol
+	protocol := strings.ToLower(strings.TrimSpace(account.Protocol))
 	if protocol == "" {
 		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" {
+		return "", "", errors.New("qBittorrent protocol must be http or https")
 	}
 	baseURL := protocol + "://" + cleanHost(account.Host) + ":" + strconv.Itoa(account.Port)
 	logQBEvent("login_start", account, "attempting qBittorrent WebUI login at "+baseURL+"/api/v2/auth/login")
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Timeout: 8 * time.Second, Jar: jar}
+	client := &http.Client{Timeout: 8 * time.Second, Jar: jar, Transport: qBHTTPClient.Transport}
 	form := url.Values{"username": {account.Username}, "password": {account.Password}}
 	response, err := client.PostForm(baseURL+"/api/v2/auth/login", form)
 	if err != nil {
 		return "", "", qBLoginError{BaseURL: baseURL, Err: err}
 	}
 	defer response.Body.Close()
-	content, _ := io.ReadAll(response.Body)
+	content, readErr := io.ReadAll(io.LimitReader(response.Body, maxQBResponseSize))
+	if readErr != nil {
+		return "", "", qBLoginError{BaseURL: baseURL, Err: readErr}
+	}
 	body := strings.TrimSpace(string(content))
 	cookies := []string{}
 	for _, cookie := range response.Cookies() {
@@ -896,31 +991,72 @@ func activeSessions(sessions []Session) []Session {
 }
 
 func hashPassword(password string) string {
-	salt := randomID()
-	sum := sha256.Sum256([]byte(salt + ":" + password))
-	return "sha256$" + salt + "$" + hex.EncodeToString(sum[:])
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		panic("failed to generate password salt: " + err.Error())
+	}
+	const iterations uint32 = 3
+	const memory uint32 = 64 * 1024
+	const parallelism uint8 = 2
+	key := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, 32)
+	return fmt.Sprintf("argon2id$v=19$m=%d,t=%d,p=%d$%s$%s", memory, iterations, parallelism, base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key))
 }
 
 func verifyPassword(password string, encoded string) bool {
+	if strings.HasPrefix(encoded, "$2") {
+		return bcrypt.CompareHashAndPassword([]byte(encoded), []byte(password)) == nil
+	}
+	if strings.HasPrefix(encoded, "sha256$") {
+		parts := strings.Split(encoded, "$")
+		if len(parts) != 3 {
+			return false
+		}
+		sum := sha256.Sum256([]byte(parts[1] + ":" + password))
+		return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(parts[2])) == 1
+	}
 	parts := strings.Split(encoded, "$")
-	if len(parts) != 3 || parts[0] != "sha256" {
+	if len(parts) != 5 || parts[0] != "argon2id" || parts[1] != "v=19" {
 		return false
 	}
-	sum := sha256.Sum256([]byte(parts[1] + ":" + password))
-	return hex.EncodeToString(sum[:]) == parts[2]
+	var memory, iterations uint32
+	var parallelism uint8
+	if _, err := fmt.Sscanf(parts[2], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism); err != nil || memory < 8*1024 || iterations == 0 || parallelism == 0 || memory > 256*1024 || iterations > 10 || parallelism > 8 {
+		return false
+	}
+	salt, err := base64.RawStdEncoding.DecodeString(parts[3])
+	if err != nil || len(salt) < 16 {
+		return false
+	}
+	expected, err := base64.RawStdEncoding.DecodeString(parts[4])
+	if err != nil || len(expected) != 32 {
+		return false
+	}
+	actual := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, uint32(len(expected)))
+	return subtle.ConstantTimeCompare(actual, expected) == 1
+}
+
+func passwordNeedsUpgrade(encoded string) bool {
+	return !strings.HasPrefix(encoded, "argon2id$v=19$")
 }
 
 func randomID() string {
 	buffer := make([]byte, 16)
 	if _, err := rand.Read(buffer); err != nil {
-		return strconv.FormatInt(time.Now().UnixNano(), 36)
+		panic("failed to generate secure random ID: " + err.Error())
 	}
 	return hex.EncodeToString(buffer)
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, value any) bool {
-	if err := json.NewDecoder(r.Body).Decode(value); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		writeErrorText(w, http.StatusBadRequest, "Invalid JSON request")
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeErrorText(w, http.StatusBadRequest, "JSON request must contain one object")
 		return false
 	}
 	return true
@@ -942,7 +1078,19 @@ func writeErrorText(w http.ResponseWriter, status int, message string) {
 }
 
 func methodNotAllowed(w http.ResponseWriter) {
+	w.Header().Set("Allow", "GET, POST, PUT, DELETE")
 	writeErrorText(w, http.StatusMethodNotAllowed, "Method not allowed")
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func fallback(value string, current string) string {

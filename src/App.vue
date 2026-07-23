@@ -89,7 +89,7 @@
           <div>
             <strong>{{ account.alias }}</strong>
             <span>{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
-            <em>{{ accountStatus(account) }}</em>
+            <em v-if="account.lastVerifiedAt">已验证</em>
           </div>
           <div class="account-actions">
             <button class="secondary-button" @click="editQb(account)">编辑</button>
@@ -378,6 +378,12 @@ async function exportBackup() {
 async function restoreBackup(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  if (file.size > 1024 * 1024) {
+    backupMessage.value = '备份文件不能超过 1 MB';
+    backupOk.value = false;
+    event.target.value = '';
+    return;
+  }
   backupBusy.value = true;
   backupMessage.value = '';
   backupOk.value = false;
@@ -530,7 +536,13 @@ function setFileInput(id) {
 
 async function uploadFiles(card, event) {
   const files = [...event.target.files];
+  const maxUploadSize = 32 * 1024 * 1024;
   if (!files.length) return;
+  if (files.length > 50 || files.some((file) => !file.name.toLowerCase().endsWith('.torrent')) || files.reduce((total, file) => total + file.size, 0) > maxUploadSize) {
+    window.alert('仅支持最多 50 个 .torrent 文件，总大小不能超过 32 MB。');
+    event.target.value = '';
+    return;
+  }
   const form = new FormData();
   files.forEach((file) => form.append('torrents', file));
   uploadingCardId.value = card.id;
@@ -565,6 +577,11 @@ function setImageUrl(event) {
 function loadLocalCover(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  if (file.size > 512 * 1024) {
+    window.alert('封面图片不能超过 512 KB。');
+    event.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     editingCard.value.cover = { type: 'image', value: reader.result };
@@ -582,10 +599,6 @@ async function deleteCard() {
   if (!window.confirm(`确认删除卡片“${editingCard.value.name}”？`)) return;
   config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'DELETE' });
   editingCard.value = null;
-}
-
-function accountStatus(account) {
-  return account.lastVerifiedAt ? '已验证' : '未验证';
 }
 
 function pickColor(seed, palette = monetColors) {

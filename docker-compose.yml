@@ -4,9 +4,16 @@ services:
     container_name: qBinder
     network_mode: bridge
     ports:
-      - 18086:18086
+      - "127.0.0.1:18086:18086"
     volumes:
       - ./data:/data
     environment:
       TZ: Asia/Shanghai
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 100
     restart: unless-stopped
