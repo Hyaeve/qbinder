@@ -38,9 +38,41 @@ button:disabled {
   min-height: 100vh;
   display: grid;
   place-items: center;
+}
+
+.login-page {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   background:
-    radial-gradient(circle at 20% 20%, rgba(125, 143, 215, .22), transparent 34%),
-    linear-gradient(135deg, #f7f7fb, #eef2f5);
+    linear-gradient(180deg, rgba(252, 252, 248, .96), rgba(245, 246, 250, .94));
+}
+
+.login-page::before,
+.login-page::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  pointer-events: none;
+}
+
+.login-page::before {
+  background:
+    linear-gradient(118deg, rgba(83, 138, 236, .28) 0 18%, transparent 18% 28%, rgba(82, 155, 238, .34) 28% 42%, transparent 42% 56%, rgba(101, 171, 233, .2) 56% 70%, transparent 70% 100%),
+    linear-gradient(22deg, transparent 0 12%, rgba(82, 126, 228, .18) 12% 22%, transparent 22% 41%, rgba(111, 170, 247, .22) 41% 57%, transparent 57% 78%, rgba(70, 127, 241, .16) 78% 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0));
+  filter: blur(22px) saturate(132%);
+  transform: scale(1.06);
+  animation: monetDrift 18s ease-in-out infinite alternate;
+}
+
+.login-page::after {
+  background:
+    linear-gradient(90deg, transparent 0 8%, rgba(255, 255, 255, .7) 8% 14%, transparent 14% 34%, rgba(255, 255, 255, .64) 34% 39%, transparent 39% 100%),
+    linear-gradient(160deg, rgba(238, 244, 253, .4), transparent 36%, rgba(255, 255, 255, .55) 60%, transparent 82%);
+  opacity: .75;
+  filter: blur(10px);
+  animation: monetWash 24s linear infinite;
 }
 
 .loading-screen {
@@ -50,6 +82,8 @@ button:disabled {
 }
 
 .login-panel {
+  position: relative;
+  z-index: 1;
   width: min(420px, calc(100vw - 32px));
   background: rgba(255, 255, 255, .82);
   border: 1px solid rgba(210, 212, 224, .9);
@@ -82,6 +116,13 @@ button:disabled {
 .brand-lockup span {
   color: #8d8b96;
   font-size: 13px;
+}
+
+.brand-note {
+  margin: 4px 0 0;
+  color: #7c7a84;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .brand-lockup.big {
@@ -190,6 +231,27 @@ select:focus {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes monetDrift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1.06) rotate(-1deg);
+  }
+  50% {
+    transform: translate3d(1%, 2%, 0) scale(1.1) rotate(1deg);
+  }
+  100% {
+    transform: translate3d(3%, -2%, 0) scale(1.08) rotate(-.5deg);
+  }
+}
+
+@keyframes monetWash {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1.04);
+  }
+  100% {
+    transform: translate3d(4%, 2%, 0) scale(1.08);
+  }
 }
 
 .app-shell {

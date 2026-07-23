@@ -7,7 +7,7 @@
         <img src="/logo.svg" alt="qBinder" />
         <div>
           <strong>qBinder</strong>
-          <span>qBittorrent Docker Assistant</span>
+          <p class="brand-note">把下载、分类和封面放在一起。</p>
         </div>
       </div>
       <form class="login-form" @submit.prevent="login">
