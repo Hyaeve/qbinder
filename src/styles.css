@@ -45,46 +45,55 @@ button:disabled {
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(circle at 16% 18%, rgba(132, 166, 218, .58), transparent 34%),
-    radial-gradient(circle at 82% 18%, rgba(213, 181, 102, .52), transparent 32%),
-    radial-gradient(circle at 30% 84%, rgba(118, 163, 126, .48), transparent 36%),
-    radial-gradient(circle at 78% 78%, rgba(164, 134, 196, .5), transparent 35%),
-    linear-gradient(180deg, #f6f3e9 0%, #edf2ea 50%, #f1edf3 100%);
+    linear-gradient(115deg,
+      #8faed4 0%,
+      #8faed4 12%,
+      #b2a4cf 24%,
+      #d8c07a 38%,
+      #9ebd8f 52%,
+      #c98f86 66%,
+      #8aa9ca 80%,
+      #b8a0cb 100%);
+  background-size: 360% 360%;
+  background-position: 0% 50%;
+  animation: monetField 72s ease-in-out infinite alternate;
 }
 
 .login-page::before,
 .login-page::after {
   content: "";
   position: absolute;
-  inset: -28%;
+  inset: -22%;
   pointer-events: none;
 }
 
 .login-page::before {
   background:
-    radial-gradient(closest-side at 14% 22%, rgba(98, 135, 197, .52), transparent 72%),
-    radial-gradient(closest-side at 42% 16%, rgba(205, 177, 83, .46), transparent 70%),
-    radial-gradient(closest-side at 76% 30%, rgba(145, 116, 181, .48), transparent 72%),
-    radial-gradient(closest-side at 24% 76%, rgba(104, 155, 115, .48), transparent 74%),
-    radial-gradient(closest-side at 70% 80%, rgba(198, 128, 116, .34), transparent 72%),
-    radial-gradient(closest-side at 92% 62%, rgba(90, 143, 188, .34), transparent 72%);
-  background-size: 56% 50%, 48% 44%, 52% 48%, 50% 46%, 56% 52%, 42% 44%;
-  background-position: 0% 14%, 38% 0%, 98% 18%, 8% 88%, 86% 82%, 104% 58%;
-  filter: blur(30px) saturate(78%);
-  opacity: .94;
-  transform: scale(1.1);
-  animation: monetDrift 42s ease-in-out infinite alternate;
+    linear-gradient(115deg,
+      rgba(255, 255, 255, .18) 0%,
+      rgba(255, 255, 255, .06) 20%,
+      rgba(83, 104, 158, .14) 38%,
+      rgba(255, 255, 255, .12) 54%,
+      rgba(117, 91, 133, .12) 72%,
+      rgba(255, 255, 255, .14) 100%);
+  background-size: 300% 300%;
+  background-position: 0% 48%;
+  filter: blur(36px) saturate(74%);
+  opacity: .72;
+  transform: scale(1.08);
+  animation: monetVeil 84s ease-in-out infinite alternate;
 }
 
 .login-page::after {
   background:
-    linear-gradient(112deg, transparent 0 10%, rgba(255, 255, 255, .36) 10% 15%, transparent 15% 38%, rgba(255, 255, 255, .26) 38% 43%, transparent 43% 100%),
-    linear-gradient(30deg, rgba(120, 158, 209, .24), transparent 30%, rgba(214, 184, 92, .2) 48%, rgba(130, 166, 126, .2) 62%, transparent 84%),
-    radial-gradient(circle at 60% 45%, rgba(155, 132, 186, .22), transparent 42%);
-  opacity: .72;
-  filter: blur(14px) saturate(76%);
-  transform: scale(1.06);
-  animation: monetWash 58s ease-in-out infinite alternate;
+    linear-gradient(90deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .04) 28%, rgba(255, 255, 255, .16) 58%, rgba(255, 255, 255, .06)),
+    repeating-linear-gradient(106deg, rgba(255, 255, 255, .16) 0 3px, transparent 3px 42px);
+  background-size: 240% 240%, 100% 100%;
+  background-position: 8% 50%, 0 0;
+  opacity: .42;
+  filter: blur(18px) saturate(70%);
+  transform: scale(1.04);
+  animation: monetWash 96s ease-in-out infinite alternate;
 }
 
 .loading-screen {
@@ -115,7 +124,7 @@ button:disabled {
 .brand-lockup img {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  object-fit: contain;
 }
 
 .brand-lockup strong {
@@ -144,7 +153,7 @@ button:disabled {
 .brand-lockup.big img {
   width: 64px;
   height: 64px;
-  border-radius: 16px;
+  object-fit: contain;
 }
 
 .login-form,
@@ -245,33 +254,42 @@ select:focus {
   to { transform: rotate(360deg); }
 }
 
-@keyframes monetDrift {
+@keyframes monetField {
   0% {
-    background-position: 0% 14%, 38% 0%, 98% 18%, 8% 88%, 86% 82%, 104% 58%;
-    transform: translate3d(-2%, -1%, 0) scale(1.1) rotate(-.7deg);
+    background-position: 0% 50%;
   }
-  42% {
-    background-position: 12% 4%, 32% 18%, 88% 8%, 0% 76%, 76% 94%, 92% 48%;
-    transform: translate3d(1%, 2%, 0) scale(1.15) rotate(.6deg);
+  28% {
+    background-position: 28% 48%;
+  }
+  54% {
+    background-position: 58% 52%;
   }
   100% {
-    background-position: 20% 20%, 56% 8%, 80% 30%, 18% 96%, 98% 70%, 84% 70%;
-    transform: translate3d(3%, -2%, 0) scale(1.12) rotate(-.35deg);
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes monetVeil {
+  0% {
+    background-position: 0% 48%;
+    transform: translate3d(-1%, -1%, 0) scale(1.08);
+  }
+  100% {
+    background-position: 100% 52%;
+    transform: translate3d(1%, 1%, 0) scale(1.12);
   }
 }
 
 @keyframes monetWash {
   0% {
-    opacity: .58;
-    transform: translate3d(-5%, -3%, 0) scale(1.06);
-  }
-  50% {
-    opacity: .76;
-    transform: translate3d(2%, 2%, 0) scale(1.1);
+    opacity: .34;
+    background-position: 8% 50%, 0 0;
+    transform: translate3d(-2%, -1%, 0) scale(1.04);
   }
   100% {
-    opacity: .62;
-    transform: translate3d(5%, 3%, 0) scale(1.08);
+    opacity: .48;
+    background-position: 92% 50%, 0 0;
+    transform: translate3d(2%, 1%, 0) scale(1.08);
   }
 }
 

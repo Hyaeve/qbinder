@@ -4,7 +4,7 @@
   <main v-else-if="!user || !config" class="login-page">
     <section class="login-panel">
       <div class="brand-lockup big">
-        <img src="/logo.svg" alt="qBinder" />
+        <img src="/reference.png" alt="qBinder" />
         <div>
           <strong>qBinder</strong>
           <p class="brand-note">qB的种子快捷分类添加助手。</p>
@@ -22,7 +22,7 @@
   <div v-else class="app-shell">
     <aside class="sidebar">
       <div class="brand-lockup">
-        <img src="/logo.svg" alt="qBinder" />
+        <img src="/reference.png" alt="qBinder" />
         <div><strong>qBinder</strong><span>v1.0</span></div>
       </div>
       <nav>
@@ -101,7 +101,7 @@
 
     <div v-else class="content cards-page">
       <div v-if="config.qbittorrents.length === 0" class="empty-workspace">
-        <img src="/logo.svg" alt="qBinder" />
+        <img src="/reference.png" alt="qBinder" />
         <h1>先添加 qBittorrent 账户</h1>
         <p>进入设置页面添加并验证连接后，就可以为不同 qB 账户创建卡片。</p>
       </div>
