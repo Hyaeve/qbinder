@@ -26,7 +26,6 @@
           <img src="/reference.png" alt="qBinder" />
           <div><strong>qBinder</strong><span>v1.0</span></div>
         </div>
-        <button class="sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></button>
       </div>
       <nav>
         <button :class="{ active: view === 'cards' }" title="卡片" @click="view = 'cards'"><Boxes /><span>卡片</span></button>
@@ -34,6 +33,7 @@
         <button :class="{ active: view === 'settings' }" title="设置" @click="view = 'settings'"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
+      <button class="sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></button>
     </aside>
 
     <div v-if="view === 'settings'" class="content settings-page">
@@ -137,22 +137,29 @@
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
         <section class="task-table-shell" @click.stop>
           <div class="task-table" :style="taskGridStyle">
-            <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
-              <span>{{ column.label }}</span><ArrowUpDown v-if="taskSort.key !== column.key" /><ArrowUp v-else-if="taskSort.direction === 'asc'" /><ArrowDown v-else />
-              <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
+            <div class="task-table-header">
+              <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
+                <span>{{ column.label }}</span><ArrowUpDown v-if="taskSort.key !== column.key" /><ArrowUp v-else-if="taskSort.direction === 'asc'" /><ArrowDown v-else />
+                <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
+              </div>
             </div>
-            <template v-for="task in filteredTasks" :key="task.hash">
+            <div v-for="task in pagedTasks" :key="task.hash" class="task-row">
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`" :title="taskCellTitle(task, column.key)">
                 <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span></div><b>{{ formatProgress(task.progress) }}</b></div></template>
                 <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
                 <template v-else>{{ formatTaskValue(task, column.key) }}</template>
               </div>
-            </template>
+            </div>
           </div>
           <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
-        <div class="task-summary"><span>显示 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span><strong><Download />{{ formatSpeed(taskTotals.down) }}</strong><strong><Upload />{{ formatSpeed(taskTotals.up) }}</strong></div>
+        <div class="task-summary"><span>显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span><strong><Download />{{ formatSpeed(taskTotals.down) }}</strong><strong><Upload />{{ formatSpeed(taskTotals.up) }}</strong></div>
+        <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
+          <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
+          <span>第 {{ taskPage }} / {{ taskPageCount }} 页 · 每页 100 个</span>
+          <button :disabled="taskPage === taskPageCount" @click="goToTaskPage(taskPage + 1)">下一页</button>
+        </nav>
 
         <div v-if="columnMenu" class="column-menu" :style="{ left: `${columnMenu.x}px`, top: `${columnMenu.y}px` }" @click.stop>
           <strong>{{ columnMenu.column.label }}列</strong>
@@ -357,6 +364,8 @@ const backupBusy = ref(false);
 const backupMessage = ref('');
 const backupOk = ref(false);
 const tasks = ref([]);
+const taskPage = ref(1);
+const taskPageSize = 100;
 const tasksLoading = ref(false);
 const tasksError = ref('');
 const taskSearch = ref('');
@@ -439,7 +448,26 @@ const filteredTasks = computed(() => {
   });
   return result.sort((left, right) => compareTasks(left, right, taskSort.key, taskSort.direction));
 });
+const taskPageCount = computed(() => Math.max(1, Math.ceil(filteredTasks.value.length / taskPageSize)));
+const pagedTasks = computed(() => {
+  const start = (taskPage.value - 1) * taskPageSize;
+  return filteredTasks.value.slice(start, start + taskPageSize);
+});
+const taskRangeStart = computed(() => filteredTasks.value.length ? (taskPage.value - 1) * taskPageSize + 1 : 0);
+const taskRangeEnd = computed(() => Math.min(taskPage.value * taskPageSize, filteredTasks.value.length));
 const taskTotals = computed(() => filteredTasks.value.reduce((totals, task) => ({ down: totals.down + task.dlspeed, up: totals.up + task.upspeed }), { down: 0, up: 0 }));
+
+watch([taskSearch, () => taskFilters.status, () => taskFilters.path, () => taskFilters.tags, () => taskFilters.tracker, () => taskSort.key, () => taskSort.direction], () => {
+  taskPage.value = 1;
+}, { deep: true });
+
+watch(taskPageCount, (count) => {
+  if (taskPage.value > count) taskPage.value = count;
+});
+
+function goToTaskPage(page) {
+  taskPage.value = Math.min(Math.max(page, 1), taskPageCount.value);
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers }, ...options });
