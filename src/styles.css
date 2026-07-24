@@ -872,6 +872,155 @@ select:focus {
     padding: 20px 16px 36px;
   }
 
+  .tasks-page {
+    position: relative;
+    padding-bottom: 100px;
+  }
+
+  .task-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    min-height: 62px;
+    padding: 0 0 18px;
+    margin-bottom: 20px;
+    background: rgba(245, 245, 250, .93);
+    border-bottom: 1px solid #e3e4ed;
+    backdrop-filter: blur(14px);
+  }
+
+  .task-account-tabs {
+    position: static;
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .task-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .task-search {
+    display: flex;
+    align-items: center;
+    width: min(320px, 28vw);
+    min-width: 230px;
+    gap: 8px;
+    padding: 0 13px;
+    border: 1px solid #ddddea;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .task-search svg { width: 18px; color: #8d68ef; }
+  .task-search input { border: 0; padding: 11px 0; box-shadow: none; }
+  .icon-button.selected { color: #fff; background: #8d68ef; }
+
+  .task-filter-popover,
+  .column-menu {
+    position: fixed;
+    z-index: 30;
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(620px, calc(100vh - 120px));
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid #e2e0eb;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 22px 50px rgba(62, 60, 74, .18);
+  }
+
+  .task-filter-popover { top: 64px; right: 36px; display: grid; gap: 15px; }
+  .filter-heading { display: flex; align-items: center; justify-content: space-between; color: #45424e; }
+  .filter-heading button { color: #8264ea; font-weight: 800; }
+  .filter-group { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 13px; border-top: 1px solid #eeedf3; }
+  .filter-group > strong { width: 100%; color: #625e70; font-size: 13px; }
+  .filter-group label, .column-menu label { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: #6d6a76; font-size: 12px; font-weight: 700; }
+  .filter-group input, .column-menu input { width: auto; margin: 0; accent-color: #8d68ef; }
+  .filter-none { color: #9b98a4; font-size: 12px; }
+  .task-error { margin: 0 0 16px; }
+
+  .task-table-shell {
+    position: relative;
+    overflow: auto;
+    min-height: 230px;
+    border: 1px solid #e1e3ed;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .78);
+    box-shadow: 0 16px 38px rgba(76, 76, 90, .08);
+  }
+
+  .task-table { display: grid; width: max-content; min-width: 100%; }
+  .task-header-cell, .task-cell { min-width: 0; padding: 12px 14px; border-bottom: 1px solid #efeff4; }
+  .task-header-cell { position: relative; display: flex; align-items: center; gap: 5px; min-height: 48px; color: #625e70; background: #f8f8fc; cursor: pointer; font-size: 13px; font-weight: 900; user-select: none; }
+  .task-header-cell svg { width: 14px; height: 14px; color: #8e8a99; }
+  .column-resizer { position: absolute; top: 8px; right: -3px; bottom: 8px; z-index: 2; width: 6px; cursor: col-resize; }
+  .column-resizer:hover, .column-resizer:active { background: #a88af1; }
+  .task-cell { display: flex; align-items: center; min-height: 56px; overflow: hidden; color: #514e5a; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+  .task-cell-name, .task-cell-tracker, .task-cell-save_path { overflow: hidden; text-overflow: ellipsis; }
+  .task-cell-name { color: #3f3c48; font-weight: 800; }
+
+  .progress-value { display: flex; align-items: center; width: 100%; gap: 9px; }
+  .progress-value > div { flex: 1; height: 7px; overflow: hidden; border-radius: 999px; background: #e7e7f0; }
+  .progress-value span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #8d68ef, #82a2e8); }
+  .progress-value b { color: #776f88; font-size: 12px; }
+  .task-tags { display: flex; flex-wrap: wrap; gap: 5px; overflow: hidden; }
+  .task-tags span { max-width: 115px; overflow: hidden; border-radius: 999px; padding: 4px 8px; color: #4e4a56; font-size: 11px; font-weight: 800; text-overflow: ellipsis; }
+  .task-tags em { color: #aaa6b1; font-style: normal; }
+  .task-table-loading, .task-table-empty { display: grid; min-height: 220px; place-content: center; gap: 10px; color: #8b8795; text-align: center; }
+  .task-table-loading svg { justify-self: center; color: #8d68ef; }
+
+  .task-summary {
+    position: fixed;
+    right: 36px;
+    bottom: 24px;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border: 1px solid #e0dfeb;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 14px 34px rgba(65, 62, 79, .15);
+    backdrop-filter: blur(12px);
+  }
+
+  .task-summary span { color: #8c8896; font-size: 12px; }
+  .task-summary strong { display: inline-flex; align-items: center; gap: 6px; color: #675f79; font-size: 13px; }
+  .task-summary strong:first-of-type svg { color: #6693dc; }
+  .task-summary strong:last-child svg { color: #a873c8; }
+  .task-summary svg { width: 17px; height: 17px; }
+
+  .column-menu { display: grid; gap: 7px; width: 200px; padding: 12px; }
+  .column-menu strong { color: #494551; }
+  .column-menu > span { margin-top: 3px; color: #96929f; font-size: 12px; font-weight: 800; }
+  .column-menu button { padding: 7px 8px; border-radius: 8px; color: #625d6e; text-align: left; font-size: 13px; font-weight: 700; }
+  .column-menu button:hover:not(:disabled) { background: #f1edff; color: #805dde; }
+  .column-menu button:disabled { cursor: not-allowed; opacity: .45; }
+  .column-menu-divider { height: 1px; margin: 3px 0; background: #ecebf1; }
+
+  @media (max-width: 900px) {
+    .task-toolbar { align-items: stretch; flex-direction: column; }
+    .task-toolbar-actions { justify-content: flex-end; }
+    .task-search { flex: 1; width: auto; }
+    .task-filter-popover { top: 128px; right: 18px; }
+    .task-summary { right: 18px; bottom: 18px; }
+  }
+
+  @media (max-width: 560px) {
+    .task-summary { left: 12px; right: 12px; justify-content: space-between; gap: 8px; }
+    .task-summary span { display: none; }
+  }
+
   .settings-grid,
   .qb-form {
     grid-template-columns: 1fr;

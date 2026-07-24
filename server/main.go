@@ -110,11 +110,12 @@ type BackupConfig struct {
 }
 
 const (
-	maxJSONBodySize   = 1 << 20
-	maxUploadBodySize = 32 << 20
-	maxUploadFiles    = 50
-	maxQBResponseSize = 64 << 10
-	sessionLifetime   = 14 * 24 * time.Hour
+	maxJSONBodySize    = 1 << 20
+	maxUploadBodySize  = 32 << 20
+	maxUploadFiles     = 50
+	maxQBResponseSize  = 64 << 10
+	maxTorrentListSize = 16 << 20
+	sessionLifetime    = 14 * 24 * time.Hour
 )
 
 var qBHTTPClient = &http.Client{
@@ -505,8 +506,43 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 	writeJSON(w, http.StatusOK, publicConfig(config))
 }
 
+type torrentTask struct {
+	Hash      string  `json:"hash"`
+	Name      string  `json:"name"`
+	Size      int64   `json:"size"`
+	Progress  float64 `json:"progress"`
+	Seeders   int     `json:"num_seeds"`
+	Leechers  int     `json:"num_leechs"`
+	DownSpeed int64   `json:"dlspeed"`
+	UpSpeed   int64   `json:"upspeed"`
+	Tags      string  `json:"tags"`
+	AddedOn   int64   `json:"added_on"`
+	Tracker   string  `json:"tracker"`
+	SavePath  string  `json:"save_path"`
+	State     string  `json:"state"`
+}
+
+type torrentListResponse struct {
+	Tasks          []torrentTask `json:"tasks"`
+	TotalDownSpeed int64         `json:"totalDownSpeed"`
+	TotalUpSpeed   int64         `json:"totalUpSpeed"`
+}
+
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
-	id := strings.TrimPrefix(r.URL.Path, "/api/qb/")
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/qb/"), "/"), "/")
+	if len(parts) == 2 && parts[1] == "torrents" {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w)
+			return
+		}
+		s.handleQBTorrents(w, r, config, parts[0])
+		return
+	}
+	if len(parts) != 1 || parts[0] == "" {
+		writeErrorText(w, http.StatusNotFound, "Not found")
+		return
+	}
+	id := parts[0]
 	if r.Method == http.MethodPut {
 		s.updateQB(w, r, config, id)
 		return
@@ -523,6 +559,57 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 		return
 	}
 	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	account, ok := findQB(config.QBittorrents, id)
+	if !ok {
+		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
+		return
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		logQBFailure("torrent_list_login", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/torrents/info", nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		logQBFailure("torrent_list_request", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent list failed: %d", response.StatusCode))
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxTorrentListSize+1))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if len(body) > maxTorrentListSize {
+		writeErrorText(w, http.StatusBadGateway, "qBittorrent torrent list is too large")
+		return
+	}
+	var tasks []torrentTask
+	if err := json.Unmarshal(body, &tasks); err != nil {
+		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent torrent list response")
+		return
+	}
+	result := torrentListResponse{Tasks: tasks}
+	for _, task := range tasks {
+		result.TotalDownSpeed += task.DownSpeed
+		result.TotalUpSpeed += task.UpSpeed
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) updateQB(w http.ResponseWriter, r *http.Request, config Config, id string) {

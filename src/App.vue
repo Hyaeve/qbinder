@@ -27,6 +27,7 @@
       </div>
       <nav>
         <button :class="{ active: view === 'cards' }" @click="view = 'cards'"><Boxes />卡片</button>
+        <button :class="{ active: view === 'tasks' }" @click="view = 'tasks'"><Table2 />视图</button>
         <button :class="{ active: view === 'settings' }" @click="view = 'settings'"><Settings />设置</button>
       </nav>
       <button class="ghost-button logout" @click="logout"><LogOut />退出</button>
@@ -97,6 +98,69 @@
           </div>
         </div>
       </section>
+    </div>
+
+    <div v-else-if="view === 'tasks'" class="content tasks-page" @click="closeTaskPopovers">
+      <div v-if="config.qbittorrents.length === 0" class="empty-workspace">
+        <img src="/reference.png" alt="qBinder" />
+        <h1>先添加 qBittorrent 账户</h1>
+        <p>配置 qBittorrent Web UI 连接后，即可在这里查看种子任务。</p>
+      </div>
+
+      <template v-else>
+        <header class="task-toolbar" @click.stop>
+          <div class="top-tabs task-account-tabs">
+            <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" @click="activeQbId = account.id">{{ account.alias }}</button>
+          </div>
+          <div class="task-toolbar-actions">
+            <label class="task-search"><Search /><input v-model="taskSearch" placeholder="搜索种子名称、标签或路径" /></label>
+            <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="filterOpen = !filterOpen"><Filter /></button>
+            <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
+          </div>
+          <section v-if="filterOpen" class="task-filter-popover">
+            <div class="filter-heading"><strong>筛选器</strong><button @click="clearTaskFilters">全部选择</button></div>
+            <div class="filter-group">
+              <strong>状态</strong>
+              <label v-for="item in statusOptions" :key="item.key"><input v-model="taskFilters.status" type="checkbox" :value="item.key" />{{ item.label }}</label>
+            </div>
+            <div v-for="group in taskFilterGroups" :key="group.key" class="filter-group">
+              <strong>{{ group.label }}</strong>
+              <label v-for="item in group.values" :key="item"><input v-model="taskFilters[group.key]" type="checkbox" :value="item" />{{ item }}</label>
+              <span v-if="!group.values.length" class="filter-none">暂无可筛选项</span>
+            </div>
+          </section>
+        </header>
+
+        <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
+        <section class="task-table-shell" @click.stop>
+          <div class="task-table" :style="taskGridStyle">
+            <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
+              <span>{{ column.label }}</span><ArrowUpDown v-if="taskSort.key !== column.key" /><ArrowUp v-else-if="taskSort.direction === 'asc'" /><ArrowDown v-else />
+              <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
+            </div>
+            <template v-for="task in filteredTasks" :key="task.hash">
+              <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`" :title="taskCellTitle(task, column.key)">
+                <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span></div><b>{{ formatProgress(task.progress) }}</b></div></template>
+                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
+                <template v-else>{{ formatTaskValue(task, column.key) }}</template>
+              </div>
+            </template>
+          </div>
+          <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
+          <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
+        </section>
+        <div class="task-summary"><span>显示 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span><strong><Download />{{ formatSpeed(taskTotals.down) }}</strong><strong><Upload />{{ formatSpeed(taskTotals.up) }}</strong></div>
+
+        <div v-if="columnMenu" class="column-menu" :style="{ left: `${columnMenu.x}px`, top: `${columnMenu.y}px` }" @click.stop>
+          <strong>{{ columnMenu.column.label }}列</strong>
+          <button :disabled="columnMenu.column.locked" @click="toggleTaskColumn(columnMenu.column.key)">{{ columnMenu.column.hidden ? '显示此列' : '隐藏此列' }}</button>
+          <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, -1)" @click="moveTaskColumn(columnMenu.column.key, -1)">向左移动</button>
+          <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, 1)" @click="moveTaskColumn(columnMenu.column.key, 1)">向右移动</button>
+          <div class="column-menu-divider"></div>
+          <span>显示列</span>
+          <label v-for="column in taskColumns" :key="column.key"><input type="checkbox" :checked="!column.hidden" :disabled="column.locked" @change="toggleTaskColumn(column.key)" />{{ column.label }}</label>
+        </div>
+      </template>
     </div>
 
     <div v-else class="content cards-page">
@@ -244,12 +308,19 @@ import {
   Plus,
   Save,
   Settings,
+  Table2,
+  Search,
+  Filter,
+  RefreshCw,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Tags,
   Upload,
   UploadCloud,
   X
 } from '@lucide/vue';
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
 const accentColors = ['#7d8fd7', '#8eb7a4', '#d0a49b', '#bfa6d9', '#d7bc76', '#8fb7c8', '#c6b4a4'];
@@ -280,6 +351,16 @@ const backupFileInput = ref(null);
 const backupBusy = ref(false);
 const backupMessage = ref('');
 const backupOk = ref(false);
+const tasks = ref([]);
+const tasksLoading = ref(false);
+const tasksError = ref('');
+const taskSearch = ref('');
+const filterOpen = ref(false);
+const columnMenu = ref(null);
+const taskSort = reactive({ key: 'name', direction: 'asc' });
+const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
+const taskColumns = reactive(loadTaskColumns());
+let taskRefreshTimer = null;
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -300,6 +381,20 @@ watch(config, (next) => {
   if (!activeQbId.value && next.qbittorrents[0]) activeQbId.value = next.qbittorrents[0].id;
 }, { immediate: true });
 
+watch(view, (next) => {
+  if (next === 'tasks') {
+    loadTasks();
+    startTaskRefresh();
+  } else {
+    stopTaskRefresh();
+    closeTaskPopovers();
+  }
+});
+
+watch(activeQbId, () => {
+  if (view.value === 'tasks') loadTasks();
+});
+
 watch(editingCard, (next) => {
   coverMode.value = next?.cover?.type || 'monet';
   tagInput.value = '';
@@ -312,6 +407,33 @@ const imageUrlValue = computed(() => {
   const value = editingCard.value?.cover?.value || '';
   return value.startsWith('data:') ? '' : value;
 });
+
+const visibleTaskColumns = computed(() => taskColumns.filter((column) => !column.hidden));
+const taskGridStyle = computed(() => ({ gridTemplateColumns: visibleTaskColumns.value.map((column) => `${column.width}px`).join(' ') }));
+const statusOptions = [
+  { key: 'downloading', label: '下载' }, { key: 'seeding', label: '做种' }, { key: 'completed', label: '完成' },
+  { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
+];
+const taskFilterGroups = computed(() => [
+  { key: 'path', label: '保存路径', values: uniqueTaskValues((task) => task.save_path) },
+  { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
+  { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => task.tracker || '无 Tracker') }
+]);
+const hasTaskFilters = computed(() => Object.values(taskFilters).some((items) => items.length));
+const filteredTasks = computed(() => {
+  const query = taskSearch.value.trim().toLocaleLowerCase();
+  const result = tasks.value.filter((task) => {
+    const matchesSearch = !query || [task.name, task.tags, task.save_path, task.tracker].some((value) => String(value || '').toLocaleLowerCase().includes(query));
+    const matchesStatus = !taskFilters.status.length || taskFilters.status.some((status) => taskMatchesStatus(task, status));
+    const matchesPath = !taskFilters.path.length || taskFilters.path.includes(task.save_path);
+    const matchesTags = !taskFilters.tags.length || taskTags(task).some((tag) => taskFilters.tags.includes(tag));
+    const tracker = task.tracker || '无 Tracker';
+    const matchesTracker = !taskFilters.tracker.length || taskFilters.tracker.includes(tracker);
+    return matchesSearch && matchesStatus && matchesPath && matchesTags && matchesTracker;
+  });
+  return result.sort((left, right) => compareTasks(left, right, taskSort.key, taskSort.direction));
+});
+const taskTotals = computed(() => filteredTasks.value.reduce((totals, task) => ({ down: totals.down + task.dlspeed, up: totals.up + task.upspeed }), { down: 0, up: 0 }));
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers }, ...options });
@@ -600,6 +722,180 @@ async function deleteCard() {
   config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'DELETE' });
   editingCard.value = null;
 }
+
+function loadTaskColumns() {
+  const defaults = [
+    { key: 'name', label: '名称', width: 280, locked: true },
+    { key: 'size', label: '大小', width: 110, locked: true },
+    { key: 'progress', label: '进度', width: 190 },
+    { key: 'seeders', label: '做种用户', width: 96 },
+    { key: 'leechers', label: '下载用户', width: 96 },
+    { key: 'dlspeed', label: '下载速度', width: 118 },
+    { key: 'upspeed', label: '上传速度', width: 118 },
+    { key: 'tags', label: '标签', width: 150 },
+    { key: 'added_on', label: '添加时间', width: 166 },
+    { key: 'tracker', label: 'Tracker', width: 210 },
+    { key: 'save_path', label: '保存路径', width: 230 }
+  ];
+  try {
+    const saved = JSON.parse(localStorage.getItem('qbinder-task-columns') || '[]');
+    if (!Array.isArray(saved)) return defaults;
+    const byKey = new Map(saved.map((column) => [column.key, column]));
+    const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
+    defaults.filter((column) => !byKey.has(column.key)).forEach((column) => ordered.push({ ...column }));
+    const pinned = defaults.slice(0, 2).map((column) => ordered.find((item) => item.key === column.key));
+    return [...pinned, ...ordered.filter((column) => !column.locked)];
+  } catch {
+    return defaults;
+  }
+}
+
+function persistTaskColumns() {
+  localStorage.setItem('qbinder-task-columns', JSON.stringify(taskColumns.map(({ key, width, hidden }) => ({ key, width, hidden }))));
+}
+
+function clampWidth(value, fallback) {
+  const width = Number(value);
+  return Number.isFinite(width) ? Math.max(80, Math.min(480, width)) : fallback;
+}
+
+async function loadTasks() {
+  if (!activeQb.value || tasksLoading.value) return;
+  tasksLoading.value = true;
+  tasksError.value = '';
+  try {
+    const result = await api(`/api/qb/${activeQb.value.id}/torrents`);
+    tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
+  } catch (requestError) {
+    tasksError.value = requestError.message;
+  } finally {
+    tasksLoading.value = false;
+  }
+}
+
+function startTaskRefresh() {
+  stopTaskRefresh();
+  taskRefreshTimer = window.setInterval(() => {
+    if (view.value === 'tasks' && document.visibilityState === 'visible') loadTasks();
+  }, 10000);
+}
+
+function stopTaskRefresh() {
+  if (taskRefreshTimer) window.clearInterval(taskRefreshTimer);
+  taskRefreshTimer = null;
+}
+
+function uniqueTaskValues(getter) {
+  return [...new Set(tasks.value.map(getter).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'zh-CN'));
+}
+
+function taskTags(task) {
+  return String(task.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
+}
+
+function taskMatchesStatus(task, category) {
+  const state = String(task.state || '').toLowerCase();
+  if (category === 'completed') return task.progress >= 1;
+  if (category === 'error') return state.includes('error') || state.includes('missing');
+  if (category === 'stopped') return state.includes('paused');
+  if (category === 'downloading') return /dl|downloading/.test(state) && !state.includes('paused');
+  if (category === 'seeding') return /up|uploading/.test(state) && !state.includes('paused');
+  return !state.includes('paused') && !state.includes('error') && !state.includes('missing');
+}
+
+function compareTasks(left, right, key, direction) {
+  const valueKey = { seeders: 'num_seeds', leechers: 'num_leechs' }[key] || key;
+  const leftValue = key === 'tags' ? taskTags(left).join(',') : left[valueKey];
+  const rightValue = key === 'tags' ? taskTags(right).join(',') : right[valueKey];
+  const numeric = ['size', 'progress', 'seeders', 'leechers', 'dlspeed', 'upspeed', 'added_on'].includes(key);
+  const compared = numeric ? Number(leftValue || 0) - Number(rightValue || 0) : String(leftValue || '').localeCompare(String(rightValue || ''), 'zh-CN', { numeric: true });
+  return direction === 'asc' ? compared : -compared;
+}
+
+function sortTasks(key) {
+  if (taskSort.key === key) taskSort.direction = taskSort.direction === 'asc' ? 'desc' : 'asc';
+  else Object.assign(taskSort, { key, direction: 'asc' });
+}
+
+function formatBytes(value) {
+  const amount = Number(value || 0);
+  if (!amount) return '0 B';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  const index = Math.min(Math.floor(Math.log(amount) / Math.log(1024)), units.length - 1);
+  return `${(amount / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function formatSpeed(value) {
+  return `${formatBytes(value)}/s`;
+}
+
+function formatProgress(value) {
+  return `${(Number(value || 0) * 100).toFixed(1)}%`;
+}
+
+function formatTaskValue(task, key) {
+  switch (key) {
+    case 'size': return formatBytes(task.size);
+    case 'seeders': return task.num_seeds ?? 0;
+    case 'leechers': return task.num_leechs ?? 0;
+    case 'dlspeed': return formatSpeed(task.dlspeed);
+    case 'upspeed': return formatSpeed(task.upspeed);
+    case 'added_on': return task.added_on ? new Date(task.added_on * 1000).toLocaleString('zh-CN', { hour12: false }) : '—';
+    case 'tracker': return task.tracker || '无 Tracker';
+    case 'save_path': return task.save_path || '—';
+    default: return task[key] || '—';
+  }
+}
+
+function taskCellTitle(task, key) {
+  return ['name', 'tracker', 'save_path'].includes(key) ? formatTaskValue(task, key) : '';
+}
+
+function clearTaskFilters() {
+  Object.keys(taskFilters).forEach((key) => { taskFilters[key] = []; });
+}
+
+function closeTaskPopovers() {
+  filterOpen.value = false;
+  columnMenu.value = null;
+}
+
+function openColumnMenu(column, event) {
+  filterOpen.value = false;
+  columnMenu.value = { column, x: Math.min(event.clientX, window.innerWidth - 220), y: Math.min(event.clientY, window.innerHeight - 260) };
+}
+
+function toggleTaskColumn(key) {
+  const column = taskColumns.find((item) => item.key === key);
+  if (!column || column.locked) return;
+  column.hidden = !column.hidden;
+  persistTaskColumns();
+}
+
+function canMoveColumn(key, direction) {
+  const index = taskColumns.findIndex((item) => item.key === key);
+  const target = index + direction;
+  return index >= 2 && target >= 2 && target < taskColumns.length;
+}
+
+function moveTaskColumn(key, direction) {
+  if (!canMoveColumn(key, direction)) return;
+  const index = taskColumns.findIndex((item) => item.key === key);
+  const [column] = taskColumns.splice(index, 1);
+  taskColumns.splice(index + direction, 0, column);
+  persistTaskColumns();
+}
+
+function startColumnResize(column, event) {
+  const startX = event.clientX;
+  const startWidth = column.width;
+  const resize = (moveEvent) => { column.width = clampWidth(startWidth + moveEvent.clientX - startX, startWidth); };
+  const finish = () => { window.removeEventListener('pointermove', resize); window.removeEventListener('pointerup', finish); persistTaskColumns(); };
+  window.addEventListener('pointermove', resize);
+  window.addEventListener('pointerup', finish);
+}
+
+onUnmounted(stopTaskRefresh);
 
 function pickColor(seed, palette = monetColors) {
   let hash = 0;
