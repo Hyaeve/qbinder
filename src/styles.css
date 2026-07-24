@@ -1646,6 +1646,77 @@ select:focus {
   }
 }
 
+/* Keep all view controls on the same top row and make table cells clip safely. */
+.tasks-page .task-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+.tasks-page .task-toolbar .account-switcher {
+  flex: 0 0 auto;
+}
+
+.tasks-page .task-toolbar-actions {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 0;
+}
+
+.tasks-page .task-search {
+  width: clamp(190px, 22vw, 300px);
+}
+
+.task-table-header,
+.task-row {
+  width: max-content;
+}
+
+.task-header-cell,
+.task-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.task-cell-text {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .tasks-page .task-toolbar {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .tasks-page .task-toolbar-actions {
+    flex: 1 1 280px;
+    margin-left: 0;
+  }
+}
+
+.task-name-tooltip {
+  position: fixed;
+  z-index: 40;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 9px 12px;
+  border: 1px solid #d8d6e2;
+  border-radius: 9px;
+  color: #423e4c;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 12px 28px rgba(55, 52, 67, .18);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
 @media (max-width: 900px) {
   .task-toolbar {
     align-items: stretch;

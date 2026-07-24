@@ -168,16 +168,18 @@
               </div>
             </div>
             <div v-for="task in pagedTasks" :key="task.hash" class="task-row">
-              <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`" :title="taskCellTitle(task, column.key)">
+              <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
                 <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span></div><b>{{ formatProgress(task.progress) }}</b></div></template>
                 <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
-                <template v-else>{{ formatTaskValue(task, column.key) }}</template>
+                <template v-else-if="column.key === 'name'"><span class="task-cell-text" @mouseenter="scheduleTaskNameTooltip(task, $event)" @mouseleave="hideTaskNameTooltip">{{ formatTaskValue(task, column.key) }}</span></template>
+                <template v-else><span class="task-cell-text" :title="taskCellTitle(task, column.key)">{{ formatTaskValue(task, column.key) }}</span></template>
               </div>
             </div>
           </div>
           <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
+        <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
         <footer class="task-summary" aria-label="传输状态">
           <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
           <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(taskTotals.down) }}</b></strong>
@@ -411,6 +413,8 @@ const taskSort = reactive({ key: 'name', direction: 'asc' });
 const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
+const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
+let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 
@@ -863,6 +867,24 @@ async function loadTasks() {
   } finally {
     tasksLoading.value = false;
   }
+}
+
+function scheduleTaskNameTooltip(task, event) {
+  const target = event.currentTarget;
+  if (target.scrollWidth <= target.clientWidth) return;
+  window.clearTimeout(taskNameTooltipTimer);
+  const bounds = target.getBoundingClientRect();
+  taskNameTooltipTimer = window.setTimeout(() => {
+    taskNameTooltip.text = task.name || '—';
+    taskNameTooltip.x = Math.min(bounds.left, window.innerWidth - 360);
+    taskNameTooltip.y = Math.min(bounds.bottom + 8, window.innerHeight - 72);
+    taskNameTooltip.visible = true;
+  }, 1000);
+}
+
+function hideTaskNameTooltip() {
+  window.clearTimeout(taskNameTooltipTimer);
+  taskNameTooltip.visible = false;
 }
 
 function startTaskRefresh() {
