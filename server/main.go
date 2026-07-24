@@ -72,13 +72,19 @@ type Card struct {
 	CreatedAt string   `json:"createdAt"`
 }
 
+type TrackerMapping struct {
+	Keyword string `json:"keyword"`
+	Name    string `json:"name"`
+}
+
 type Config struct {
-	Auth         AuthConfig  `json:"auth"`
-	Sessions     []Session   `json:"sessions"`
-	QBittorrents []QBAccount `json:"qbittorrents"`
-	Lanes        []Lane      `json:"lanes"`
-	Cards        []Card      `json:"cards"`
-	TagPool      []string    `json:"tagPool"`
+	Auth            AuthConfig       `json:"auth"`
+	Sessions        []Session        `json:"sessions"`
+	QBittorrents    []QBAccount      `json:"qbittorrents"`
+	Lanes           []Lane           `json:"lanes"`
+	Cards           []Card           `json:"cards"`
+	TagPool         []string         `json:"tagPool"`
+	TrackerMappings []TrackerMapping `json:"trackerMappings"`
 }
 
 type PublicQBAccount struct {
@@ -93,20 +99,22 @@ type PublicQBAccount struct {
 }
 
 type PublicConfig struct {
-	Username     string            `json:"username"`
-	QBittorrents []PublicQBAccount `json:"qbittorrents"`
-	Lanes        []Lane            `json:"lanes"`
-	Cards        []Card            `json:"cards"`
-	TagPool      []string          `json:"tagPool"`
+	Username        string            `json:"username"`
+	QBittorrents    []PublicQBAccount `json:"qbittorrents"`
+	Lanes           []Lane            `json:"lanes"`
+	Cards           []Card            `json:"cards"`
+	TagPool         []string          `json:"tagPool"`
+	TrackerMappings []TrackerMapping  `json:"trackerMappings"`
 }
 
 type BackupConfig struct {
-	Version      int         `json:"version"`
-	CreatedAt    string      `json:"createdAt"`
-	QBittorrents []QBAccount `json:"qbittorrents"`
-	Lanes        []Lane      `json:"lanes"`
-	Cards        []Card      `json:"cards"`
-	TagPool      []string    `json:"tagPool"`
+	Version         int              `json:"version"`
+	CreatedAt       string           `json:"createdAt"`
+	QBittorrents    []QBAccount      `json:"qbittorrents"`
+	Lanes           []Lane           `json:"lanes"`
+	Cards           []Card           `json:"cards"`
+	TagPool         []string         `json:"tagPool"`
+	TrackerMappings []TrackerMapping `json:"trackerMappings"`
 }
 
 const (
@@ -172,6 +180,7 @@ func main() {
 	mux.HandleFunc("/api/config", server.withAuth(server.handleConfig))
 	mux.HandleFunc("/api/config/backup", server.withAuth(server.handleConfigBackup))
 	mux.HandleFunc("/api/config/restore", server.withAuth(server.handleConfigRestore))
+	mux.HandleFunc("/api/tracker-mappings", server.withAuth(server.handleTrackerMappings))
 	mux.HandleFunc("/api/qb/test", server.withAuth(server.handleQBTest))
 	mux.HandleFunc("/api/qb", server.withAuth(server.handleQBCreate))
 	mux.HandleFunc("/api/qb/", server.withAuth(server.handleQBDelete))
@@ -217,7 +226,7 @@ func (s *Server) ensureConfig() error {
 	}
 	config := Config{
 		Auth:     AuthConfig{Username: "qBinder", PasswordHash: hashPassword("qBinder")},
-		Sessions: []Session{}, QBittorrents: []QBAccount{}, Lanes: []Lane{}, Cards: []Card{}, TagPool: []string{},
+		Sessions: []Session{}, QBittorrents: []QBAccount{}, Lanes: []Lane{}, Cards: []Card{}, TagPool: []string{}, TrackerMappings: []TrackerMapping{},
 	}
 	return s.writeConfigLocked(config)
 }
@@ -294,6 +303,9 @@ func normalizeConfig(config Config) Config {
 	if config.TagPool == nil {
 		config.TagPool = []string{}
 	}
+	if config.TrackerMappings == nil {
+		config.TrackerMappings = []TrackerMapping{}
+	}
 	return config
 }
 
@@ -302,7 +314,7 @@ func publicConfig(config Config) PublicConfig {
 	for _, item := range config.QBittorrents {
 		accounts = append(accounts, PublicQBAccount{ID: item.ID, Alias: item.Alias, Protocol: item.Protocol, Host: item.Host, Port: item.Port, Username: item.Username, LastVerifiedAt: item.LastVerifiedAt, LastError: item.LastError})
 	}
-	return PublicConfig{Username: config.Auth.Username, QBittorrents: accounts, Lanes: config.Lanes, Cards: config.Cards, TagPool: config.TagPool}
+	return PublicConfig{Username: config.Auth.Username, QBittorrents: accounts, Lanes: config.Lanes, Cards: config.Cards, TagPool: config.TagPool, TrackerMappings: config.TrackerMappings}
 }
 
 func (s *Server) withAuth(next func(http.ResponseWriter, *http.Request, Config, Session)) http.HandlerFunc {
@@ -419,12 +431,13 @@ func (s *Server) handleConfigBackup(w http.ResponseWriter, r *http.Request, conf
 		return
 	}
 	backup := BackupConfig{
-		Version:      1,
-		CreatedAt:    time.Now().Format(time.RFC3339),
-		QBittorrents: config.QBittorrents,
-		Lanes:        config.Lanes,
-		Cards:        config.Cards,
-		TagPool:      config.TagPool,
+		Version:         1,
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		QBittorrents:    config.QBittorrents,
+		Lanes:           config.Lanes,
+		Cards:           config.Cards,
+		TagPool:         config.TagPool,
+		TrackerMappings: config.TrackerMappings,
 	}
 	w.Header().Set("Content-Disposition", `attachment; filename="qbinder-backup.json"`)
 	writeJSON(w, http.StatusOK, backup)
@@ -443,11 +456,44 @@ func (s *Server) handleConfigRestore(w http.ResponseWriter, r *http.Request, con
 	config.Lanes = normalizeBackupLanes(backup.Lanes, config.QBittorrents)
 	config.Cards = normalizeBackupCards(backup.Cards, config.QBittorrents, config.Lanes)
 	config.TagPool = mergeTags(backup.TagPool, collectCardTags(config.Cards))
+	config.TrackerMappings = normalizeTrackerMappings(backup.TrackerMappings)
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleTrackerMappings(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w)
+		return
+	}
+	var payload []TrackerMapping
+	if !decodeJSON(w, r, &payload) {
+		return
+	}
+	config.TrackerMappings = normalizeTrackerMappings(payload)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func normalizeTrackerMappings(mappings []TrackerMapping) []TrackerMapping {
+	result := make([]TrackerMapping, 0, len(mappings))
+	seen := make(map[string]bool)
+	for _, mapping := range mappings {
+		keyword := strings.ToLower(strings.TrimSpace(mapping.Keyword))
+		name := strings.TrimSpace(mapping.Name)
+		if keyword == "" || name == "" || len(keyword) > 200 || len(name) > 80 || seen[keyword] {
+			continue
+		}
+		seen[keyword] = true
+		result = append(result, TrackerMapping{Keyword: keyword, Name: name})
+	}
+	return result
 }
 
 func (s *Server) handleQBTest(w http.ResponseWriter, r *http.Request, config Config, session Session) {

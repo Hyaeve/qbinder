@@ -33,7 +33,10 @@
         <button :class="{ active: view === 'settings' }" title="设置" @click="view = 'settings'"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
-      <button class="sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></button>
+      <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
+        <span class="sidebar-toggle-mark" aria-hidden="true"></span>
+        <PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else />
+      </button>
     </aside>
 
     <div v-if="view === 'settings'" class="content settings-page">
@@ -66,6 +69,22 @@
           <div class="button-row">
             <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
             <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
+          </div>
+        </section>
+
+        <section class="setting-panel tracker-mapping-panel">
+          <h2><Table2 />Tracker 展示名称</h2>
+          <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
+          <div class="tracker-mapping-list">
+            <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
+              <input v-model="mapping.keyword" placeholder="域名或关键词，例如 m-team" aria-label="Tracker 域名关键词" />
+              <input v-model="mapping.name" placeholder="展示名称，例如 M-Team" aria-label="Tracker 展示名称" />
+              <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="button" class="secondary-button" @click="addTrackerMapping"><Plus />新增映射</button>
+            <button type="button" class="primary-button" @click="saveTrackerMappings"><Save />保存映射</button>
           </div>
         </section>
 
@@ -112,8 +131,13 @@
 
       <template v-else>
         <header class="task-toolbar" @click.stop>
-          <div class="top-tabs task-account-tabs">
-            <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" @click="activeQbId = account.id">{{ account.alias }}</button>
+          <div class="account-switcher">
+            <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
+              <span>{{ activeQb?.alias }}</span><ChevronDown />
+            </button>
+            <div v-if="accountMenuOpen" class="account-switcher-menu" role="listbox">
+              <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
+            </div>
           </div>
           <div class="task-toolbar-actions">
             <label class="task-search"><Search /><input v-model="taskSearch" placeholder="搜索种子名称、标签或路径" /></label>
@@ -139,7 +163,7 @@
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
-                <span>{{ column.label }}</span><ArrowUpDown v-if="taskSort.key !== column.key" /><ArrowUp v-else-if="taskSort.direction === 'asc'" /><ArrowDown v-else />
+                <span>{{ column.label }}</span><ArrowUp v-if="taskSort.key === column.key && taskSort.direction === 'asc'" /><ArrowDown v-else-if="taskSort.key === column.key" />
                 <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
               </div>
             </div>
@@ -154,7 +178,11 @@
           <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
-        <div class="task-summary"><span>显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span><strong><Download />{{ formatSpeed(taskTotals.down) }}</strong><strong><Upload />{{ formatSpeed(taskTotals.up) }}</strong></div>
+        <footer class="task-summary" aria-label="传输状态">
+          <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
+          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(taskTotals.down) }}</b></strong>
+          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(taskTotals.up) }}</b></strong>
+        </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
           <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
           <span>第 {{ taskPage }} / {{ taskPageCount }} 页 · 每页 100 个</span>
@@ -173,7 +201,7 @@
       </template>
     </div>
 
-    <div v-else class="content cards-page">
+    <div v-else class="content cards-page" @click="accountMenuOpen = false">
       <div v-if="config.qbittorrents.length === 0" class="empty-workspace">
         <img src="/reference.png" alt="qBinder" />
         <h1>先添加 qBittorrent 账户</h1>
@@ -181,8 +209,15 @@
       </div>
 
       <template v-else>
-        <header class="top-tabs">
-          <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb.id }" @click="activeQbId = account.id">{{ account.alias }}</button>
+        <header class="top-tabs" @click.stop>
+          <div class="account-switcher">
+            <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
+              <span>{{ activeQb?.alias }}</span><ChevronDown />
+            </button>
+            <div v-if="accountMenuOpen" class="account-switcher-menu" role="listbox">
+              <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
+            </div>
+          </div>
         </header>
 
         <form class="lane-create" @submit.prevent="addLane">
@@ -324,9 +359,9 @@ import {
   RefreshCw,
   ArrowDown,
   ArrowUp,
-  ArrowUpDown,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronDown,
   Tags,
   Upload,
   UploadCloud,
@@ -371,9 +406,11 @@ const tasksError = ref('');
 const taskSearch = ref('');
 const filterOpen = ref(false);
 const columnMenu = ref(null);
+const accountMenuOpen = ref(false);
 const taskSort = reactive({ key: 'name', direction: 'asc' });
 const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
+const trackerMappings = ref([]);
 let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 
@@ -393,6 +430,7 @@ onMounted(async () => {
 watch(config, (next) => {
   if (!next) return;
   credentialForm.username = next.username;
+  trackerMappings.value = cloneTrackerMappings(next.trackerMappings);
   if (!activeQbId.value && next.qbittorrents[0]) activeQbId.value = next.qbittorrents[0].id;
 }, { immediate: true });
 
@@ -432,17 +470,17 @@ const statusOptions = [
 const taskFilterGroups = computed(() => [
   { key: 'path', label: '保存路径', values: uniqueTaskValues((task) => task.save_path) },
   { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
-  { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => task.tracker || '无 Tracker') }
+  { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
 ]);
 const hasTaskFilters = computed(() => Object.values(taskFilters).some((items) => items.length));
 const filteredTasks = computed(() => {
   const query = taskSearch.value.trim().toLocaleLowerCase();
   const result = tasks.value.filter((task) => {
-    const matchesSearch = !query || [task.name, task.tags, task.save_path, task.tracker].some((value) => String(value || '').toLocaleLowerCase().includes(query));
+    const matchesSearch = !query || [task.name, task.tags, task.save_path, trackerDisplayName(task.tracker)].some((value) => String(value || '').toLocaleLowerCase().includes(query));
     const matchesStatus = !taskFilters.status.length || taskFilters.status.some((status) => taskMatchesStatus(task, status));
     const matchesPath = !taskFilters.path.length || taskFilters.path.includes(task.save_path);
     const matchesTags = !taskFilters.tags.length || taskTags(task).some((tag) => taskFilters.tags.includes(tag));
-    const tracker = task.tracker || '无 Tracker';
+    const tracker = trackerDisplayName(task.tracker);
     const matchesTracker = !taskFilters.tracker.length || taskFilters.tracker.includes(tracker);
     return matchesSearch && matchesStatus && matchesPath && matchesTags && matchesTracker;
   });
@@ -556,6 +594,26 @@ async function restoreBackup(event) {
   } finally {
     backupBusy.value = false;
     event.target.value = '';
+  }
+}
+
+function cloneTrackerMappings(mappings) {
+  return Array.isArray(mappings) ? mappings.map((mapping) => ({ keyword: mapping.keyword || '', name: mapping.name || '' })) : [];
+}
+
+function addTrackerMapping() {
+  trackerMappings.value.push({ keyword: '', name: '' });
+}
+
+function removeTrackerMapping(index) {
+  trackerMappings.value.splice(index, 1);
+}
+
+async function saveTrackerMappings() {
+  try {
+    config.value = await api('/api/tracker-mappings', { method: 'PUT', body: JSON.stringify(trackerMappings.value) });
+  } catch (requestError) {
+    window.alert(requestError.message);
   }
 }
 
@@ -839,8 +897,8 @@ function taskMatchesStatus(task, category) {
 
 function compareTasks(left, right, key, direction) {
   const valueKey = { seeders: 'num_seeds', leechers: 'num_leechs' }[key] || key;
-  const leftValue = key === 'tags' ? taskTags(left).join(',') : left[valueKey];
-  const rightValue = key === 'tags' ? taskTags(right).join(',') : right[valueKey];
+  const leftValue = key === 'tags' ? taskTags(left).join(',') : key === 'tracker' ? trackerDisplayName(left.tracker) : left[valueKey];
+  const rightValue = key === 'tags' ? taskTags(right).join(',') : key === 'tracker' ? trackerDisplayName(right.tracker) : right[valueKey];
   const numeric = ['size', 'progress', 'seeders', 'leechers', 'dlspeed', 'upspeed', 'added_on'].includes(key);
   const compared = numeric ? Number(leftValue || 0) - Number(rightValue || 0) : String(leftValue || '').localeCompare(String(rightValue || ''), 'zh-CN', { numeric: true });
   return direction === 'asc' ? compared : -compared;
@@ -867,6 +925,20 @@ function formatProgress(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`;
 }
 
+function trackerDisplayName(tracker) {
+  const value = String(tracker || '').trim();
+  if (!value) return '无 Tracker';
+  const normalized = value.toLocaleLowerCase();
+  const mapping = (config.value?.trackerMappings || []).find((item) => item.keyword && normalized.includes(String(item.keyword).trim().toLocaleLowerCase()));
+  if (mapping?.name?.trim()) return mapping.name.trim();
+  try {
+    const hostname = new URL(value).hostname.replace(/^tracker\./i, '').replace(/^www\./i, '');
+    return hostname || value;
+  } catch {
+    return value.replace(/^https?:\/\//i, '').split('/')[0].replace(/^tracker\./i, '') || value;
+  }
+}
+
 function formatTaskValue(task, key) {
   switch (key) {
     case 'size': return formatBytes(task.size);
@@ -875,7 +947,7 @@ function formatTaskValue(task, key) {
     case 'dlspeed': return formatSpeed(task.dlspeed);
     case 'upspeed': return formatSpeed(task.upspeed);
     case 'added_on': return task.added_on ? new Date(task.added_on * 1000).toLocaleString('zh-CN', { hour12: false }) : '—';
-    case 'tracker': return task.tracker || '无 Tracker';
+    case 'tracker': return trackerDisplayName(task.tracker);
     case 'save_path': return task.save_path || '—';
     default: return task[key] || '—';
   }
@@ -892,6 +964,12 @@ function clearTaskFilters() {
 function closeTaskPopovers() {
   filterOpen.value = false;
   columnMenu.value = null;
+  accountMenuOpen.value = false;
+}
+
+function selectQbAccount(id) {
+  activeQbId.value = id;
+  accountMenuOpen.value = false;
 }
 
 function openColumnMenu(column, event) {

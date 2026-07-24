@@ -326,29 +326,56 @@ select:focus {
 .sidebar-toggle {
   position: absolute;
   top: 50%;
-  right: -19px;
+  right: -18px;
   z-index: 12;
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 18px;
+  height: 116px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid #e2e1e9;
-  border-radius: 11px;
-  color: #7b7786;
-  background: #fff;
-  box-shadow: 0 7px 17px rgba(73, 70, 86, .13);
+  padding: 0;
+  color: transparent;
+  background: transparent;
   transform: translateY(-50%);
 }
 
-.sidebar-toggle:hover {
-  color: #8264ea;
-  background: #e9e4fb;
+.sidebar-toggle-mark {
+  width: 3px;
+  height: 78px;
+  border-radius: 999px;
+  background: #8b8c94;
+  opacity: .8;
+  transition: opacity .16s ease, width .16s ease, height .16s ease, background .16s ease;
 }
 
 .sidebar-toggle svg {
-  width: 19px;
-  height: 19px;
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.sidebar-toggle:hover {
+  width: 34px;
+  color: #5baef0;
+}
+
+.sidebar-toggle:hover .sidebar-toggle-mark {
+  width: 5px;
+  height: 104px;
+  background: currentColor;
+  opacity: 1;
+}
+
+.sidebar-toggle:hover svg {
+  opacity: 1;
+  transform: translateX(-2px);
+}
+
+.sidebar-toggle.is-expand-action:hover svg {
+  transform: translateX(2px);
 }
 
 .sidebar nav {
@@ -460,26 +487,102 @@ select:focus {
   backdrop-filter: blur(14px);
 }
 
-.top-tabs button {
-  min-width: 112px;
-  height: 42px;
-  border-radius: 999px;
-  color: #686572;
-  background: transparent;
-  font-weight: 900;
+.account-switcher {
+  position: relative;
+  width: fit-content;
 }
 
-.top-tabs button.active {
+.account-switcher-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 154px;
+  height: 42px;
+  padding: 0 16px 0 18px;
+  border-radius: 999px;
   color: #8d68ef;
   background: #fff;
   box-shadow: inset 0 0 0 1px #e2ddf8, 0 10px 24px rgba(80, 74, 98, .08);
+  font-weight: 900;
 }
 
-.lane-create {
+.account-switcher-trigger span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-trigger svg {
+  width: 17px;
+  height: 17px;
+  transition: transform .16s ease;
+}
+
+.account-switcher-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.account-switcher-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  min-width: max(100%, 190px);
+  max-width: min(320px, calc(100vw - 72px));
+  padding: 6px;
+  border: 1px solid #e2e0eb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 18px 38px rgba(62, 60, 74, .16);
+}
+
+.account-switcher-menu button {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: #625e70;
+  background: transparent;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.account-switcher-menu button:hover,
+.account-switcher-menu button.active {
+  color: #805dde;
+  background: #f1edff;
+}
+
+.cards-page {
+  position: relative;
+}
+
+.cards-page .lane-create {
+  position: absolute;
+  top: 32px;
+  right: 36px;
+  z-index: 4;
   display: flex;
-  gap: 12px;
-  max-width: 520px;
-  margin-bottom: 26px;
+  width: min(310px, calc(100% - 72px));
+  gap: 8px;
+  margin: 0;
+}
+
+.cards-page .lane-create input {
+  min-width: 0;
+  padding-inline: 14px;
+}
+
+.cards-page .lane-create .icon-only {
+  width: 42px;
+  min-width: 42px;
 }
 
 .icon-only {
@@ -488,7 +591,7 @@ select:focus {
   padding: 0;
 }
 
-.lane {
+.cards-page .lane {
   margin-bottom: 34px;
 }
 
@@ -1182,7 +1285,7 @@ select:focus {
   /* Task view: these rules intentionally remain outside responsive media queries. */
   .tasks-page { position: relative; padding-bottom: 100px; }
   .task-toolbar { position: sticky; top: 0; z-index: 6; display: flex; align-items: flex-start; gap: 18px; min-height: 62px; padding: 0 0 18px; margin-bottom: 20px; background: rgba(245,245,250,.93); border-bottom: 1px solid #e3e4ed; backdrop-filter: blur(14px); }
-  .task-account-tabs { position: static; flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+  .task-toolbar .account-switcher { flex: 1; min-width: 0; }
   .task-toolbar-actions { display: flex; align-items: center; gap: 10px; }
   .task-search { display: flex; align-items: center; width: min(320px, 28vw); min-width: 230px; gap: 8px; padding: 0 13px; border: 1px solid #ddddea; border-radius: 12px; background: #fff; }
   .task-search svg { width: 18px; color: #8d68ef; }
@@ -1331,9 +1434,228 @@ select:focus {
   .sidebar-toggle,
   .app-shell.sidebar-collapsed .sidebar-toggle {
     position: static;
+    width: 38px;
+    height: 38px;
     margin-left: auto;
     border: 0;
+    border-radius: 11px;
+    color: #7b7786;
+    background: #eef0f6;
     box-shadow: none;
     transform: none;
+  }
+
+  .sidebar-toggle-mark {
+    display: none;
+  }
+
+  .sidebar-toggle svg {
+    position: static;
+    width: 19px;
+    height: 19px;
+    opacity: 1;
+    transform: none;
+  }
+
+  .cards-page .lane-create {
+    position: static;
+    width: 100%;
+    margin-bottom: 26px;
+  }
+
+  .account-switcher-menu {
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Task toolbar and headers: compact controls with low-saturation Monet accents. */
+.task-toolbar {
+  align-items: center;
+}
+
+.task-toolbar .account-switcher {
+  flex: 0 0 auto;
+}
+
+.task-toolbar-actions {
+  margin-left: auto;
+}
+
+.task-search {
+  width: min(230px, 22vw);
+  min-width: 190px;
+}
+
+.task-header-cell {
+  background: #edf1ee;
+}
+
+.task-header-cell:nth-child(6n + 1) {
+  background: #e7edf4;
+}
+
+.task-header-cell:nth-child(6n + 2) {
+  background: #eee9df;
+}
+
+.task-header-cell:nth-child(6n + 3) {
+  background: #e7efe5;
+}
+
+.task-header-cell:nth-child(6n + 4) {
+  background: #eee7ef;
+}
+
+.task-header-cell:nth-child(6n + 5) {
+  background: #e9eeee;
+}
+
+.task-header-cell:nth-child(6n) {
+  background: #f0e9e2;
+}
+
+.setting-note {
+  margin: -4px 0 4px;
+  color: #817d8c;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tracker-mapping-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.tracker-mapping-list {
+  display: grid;
+  gap: 9px;
+}
+
+.tracker-mapping-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.tracker-mapping-row input {
+  min-width: 0;
+}
+
+.tasks-page {
+  padding-bottom: 96px;
+}
+
+.tasks-page .task-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  align-items: center;
+  min-height: 64px;
+  padding: 10px 0 16px;
+  background: linear-gradient(180deg, rgba(245, 245, 250, .99) 72%, rgba(245, 245, 250, .84));
+}
+
+.tasks-page .task-summary {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 292px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  gap: 0;
+  padding: 0 36px;
+  border: 0;
+  border-top: 1px solid #dcdfea;
+  border-radius: 0;
+  color: #55525e;
+  background: rgba(252, 252, 254, .96);
+  box-shadow: 0 -8px 26px rgba(65, 62, 79, .08);
+  backdrop-filter: blur(16px);
+}
+
+.app-shell.sidebar-collapsed .tasks-page .task-summary {
+  left: 84px;
+}
+
+.task-summary-count {
+  margin-right: auto;
+  color: #8c8896;
+  font-size: 12px;
+}
+
+.task-summary .transfer-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 20px;
+  border-left: 1px solid #e6e6ec;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.task-summary .transfer-stat svg {
+  width: 19px;
+  height: 19px;
+}
+
+.task-summary .transfer-stat b {
+  min-width: 94px;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-summary .is-download { color: #4f9b77; }
+.task-summary .is-upload { color: #5e87c9; }
+
+@media (max-width: 900px) {
+  .tasks-page .task-summary,
+  .app-shell.sidebar-collapsed .tasks-page .task-summary {
+    left: 0;
+    padding: 0 16px;
+  }
+
+  .tasks-page .task-toolbar {
+    top: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .tracker-mapping-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tracker-mapping-row input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .task-summary-count,
+  .task-summary .transfer-stat > span {
+    display: none;
+  }
+
+  .task-summary .transfer-stat {
+    padding: 0 12px;
+  }
+
+  .task-summary .transfer-stat b {
+    min-width: 76px;
+  }
+}
+
+@media (max-width: 900px) {
+  .task-toolbar {
+    align-items: stretch;
+  }
+
+  .task-toolbar-actions {
+    margin-left: 0;
+  }
+
+  .task-search {
+    width: auto;
   }
 }
