@@ -19,18 +19,21 @@
     </section>
   </main>
 
-  <div v-else class="app-shell">
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar">
-      <div class="brand-lockup">
-        <img src="/reference.png" alt="qBinder" />
-        <div><strong>qBinder</strong><span>v1.0</span></div>
+      <div class="sidebar-top">
+        <div class="brand-lockup">
+          <img src="/reference.png" alt="qBinder" />
+          <div><strong>qBinder</strong><span>v1.0</span></div>
+        </div>
+        <button class="sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></button>
       </div>
       <nav>
-        <button :class="{ active: view === 'cards' }" @click="view = 'cards'"><Boxes />卡片</button>
-        <button :class="{ active: view === 'tasks' }" @click="view = 'tasks'"><Table2 />视图</button>
-        <button :class="{ active: view === 'settings' }" @click="view = 'settings'"><Settings />设置</button>
+        <button :class="{ active: view === 'cards' }" title="卡片" @click="view = 'cards'"><Boxes /><span>卡片</span></button>
+        <button :class="{ active: view === 'tasks' }" title="视图" @click="view = 'tasks'"><Table2 /><span>视图</span></button>
+        <button :class="{ active: view === 'settings' }" title="设置" @click="view = 'settings'"><Settings /><span>设置</span></button>
       </nav>
-      <button class="ghost-button logout" @click="logout"><LogOut />退出</button>
+      <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
     </aside>
 
     <div v-if="view === 'settings'" class="content settings-page">
@@ -315,6 +318,8 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  PanelLeftClose,
+  PanelLeftOpen,
   Tags,
   Upload,
   UploadCloud,
@@ -361,6 +366,7 @@ const taskSort = reactive({ key: 'name', direction: 'asc' });
 const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
 let taskRefreshTimer = null;
+const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -409,7 +415,7 @@ const imageUrlValue = computed(() => {
 });
 
 const visibleTaskColumns = computed(() => taskColumns.filter((column) => !column.hidden));
-const taskGridStyle = computed(() => ({ gridTemplateColumns: visibleTaskColumns.value.map((column) => `${column.width}px`).join(' ') }));
+const taskGridStyle = computed(() => ({ '--task-columns': visibleTaskColumns.value.map((column) => `${column.width}px`).join(' ') }));
 const statusOptions = [
   { key: 'downloading', label: '下载' }, { key: 'seeding', label: '做种' }, { key: 'completed', label: '完成' },
   { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
@@ -896,6 +902,11 @@ function startColumnResize(column, event) {
 }
 
 onUnmounted(stopTaskRefresh);
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem('qbinder-sidebar-collapsed', String(sidebarCollapsed.value));
+}
 
 function pickColor(seed, palette = monetColors) {
   let hash = 0;
