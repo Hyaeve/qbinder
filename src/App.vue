@@ -36,10 +36,10 @@
       <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
         <span class="sidebar-toggle-action" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
-            <path class="sidebar-toggle-stem" d="M12 4v16" />
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="15 7 9 12 15 17" />
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="9 7 15 12 9 17" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25">
+            <path class="sidebar-toggle-stem" d="M12 3v18" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="15.5 5 8.5 12 15.5 19" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="8.5 5 15.5 12 8.5 19" />
           </svg>
         </span>
       </button>
@@ -187,14 +187,18 @@
                   </label>
                 </div>
                 <span v-else class="filter-none">暂无可筛选项目</span>
-                <footer v-if="filterPageCount > 1" class="filter-option-pagination">
-                  <button :disabled="filterValuePage === 1" @click="filterValuePage--">上一页</button><span>第 {{ filterValuePage }} / {{ filterPageCount }} 页</span><button :disabled="filterValuePage === filterPageCount" @click="filterValuePage++">下一页</button>
-                </footer>
               </div>
             </div>
             <footer class="filter-confirm-actions">
-              <button class="secondary-button" @click="clearFilterCandidates">清除</button>
-              <button class="primary-button" @click="applyTaskFilters">确认</button>
+              <div v-if="filterPageCount > 1" class="filter-option-pagination">
+                <button class="filter-page-button" :disabled="filterValuePage === 1" title="上一页" aria-label="上一页" @click="filterValuePage--"><ChevronUp /></button>
+                <span>第 {{ filterValuePage }} / {{ filterPageCount }} 页</span>
+                <button class="filter-page-button" :disabled="filterValuePage === filterPageCount" title="下一页" aria-label="下一页" @click="filterValuePage++"><ChevronDown /></button>
+              </div>
+              <div class="filter-confirm-buttons">
+                <button class="secondary-button" @click="clearFilterCandidates">清除</button>
+                <button class="primary-button" @click="applyTaskFilters">确认</button>
+              </div>
             </footer>
           </section>
         </header>
