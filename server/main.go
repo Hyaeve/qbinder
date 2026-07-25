@@ -577,11 +577,29 @@ type transferInfo struct {
 	UpRateLimit   int64 `json:"up_rate_limit"`
 }
 
+type transferStatus struct {
+	DownSpeed     int64 `json:"downSpeed"`
+	UpSpeed       int64 `json:"upSpeed"`
+	Downloaded    int64 `json:"downloaded"`
+	Uploaded      int64 `json:"uploaded"`
+	DownRateLimit int64 `json:"downRateLimit"`
+	UpRateLimit   int64 `json:"upRateLimit"`
+}
+
 type torrentListResponse struct {
-	Tasks          []torrentTask `json:"tasks"`
-	TotalDownSpeed int64         `json:"totalDownSpeed"`
-	TotalUpSpeed   int64         `json:"totalUpSpeed"`
-	Transfer       transferInfo  `json:"transfer"`
+	Tasks          []torrentTask  `json:"tasks"`
+	TotalDownSpeed int64          `json:"totalDownSpeed"`
+	TotalUpSpeed   int64          `json:"totalUpSpeed"`
+	Transfer       transferStatus `json:"transfer"`
+}
+
+type torrentActionRequest struct {
+	Action      string   `json:"action"`
+	Hashes      []string `json:"hashes"`
+	Name        string   `json:"name"`
+	SavePath    string   `json:"savePath"`
+	UploadLimit int64    `json:"uploadLimit"`
+	DeleteFiles bool     `json:"deleteFiles"`
 }
 
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -592,6 +610,22 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 			return
 		}
 		s.handleQBTorrents(w, r, config, parts[0])
+		return
+	}
+	if len(parts) == 3 && parts[1] == "torrents" && parts[2] == "action" {
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w)
+			return
+		}
+		s.handleQBTorrentAction(w, r, config, parts[0])
+		return
+	}
+	if len(parts) == 3 && parts[1] == "torrents" && parts[2] == "export" {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w)
+			return
+		}
+		s.handleQBTorrentExport(w, r, config, parts[0])
 		return
 	}
 	if len(parts) != 1 || parts[0] == "" {
@@ -615,6 +649,129 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 		return
 	}
 	writeJSON(w, http.StatusOK, publicConfig(config))
+}
+
+func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	account, ok := findQB(config.QBittorrents, id)
+	if !ok {
+		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
+		return
+	}
+	hashes := strings.TrimSpace(r.URL.Query().Get("hashes"))
+	if hashes == "" {
+		writeErrorText(w, http.StatusBadRequest, "请选择至少一个种子")
+		return
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/torrents/export?hashes="+url.QueryEscape(hashes), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent export failed: %d", response.StatusCode))
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-bittorrent")
+	w.Header().Set("Content-Disposition", "attachment; filename=selected-torrents.torrent")
+	_, _ = io.Copy(w, io.LimitReader(response.Body, maxQBResponseSize))
+}
+
+func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	account, ok := findQB(config.QBittorrents, id)
+	if !ok {
+		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
+		return
+	}
+	var payload torrentActionRequest
+	if !decodeJSON(w, r, &payload) {
+		return
+	}
+	if len(payload.Hashes) == 0 || len(payload.Hashes) > 1000 {
+		writeErrorText(w, http.StatusBadRequest, "请选择至少一个种子，且最多 1000 个")
+		return
+	}
+	for _, hash := range payload.Hashes {
+		if len(hash) != 40 || strings.Trim(hash, "0123456789abcdefABCDEF") != "" {
+			writeErrorText(w, http.StatusBadRequest, "种子 Hash 无效")
+			return
+		}
+	}
+	endpoint, form := "", url.Values{"hashes": {strings.Join(payload.Hashes, "|")}}
+	switch payload.Action {
+	case "start":
+		endpoint = "/api/v2/torrents/start"
+	case "forceStart":
+		endpoint = "/api/v2/torrents/setForceStart"
+		form.Set("value", "true")
+	case "stop":
+		endpoint = "/api/v2/torrents/stop"
+	case "delete":
+		endpoint = "/api/v2/torrents/delete"
+		form.Set("deleteFiles", strconv.FormatBool(payload.DeleteFiles))
+	case "rename":
+		if len(payload.Hashes) != 1 || strings.TrimSpace(payload.Name) == "" {
+			writeErrorText(w, http.StatusBadRequest, "重命名时只能选择一个种子且名称不能为空")
+			return
+		}
+		endpoint = "/api/v2/torrents/rename"
+		form.Set("hash", payload.Hashes[0])
+		form.Del("hashes")
+		form.Set("name", strings.TrimSpace(payload.Name))
+	case "setLocation":
+		if strings.TrimSpace(payload.SavePath) == "" {
+			writeErrorText(w, http.StatusBadRequest, "保存路径不能为空")
+			return
+		}
+		endpoint = "/api/v2/torrents/setLocation"
+		form.Set("location", strings.TrimSpace(payload.SavePath))
+	case "setUploadLimit":
+		if payload.UploadLimit < -1 {
+			writeErrorText(w, http.StatusBadRequest, "上传限速无效")
+			return
+		}
+		endpoint = "/api/v2/torrents/setUploadLimit"
+		form.Set("limit", strconv.FormatInt(payload.UploadLimit, 10))
+	default:
+		writeErrorText(w, http.StatusBadRequest, "不支持的种子操作")
+		return
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		logQBFailure("torrent_action_login", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	request.Header.Set("Cookie", cookie)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		logQBFailure("torrent_action_request", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent action failed: %d", response.StatusCode))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config Config, id string) {
@@ -687,9 +844,18 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent transfer info response")
 		return
 	}
-	if err := json.Unmarshal(transferBody, &result.Transfer); err != nil {
+	var qBTransfer transferInfo
+	if err := json.Unmarshal(transferBody, &qBTransfer); err != nil {
 		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent transfer info response")
 		return
+	}
+	result.Transfer = transferStatus{
+		DownSpeed:     qBTransfer.DownSpeed,
+		UpSpeed:       qBTransfer.UpSpeed,
+		Downloaded:    qBTransfer.Downloaded,
+		Uploaded:      qBTransfer.Uploaded,
+		DownRateLimit: qBTransfer.DownRateLimit,
+		UpRateLimit:   qBTransfer.UpRateLimit,
 	}
 	writeJSON(w, http.StatusOK, result)
 }

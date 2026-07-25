@@ -144,22 +144,27 @@
             <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="filterOpen = !filterOpen"><Filter /></button>
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
           </div>
-          <section v-if="filterOpen" class="task-filter-popover">
-            <div class="filter-heading"><strong>筛选器</strong><button v-if="hasTaskFilters" @click="clearTaskFilters">清除已选</button></div>
+          <section v-if="filterOpen" class="task-filter-popover" aria-label="任务筛选">
+            <div class="filter-heading"><strong>筛选任务</strong><button v-if="hasTaskFilters" @click="clearTaskFilters">清除全部</button></div>
             <div class="filter-selected" v-if="hasTaskFilters">
               <button v-for="item in selectedTaskFilters" :key="`${item.key}-${item.value}`" @click="removeTaskFilter(item.key, item.value)">{{ item.label }}<X /></button>
             </div>
-            <div class="filter-category-tabs" role="tablist">
-              <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="activeFilterGroup = group.key">
-                {{ group.label }}<em v-if="taskFilters[group.key].length">{{ taskFilters[group.key].length }}</em>
-              </button>
-            </div>
-            <div v-for="group in taskFilterGroups" v-show="activeFilterGroup === group.key" :key="group.key" class="filter-group filter-group-options">
-              <strong>{{ group.label }}</strong>
-              <div v-if="group.values.length" class="filter-option-list">
-                <label v-for="item in group.values" :key="item" :class="{ checked: taskFilters[group.key].includes(item) }"><input v-model="taskFilters[group.key]" type="checkbox" :value="item" />{{ item }}</label>
+            <div class="filter-browser">
+              <nav class="filter-category-list" aria-label="筛选类别">
+                <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="selectFilterGroup(group.key)">
+                  <span>{{ group.label }}</span><em v-if="taskFilters[group.key].length">{{ taskFilters[group.key].length }}</em><ChevronDown />
+                </button>
+              </nav>
+              <div class="filter-option-panel">
+                <div class="filter-option-heading"><strong>{{ activeTaskFilterGroup.label }}</strong><span>{{ activeTaskFilterGroup.values.length }} 项</span></div>
+                <div v-if="pagedFilterValues.length" class="filter-option-list">
+                  <label v-for="item in pagedFilterValues" :key="item" :class="{ checked: taskFilters[activeFilterGroup].includes(item) }"><input v-model="taskFilters[activeFilterGroup]" type="checkbox" :value="item" />{{ filterValueLabel(activeTaskFilterGroup, item) }}</label>
+                </div>
+                <span v-else class="filter-none">暂无可筛选项目</span>
+                <footer v-if="filterPageCount > 1" class="filter-option-pagination">
+                  <button :disabled="filterValuePage === 1" @click="filterValuePage--">上一页</button><span>{{ filterValuePage }} / {{ filterPageCount }}</span><button :disabled="filterValuePage === filterPageCount" @click="filterValuePage++">下一页</button>
+                </footer>
               </div>
-              <span v-else class="filter-none">暂无可筛选项</span>
             </div>
           </section>
         </header>
@@ -173,9 +178,9 @@
                 <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
               </div>
             </div>
-            <div v-for="task in pagedTasks" :key="task.hash" class="task-row">
+            <div v-for="task in pagedTasks" :key="task.hash" class="task-row" :class="{ selected: selectedTaskHashes.includes(task.hash) }" @mouseenter="hoveredTaskHash = task.hash" @mouseleave="hoveredTaskHash = ''" @click.stop="selectTask(task, $event)" @contextmenu.prevent.stop="openTaskMenu(task, $event)">
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
-                <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span></div><b>{{ formatProgress(task.progress) }}</b></div></template>
+                <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
                 <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
                 <template v-else-if="column.key === 'name'"><span class="task-cell-text" @mouseenter="scheduleTaskNameTooltip(task, $event)" @mouseleave="hideTaskNameTooltip">{{ formatTaskValue(task, column.key) }}</span></template>
                 <template v-else><span class="task-cell-text" :title="taskCellTitle(task, column.key)">{{ formatTaskValue(task, column.key) }}</span></template>
@@ -190,14 +195,14 @@
         </div>
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
         <footer class="task-summary" aria-label="qBittorrent 传输状态">
-          <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
-          <div class="transfer-stat is-download" aria-label="下载传输状态">
-            <Download aria-hidden="true" />
-            <span class="transfer-value">{{ formatSpeed(transferInfo.downSpeed) }} <em>[{{ formatLimit(transferInfo.downRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.downloaded) }})</small></span>
-          </div>
+          <span class="task-summary-count">{{ selectedTaskIndexes.length ? `已选第 ${selectedTaskIndexes.join('、')} 行，共 ${selectedTaskIndexes.length} 个任务` : hoveredTaskIndex ? `当前悬浮第 ${hoveredTaskIndex} 个，共 ${filteredTasks.length} / ${tasks.length} 个任务` : `显示第 ${taskRangeStart}–${taskRangeEnd} 个，共 ${filteredTasks.length} / ${tasks.length} 个任务` }}</span>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
             <span class="transfer-value">{{ formatSpeed(transferInfo.upSpeed) }} <em>[{{ formatLimit(transferInfo.upRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.uploaded) }})</small></span>
+          </div>
+          <div class="transfer-stat is-download" aria-label="下载传输状态">
+            <Download aria-hidden="true" />
+            <span class="transfer-value">{{ formatSpeed(transferInfo.downSpeed) }} <em>[{{ formatLimit(transferInfo.downRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.downloaded) }})</small></span>
           </div>
         </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
@@ -218,6 +223,17 @@
           <div class="column-menu-columns">
             <label v-for="column in taskColumns" :key="column.key"><input type="checkbox" :checked="!column.hidden" :disabled="column.locked" @change="toggleTaskColumn(column.key)" />{{ column.label }}</label>
           </div>
+        </div>
+        <div v-if="taskMenu" class="task-menu" :style="{ left: `${taskMenu.x}px`, top: `${taskMenu.y}px` }" @click.stop>
+          <strong>已选 {{ selectedTaskHashes.length }} 个种子</strong>
+          <button @click="runTorrentAction('start')">开始</button>
+          <button @click="runTorrentAction('forceStart')">强制开始</button>
+          <button @click="runTorrentAction('stop')">停止</button>
+          <button :disabled="selectedTaskHashes.length !== 1" @click="renameSelectedTask">重命名</button>
+          <button @click="changeSelectedTaskPath">更改保存路径</button>
+          <button @click="setSelectedUploadLimit">限制上传速率</button>
+          <button @click="exportSelectedTorrents">导出 torrent</button>
+          <button class="danger" @click="deleteSelectedTasks">删除种子</button>
         </div>
       </template>
     </div>
@@ -426,6 +442,7 @@ const tasksError = ref('');
 const taskSearch = ref('');
 const filterOpen = ref(false);
 const activeFilterGroup = ref('status');
+const filterValuePage = ref(1);
 const columnMenu = ref(null);
 const accountMenuOpen = ref(false);
 const taskSort = reactive({ key: 'name', direction: 'asc' });
@@ -433,6 +450,10 @@ const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
 const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
+const hoveredTaskHash = ref('');
+const selectedTaskHashes = ref([]);
+const taskSelectionAnchor = ref('');
+const taskMenu = ref(null);
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
@@ -490,6 +511,11 @@ const imageUrlValue = computed(() => {
 const visibleTaskColumns = computed(() => taskColumns.filter((column) => !column.hidden));
 const taskGridStyle = computed(() => ({ '--task-columns': visibleTaskColumns.value.map((column) => `${column.width}px`).join(' ') }));
 const taskScrollbarContentStyle = computed(() => ({ width: `${visibleTaskColumns.value.reduce((total, column) => total + column.width, 0)}px` }));
+const hoveredTaskIndex = computed(() => {
+  const index = filteredTasks.value.findIndex((task) => task.hash === hoveredTaskHash.value);
+  return index < 0 ? 0 : index + 1;
+});
+const selectedTaskIndexes = computed(() => selectedTaskHashes.value.map((hash) => filteredTasks.value.findIndex((task) => task.hash === hash) + 1).filter(Boolean).sort((left, right) => left - right));
 function syncTaskScrollbar(event) {
   if (taskHorizontalScrollbar.value) taskHorizontalScrollbar.value.scrollLeft = event.currentTarget.scrollLeft;
 }
@@ -503,11 +529,23 @@ const statusOptions = [
   { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
 ];
 const taskFilterGroups = computed(() => [
-  { key: 'status', label: '状态', values: statusOptions.map((item) => item.key), labels: Object.fromEntries(statusOptions.map((item) => [item.key, item.label])) },
+  { key: 'status', label: '任务状态', values: statusOptions.map((item) => item.key), labels: Object.fromEntries(statusOptions.map((item) => [item.key, item.label])) },
   { key: 'path', label: '保存路径', values: uniqueTaskValues((task) => task.save_path) },
-  { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
-  { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
+  { key: 'tags', label: '任务标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
+  { key: 'tracker', label: 'Tracker 站点', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
 ]);
+const activeTaskFilterGroup = computed(() => taskFilterGroups.value.find((group) => group.key === activeFilterGroup.value) || taskFilterGroups.value[0]);
+const filterPageCount = computed(() => Math.max(1, Math.ceil(activeTaskFilterGroup.value.values.length / 10)));
+const pagedFilterValues = computed(() => activeTaskFilterGroup.value.values.slice((filterValuePage.value - 1) * 10, filterValuePage.value * 10));
+function selectFilterGroup(key) {
+  activeFilterGroup.value = key;
+  filterValuePage.value = 1;
+}
+
+function filterValueLabel(group, value) {
+  return group.labels?.[value] || value;
+}
+
 const hasTaskFilters = computed(() => Object.values(taskFilters).some((items) => items.length));
 const filteredTasks = computed(() => {
   const query = taskSearch.value.trim().toLocaleLowerCase();
@@ -856,10 +894,10 @@ function loadTaskColumns() {
     { key: 'name', label: '名称', width: 280, locked: true },
     { key: 'size', label: '大小', width: 110, locked: true },
     { key: 'progress', label: '进度', width: 190 },
-    { key: 'seeders', label: '做种用户', width: 96 },
-    { key: 'leechers', label: '下载用户', width: 96 },
-    { key: 'dlspeed', label: '下载速度', width: 118 },
-    { key: 'upspeed', label: '上传速度', width: 118 },
+    { key: 'seeders', label: '做种', width: 96 },
+    { key: 'leechers', label: '用户', width: 96 },
+    { key: 'dlspeed', label: '下载', width: 118 },
+    { key: 'upspeed', label: '上传', width: 118 },
     { key: 'tags', label: '标签', width: 150 },
     { key: 'added_on', label: '添加时间', width: 166 },
     { key: 'tracker', label: 'Tracker', width: 210 },
@@ -894,6 +932,7 @@ async function loadTasks() {
   try {
     const result = await api(`/api/qb/${activeQb.value.id}/torrents`);
     tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
+    selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => tasks.value.some((task) => task.hash === hash));
     Object.assign(transferInfo, result.transfer || {});
   } catch (requestError) {
     tasksError.value = requestError.message;
@@ -1033,7 +1072,80 @@ function clearTaskFilters() {
 function closeTaskPopovers() {
   filterOpen.value = false;
   columnMenu.value = null;
+  taskMenu.value = null;
   accountMenuOpen.value = false;
+}
+
+function selectTask(task, event) {
+  const currentIndex = filteredTasks.value.findIndex((item) => item.hash === task.hash);
+  if (event.shiftKey && taskSelectionAnchor.value) {
+    const anchorIndex = filteredTasks.value.findIndex((item) => item.hash === taskSelectionAnchor.value);
+    if (anchorIndex >= 0) selectedTaskHashes.value = filteredTasks.value.slice(Math.min(anchorIndex, currentIndex), Math.max(anchorIndex, currentIndex) + 1).map((item) => item.hash);
+  } else if (event.ctrlKey || event.metaKey) {
+    selectedTaskHashes.value = selectedTaskHashes.value.includes(task.hash) ? selectedTaskHashes.value.filter((hash) => hash !== task.hash) : [...selectedTaskHashes.value, task.hash];
+    taskSelectionAnchor.value = task.hash;
+  } else {
+    selectedTaskHashes.value = [task.hash];
+    taskSelectionAnchor.value = task.hash;
+  }
+}
+
+function openTaskMenu(task, event) {
+  if (!selectedTaskHashes.value.includes(task.hash)) selectTask(task, event);
+  filterOpen.value = false;
+  columnMenu.value = null;
+  taskMenu.value = { x: Math.min(event.clientX, window.innerWidth - 220), y: Math.min(event.clientY, window.innerHeight - 310) };
+}
+
+async function runTorrentAction(action, extra = {}) {
+  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  try {
+    await api(`/api/qb/${activeQb.value.id}/torrents/action`, { method: 'POST', body: JSON.stringify({ action, hashes: selectedTaskHashes.value, ...extra }) });
+    taskMenu.value = null;
+    await loadTasks();
+  } catch (requestError) {
+    tasksError.value = requestError.message;
+  }
+}
+
+function renameSelectedTask() {
+  const task = tasks.value.find((item) => item.hash === selectedTaskHashes.value[0]);
+  const name = window.prompt('新的种子名称', task?.name || '');
+  if (name?.trim()) runTorrentAction('rename', { name: name.trim() });
+}
+
+function changeSelectedTaskPath() {
+  const savePath = window.prompt('新的保存路径');
+  if (savePath?.trim()) runTorrentAction('setLocation', { savePath: savePath.trim() });
+}
+
+function setSelectedUploadLimit() {
+  const input = window.prompt('上传限速（字节/秒；0 为不限速）', '0');
+  if (input === null) return;
+  const uploadLimit = Number(input);
+  if (!Number.isInteger(uploadLimit) || uploadLimit < 0) return window.alert('请输入非负整数。');
+  runTorrentAction('setUploadLimit', { uploadLimit });
+}
+
+function deleteSelectedTasks() {
+  const deleteFiles = window.confirm('是否同时删除已下载的文件？\n“取消”仅删除种子任务。');
+  if (window.confirm(`确认删除选中的 ${selectedTaskHashes.value.length} 个种子？`)) runTorrentAction('delete', { deleteFiles });
+}
+
+async function exportSelectedTorrents() {
+  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  try {
+    const response = await fetch(`/api/qb/${activeQb.value.id}/torrents/export?hashes=${encodeURIComponent(selectedTaskHashes.value.join('|'))}`, { credentials: 'include' });
+    if (!response.ok) throw new Error('导出 torrent 失败');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(await response.blob());
+    link.download = 'selected-torrents.torrent';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    taskMenu.value = null;
+  } catch (requestError) {
+    tasksError.value = requestError.message;
+  }
 }
 
 function selectQbAccount(id) {
