@@ -35,7 +35,13 @@
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
       <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
-        <span class="sidebar-toggle-action" aria-hidden="true"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></span>
+        <span class="sidebar-toggle-action" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
+            <path d="M7 5v14" />
+            <polyline v-if="sidebarCollapsed" points="14 8 18 12 14 16" />
+            <polyline v-else points="15 8 11 12 15 16" />
+          </svg>
+        </span>
       </button>
     </aside>
 
@@ -133,7 +139,7 @@
         <header class="task-toolbar" @click.stop>
           <div class="account-switcher">
             <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
-              <span>{{ activeQb?.alias }}</span><ChevronDown />
+              <span>{{ activeQb?.alias }}</span>
             </button>
             <div v-if="accountMenuOpen" class="account-switcher-menu" role="listbox">
               <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
@@ -182,7 +188,8 @@
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
                 <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
                 <template v-else-if="column.key === 'status'"><span class="task-status" :class="taskStatusClass(task)">{{ taskStatusLabel(task) }}</span></template>
-                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
+                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :class="`tag-tone-${taskTagTone(tag)}`">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
+                <template v-else-if="column.key === 'tracker'"><span class="task-tracker" :class="`tag-tone-${taskTagTone(trackerDisplayName(task.tracker))}`" :title="trackerDisplayName(task.tracker)">{{ trackerDisplayName(task.tracker) }}</span></template>
                 <template v-else-if="column.key === 'name'"><span class="task-cell-text" @mouseenter="scheduleTaskNameTooltip(task, $event)" @mouseleave="hideTaskNameTooltip">{{ formatTaskValue(task, column.key) }}</span></template>
                 <template v-else><span class="task-cell-text" :title="taskCellTitle(task, column.key)">{{ formatTaskValue(task, column.key) }}</span></template>
               </div>
@@ -250,7 +257,7 @@
         <header class="top-tabs" @click.stop>
           <div class="account-switcher">
             <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
-              <span>{{ activeQb?.alias }}</span><ChevronDown />
+              <span>{{ activeQb?.alias }}</span>
             </button>
             <div v-if="accountMenuOpen" class="account-switcher-menu" role="listbox">
               <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
@@ -352,6 +359,22 @@
       </form>
     </div>
 
+    <div v-if="taskUploadLimitDialog.open" class="modal-backdrop" @click.self="closeTaskUploadLimitDialog">
+      <form class="modal task-upload-limit-modal" @submit.prevent="saveSelectedUploadLimit">
+        <header>
+          <h2>限制上传速率</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskUploadLimitDialog"><X /></button>
+        </header>
+        <p>为已选 {{ selectedTaskHashes.length }} 个种子设置上传限速。输入 <strong>0</strong> 表示不限速。</p>
+        <label>上传限速（字节/秒）<input v-model.trim="taskUploadLimitDialog.uploadLimit" type="text" inputmode="numeric" autofocus placeholder="例如 1048576" /></label>
+        <p v-if="taskUploadLimitDialog.error" class="form-error">{{ taskUploadLimitDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" @click="closeTaskUploadLimitDialog">取消</button>
+          <button class="primary-button">确认设置</button>
+        </div>
+      </form>
+    </div>
+
     <div v-if="pendingCardUpload.open" class="modal-backdrop" @click.self="closeCardUploadDialog">
       <form class="modal card-upload-modal" @submit.prevent="confirmCardUpload">
         <header>
@@ -437,8 +460,6 @@ import {
   Filter,
   RefreshCw,
   ChevronUp,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronDown,
   Tags,
   Upload,
@@ -502,6 +523,7 @@ const selectedTaskHashes = ref([]);
 const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
 const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
+const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
@@ -1067,6 +1089,14 @@ function taskTags(task) {
   return String(task.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
 }
 
+function taskTagTone(tag) {
+  let hash = 0;
+  for (const character of String(tag)) {
+    hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
+  }
+  return Math.abs(hash) % 8;
+}
+
 function taskMatchesStatus(task, category) {
   const state = String(task.state || '').toLowerCase();
   if (category === 'completed') return task.progress >= 1;
@@ -1253,11 +1283,40 @@ async function saveSelectedTaskPath() {
 }
 
 function setSelectedUploadLimit() {
-  const input = window.prompt('上传限速（字节/秒；0 为不限速）', '0');
-  if (input === null) return;
-  const uploadLimit = Number(input);
-  if (!Number.isInteger(uploadLimit) || uploadLimit < 0) return window.alert('请输入非负整数。');
-  runTorrentAction('setUploadLimit', { uploadLimit });
+  taskMenu.value = null;
+  taskUploadLimitDialog.uploadLimit = '0';
+  taskUploadLimitDialog.error = '';
+  taskUploadLimitDialog.open = true;
+}
+
+function closeTaskUploadLimitDialog() {
+  taskUploadLimitDialog.open = false;
+  taskUploadLimitDialog.uploadLimit = '0';
+  taskUploadLimitDialog.error = '';
+}
+
+async function saveSelectedUploadLimit() {
+  const value = taskUploadLimitDialog.uploadLimit.trim();
+  if (!/^\d+$/.test(value)) {
+    taskUploadLimitDialog.error = '请输入非负整数。';
+    return;
+  }
+  const uploadLimit = Number(value);
+  if (!Number.isSafeInteger(uploadLimit)) {
+    taskUploadLimitDialog.error = '上传限速数值过大。';
+    return;
+  }
+  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  try {
+    await api(`/api/qb/${activeQb.value.id}/torrents/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'setUploadLimit', hashes: selectedTaskHashes.value, uploadLimit })
+    });
+    closeTaskUploadLimitDialog();
+    await loadTasks();
+  } catch (requestError) {
+    taskUploadLimitDialog.error = requestError.message;
+  }
 }
 
 function deleteSelectedTasks() {
