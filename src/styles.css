@@ -1717,8 +1717,9 @@ select:focus {
 
 .tracker-mapping-list {
   display: grid;
+  grid-auto-rows: 42px;
   gap: 9px;
-  max-height: 174px;
+  max-height: 195px;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -2654,8 +2655,10 @@ select:focus {
 .tasks-page .task-filter-popover .filter-selected .filter-tone-7 { --filter-tag-surface: #f3f0f7; --filter-tag-border: #d9cfe6; --filter-tag-ink: #6a5b84; }
 
 .tasks-page .task-filter-popover .filter-browser {
-  grid-template-columns: 158px minmax(0, 1fr);
+  display: grid !important;
+  grid-template-columns: 158px minmax(0, 1fr) !important;
   min-height: 342px;
+  overflow: hidden;
   border-color: #dce7e8;
   border-radius: 14px;
   background: #fff;
@@ -2707,6 +2710,8 @@ select:focus {
 }
 
 .tasks-page .task-filter-popover .filter-option-panel {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
 }
 
