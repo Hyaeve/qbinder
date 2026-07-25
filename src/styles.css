@@ -1553,9 +1553,13 @@ select:focus {
   display: grid;
   gap: 9px;
   max-height: 174px;
-  padding-right: 4px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tracker-mapping-list::-webkit-scrollbar {
+  display: none;
 }
 
 .tracker-mapping-row {
@@ -1593,7 +1597,7 @@ select:focus {
   align-items: center;
   min-height: 58px;
   gap: 0;
-  padding: 0 36px;
+  padding: 16px 36px 0;
   border: 0;
   border-top: 1px solid #dcdfea;
   border-radius: 0;
@@ -1815,24 +1819,19 @@ select:focus {
   box-shadow: 0 14px 36px rgba(76, 76, 90, .07);
 }
 
-/* Persistent horizontal control placed immediately above the fixed status bar. */
+/* Compact horizontal control embedded at the top edge of the transfer footer. */
 .task-horizontal-scrollbar {
-  position: fixed;
-  right: 0;
-  bottom: 58px;
-  left: 292px;
-  z-index: 21;
-  height: 17px;
+  position: absolute;
+  top: 4px;
+  right: 20px;
+  left: 20px;
+  z-index: 1;
+  height: 10px;
   overflow-x: auto;
   overflow-y: hidden;
-  border-top: 1px solid #dcdfea;
-  background: rgba(252, 252, 254, .96);
-  scrollbar-width: auto;
-  scrollbar-color: #aab1bd #eceef2;
-}
-
-.app-shell.sidebar-collapsed .task-horizontal-scrollbar {
-  left: 84px;
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: #aab1bd transparent;
 }
 
 .task-horizontal-scrollbar > div {
@@ -1840,16 +1839,17 @@ select:focus {
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar {
-  height: 12px;
+  height: 7px;
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar-track {
-  background: #eceef2;
+  border-radius: 999px;
+  background: #edf0f3;
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar-thumb {
   min-width: 44px;
-  border: 3px solid #eceef2;
+  border: 1px solid #edf0f3;
   border-radius: 999px;
   background: #aab1bd;
 }
@@ -2068,9 +2068,9 @@ select:focus {
 }
 
 @media (max-width: 900px) {
-  .task-horizontal-scrollbar,
-  .app-shell.sidebar-collapsed .task-horizontal-scrollbar {
-    left: 0;
+  .task-horizontal-scrollbar {
+    right: 14px;
+    left: 14px;
   }
 
   .task-toolbar {
@@ -2209,7 +2209,9 @@ select:focus {
 
 .task-tracker {
   display: block;
+  width: fit-content;
   max-width: 100%;
+  margin: 0 auto;
   overflow: hidden;
   padding: 4px 8px;
   border: 1px solid var(--tag-border, #ccdbe2);
@@ -2479,4 +2481,138 @@ select:focus {
 
 @media (max-width: 600px) {
   .upload-result-toast { top: 16px; right: 16px; }
+}
+
+.task-upload-limit-modal {
+  width: min(430px, 100%);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d4e0e2;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fdfefd 0%, #f5f8f7 100%);
+  box-shadow: 0 24px 68px rgba(48, 72, 77, .25);
+}
+
+.task-upload-limit-modal header {
+  min-height: 58px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid #dce5e5;
+  background: linear-gradient(90deg, #eff6f5 0%, #f7f2ee 100%);
+}
+
+.task-upload-limit-modal h2 {
+  color: #405c63;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.task-upload-limit-modal .icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #72868c;
+}
+
+.upload-limit-control {
+  display: grid;
+  gap: 18px;
+  padding: 25px 30px 12px;
+}
+
+.upload-limit-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: #526d72;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.upload-limit-field > div {
+  display: flex;
+  align-items: center;
+  width: 196px;
+  height: 38px;
+  overflow: hidden;
+  border: 1px solid #cbd9d9;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(61, 91, 94, .06);
+}
+
+.upload-limit-field input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0;
+  color: #334e55;
+  background: transparent;
+  box-shadow: none;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.upload-limit-field input:focus {
+  outline: 0;
+  box-shadow: none;
+}
+
+.upload-limit-field > div:focus-within {
+  border-color: #89afb6;
+  box-shadow: 0 0 0 3px rgba(115, 163, 174, .16);
+}
+
+.upload-limit-field em {
+  flex: 0 0 auto;
+  padding: 0 11px 0 0;
+  color: #71878c;
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.upload-limit-slider {
+  width: 100%;
+  height: 5px;
+  margin: 0;
+  accent-color: #6d9ca7;
+  cursor: pointer;
+}
+
+.upload-limit-hint {
+  margin: -5px 0 0;
+  color: #839397;
+  font-size: 12px;
+  text-align: center;
+}
+
+.task-upload-limit-modal .form-error {
+  margin: 0 30px 14px;
+}
+
+.upload-limit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 18px;
+  border-top: 1px solid #dce5e5;
+  background: rgba(237, 244, 243, .72);
+}
+
+.upload-limit-actions button {
+  min-width: 76px;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .upload-limit-control { padding-right: 20px; padding-left: 20px; }
+  .upload-limit-field > div { width: 158px; }
+  .task-upload-limit-modal .form-error { margin-right: 20px; margin-left: 20px; }
 }

@@ -198,12 +198,12 @@
           <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
-        <div ref="taskHorizontalScrollbar" class="task-horizontal-scrollbar" aria-label="任务列表横向滚动" @scroll="syncTaskTableScroll">
-          <div :style="taskScrollbarContentStyle"></div>
-        </div>
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
         <footer class="task-summary" aria-label="qBittorrent 传输状态">
-          <span class="task-summary-count">{{ selectedTaskIndexes.length ? `已选第 ${selectedTaskIndexes.join('、')} 行，共 ${selectedTaskIndexes.length} 个任务` : hoveredTaskIndex ? `当前悬浮第 ${hoveredTaskIndex} 个，共 ${filteredTasks.length} / ${tasks.length} 个任务` : `显示第 ${taskRangeStart}–${taskRangeEnd} 个，共 ${filteredTasks.length} / ${tasks.length} 个任务` }}</span>
+          <div ref="taskHorizontalScrollbar" class="task-horizontal-scrollbar" aria-label="任务列表横向滚动" @scroll="syncTaskTableScroll">
+            <div :style="taskScrollbarContentStyle"></div>
+          </div>
+          <span class="task-summary-count">{{ selectedTaskIndexes.length ? `所选第 ${selectedTaskIndexes.join('、')} 行，共 ${selectedTaskIndexes.length} 个任务` : hoveredTaskIndex ? `所选第 ${hoveredTaskIndex} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务` : `显示第 ${taskRangeStart}–${taskRangeEnd} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务` }}</span>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
             <span class="transfer-value">{{ formatSpeed(transferInfo.upSpeed) }} <em>[{{ formatLimit(transferInfo.upRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.uploaded) }})</small></span>
@@ -362,15 +362,32 @@
     <div v-if="taskUploadLimitDialog.open" class="modal-backdrop" @click.self="closeTaskUploadLimitDialog">
       <form class="modal task-upload-limit-modal" @submit.prevent="saveSelectedUploadLimit">
         <header>
-          <h2>限制上传速率</h2>
+          <h2>Torrent 上传速度限制</h2>
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskUploadLimitDialog"><X /></button>
         </header>
-        <p>为已选 {{ selectedTaskHashes.length }} 个种子设置上传限速。输入 <strong>0</strong> 表示不限速。</p>
-        <label>上传限速（字节/秒）<input v-model.trim="taskUploadLimitDialog.uploadLimit" type="text" inputmode="numeric" autofocus placeholder="例如 1048576" /></label>
+        <div class="upload-limit-control">
+          <label class="upload-limit-field">
+            <span>上传限制</span>
+            <div>
+              <input v-model.trim="taskUploadLimitDialog.uploadLimit" type="text" inputmode="numeric" autofocus aria-label="上传限制，单位 KiB 每秒" />
+              <em>KiB/s</em>
+            </div>
+          </label>
+          <input
+            v-model="taskUploadLimitDialog.uploadLimit"
+            class="upload-limit-slider"
+            type="range"
+            min="0"
+            max="102400"
+            step="128"
+            aria-label="上传限制滑块，最大 102400 KiB 每秒"
+          />
+          <p class="upload-limit-hint">0 表示不限速 · 已选 {{ selectedTaskHashes.length }} 个种子</p>
+        </div>
         <p v-if="taskUploadLimitDialog.error" class="form-error">{{ taskUploadLimitDialog.error }}</p>
-        <div class="modal-actions">
+        <div class="upload-limit-actions">
           <button type="button" class="secondary-button" @click="closeTaskUploadLimitDialog">取消</button>
-          <button class="primary-button">确认设置</button>
+          <button class="primary-button">确定</button>
         </div>
       </form>
     </div>
@@ -1296,12 +1313,13 @@ function closeTaskUploadLimitDialog() {
 }
 
 async function saveSelectedUploadLimit() {
-  const value = taskUploadLimitDialog.uploadLimit.trim();
+  const value = String(taskUploadLimitDialog.uploadLimit).trim();
   if (!/^\d+$/.test(value)) {
-    taskUploadLimitDialog.error = '请输入非负整数。';
+    taskUploadLimitDialog.error = '请输入非负整数（单位：KiB/s）。';
     return;
   }
-  const uploadLimit = Number(value);
+  const uploadLimitKiB = Number(value);
+  const uploadLimit = uploadLimitKiB * 1024;
   if (!Number.isSafeInteger(uploadLimit)) {
     taskUploadLimitDialog.error = '上传限速数值过大。';
     return;
