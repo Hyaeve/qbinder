@@ -2468,6 +2468,43 @@ select:focus {
   font-size: 12px !important;
 }
 
+.torrent-export-modal {
+  width: min(430px, calc(100vw - 32px));
+  border: 1px solid #d5e3e7;
+  background: linear-gradient(145deg, #fff, #f8fcfc);
+}
+
+.torrent-export-modal > p {
+  margin: -3px 0 2px;
+  color: #66777d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.torrent-export-hint {
+  margin-top: -9px !important;
+  color: #8c9a9d !important;
+  font-size: 12px !important;
+}
+
+.torrent-export-success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 13px;
+  border: 1px solid #c9e1d9;
+  border-radius: 12px;
+  color: #3e7869 !important;
+  background: #f1f9f5;
+  font-weight: 750;
+}
+
+.torrent-export-success svg {
+  width: 19px;
+  height: 19px;
+  color: #4a9c82;
+}
+
 .task-delete-modal {
   border: 1px solid #eadde0;
   background: linear-gradient(145deg, #fff, #fffbfa);

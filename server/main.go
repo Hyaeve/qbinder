@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -671,35 +672,78 @@ func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, c
 		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
 		return
 	}
-	hashes := strings.TrimSpace(r.URL.Query().Get("hashes"))
-	if hashes == "" {
-		writeErrorText(w, http.StatusBadRequest, "请选择至少一个种子")
+
+	hashes := strings.Split(strings.TrimSpace(r.URL.Query().Get("hashes")), "|")
+	if len(hashes) == 0 || hashes[0] == "" || len(hashes) > 1000 {
+		writeErrorText(w, http.StatusBadRequest, "请选择至少一个种子，且最多 1000 个")
 		return
 	}
+	for _, hash := range hashes {
+		if len(hash) != 40 || strings.Trim(hash, "0123456789abcdefABCDEF") != "" {
+			writeErrorText(w, http.StatusBadRequest, "种子 Hash 无效")
+			return
+		}
+	}
+
 	baseURL, cookie, err := loginQB(account)
 	if err != nil {
+		logQBFailure("torrent_export_login", account, err)
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/torrents/export?hashes="+url.QueryEscape(hashes), nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+
+	files := make([][]byte, 0, len(hashes))
+	for _, hash := range hashes {
+		query := url.Values{"hash": {hash}}
+		request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/torrents/export?"+query.Encode(), nil)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		request.Header.Set("Cookie", cookie)
+		response, err := qBHTTPClient.Do(request)
+		if err != nil {
+			logQBFailure("torrent_export_request", account, err)
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, maxQBResponseSize))
+		response.Body.Close()
+		if readErr != nil {
+			writeError(w, http.StatusBadGateway, readErr)
+			return
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent export failed: %d", response.StatusCode))
+			return
+		}
+		if len(data) == 0 {
+			writeErrorText(w, http.StatusBadGateway, "qBittorrent 未返回 torrent 文件")
+			return
+		}
+		files = append(files, data)
+	}
+
+	if len(files) == 1 {
+		w.Header().Set("Content-Type", "application/x-bittorrent")
+		w.Header().Set("Content-Disposition", "attachment; filename="+hashes[0]+".torrent")
+		_, _ = w.Write(files[0])
 		return
 	}
-	request.Header.Set("Cookie", cookie)
-	response, err := qBHTTPClient.Do(request)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err)
-		return
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=selected-torrents.zip")
+	archive := zip.NewWriter(w)
+	for index, data := range files {
+		entry, err := archive.Create(hashes[index] + ".torrent")
+		if err != nil {
+			return
+		}
+		if _, err := entry.Write(data); err != nil {
+			return
+		}
 	}
-	defer response.Body.Close()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent export failed: %d", response.StatusCode))
-		return
-	}
-	w.Header().Set("Content-Type", "application/x-bittorrent")
-	w.Header().Set("Content-Disposition", "attachment; filename=selected-torrents.torrent")
-	_, _ = io.Copy(w, io.LimitReader(response.Body, maxQBResponseSize))
+	_ = archive.Close()
 }
 
 func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, config Config, id string) {

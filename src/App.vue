@@ -476,6 +476,29 @@
       </section>
     </div>
 
+    <div v-if="torrentExportDialog.open" class="modal-backdrop" @click.self="closeTorrentExportDialog">
+      <section class="modal torrent-export-modal">
+        <header>
+          <h2>导出 torrent</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTorrentExportDialog"><X /></button>
+        </header>
+        <template v-if="!torrentExportDialog.completed">
+          <p>将导出已选 {{ selectedTaskHashes.length }} 个种子的 torrent 文件。</p>
+          <p class="torrent-export-hint">文件会直接保存到浏览器的默认下载位置。</p>
+          <p v-if="torrentExportDialog.error" class="form-error">{{ torrentExportDialog.error }}</p>
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" :disabled="torrentExportDialog.submitting" @click="closeTorrentExportDialog">取消</button>
+            <button type="button" class="primary-button" :disabled="torrentExportDialog.submitting" @click="confirmTorrentExport"><Loader2 v-if="torrentExportDialog.submitting" class="spin" /><Download v-else />导出并下载</button>
+          </div>
+        </template>
+        <template v-else>
+          <p class="torrent-export-success"><CheckCircle2 />已开始下载 torrent 文件。</p>
+          <p class="torrent-export-hint">如未看到下载项，请检查浏览器的下载权限或默认下载目录。</p>
+          <div class="modal-actions"><button type="button" class="primary-button" @click="closeTorrentExportDialog">完成</button></div>
+        </template>
+      </section>
+    </div>
+
     <div v-if="taskUploadLimitDialog.open" class="modal-backdrop" @click.self="closeTaskUploadLimitDialog">
       <form class="modal task-upload-limit-modal" @submit.prevent="saveSelectedUploadLimit">
         <header>
@@ -667,6 +690,7 @@ const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input
 const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
 const taskDeleteDialog = reactive({ open: false, deleteFiles: false, submitting: false, error: '' });
+const torrentExportDialog = reactive({ open: false, submitting: false, completed: false, error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
@@ -1663,19 +1687,50 @@ async function confirmTaskDelete() {
   }
 }
 
-async function exportSelectedTorrents() {
+function exportSelectedTorrents() {
   if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  taskMenu.value = null;
+  torrentExportDialog.error = '';
+  torrentExportDialog.completed = false;
+  torrentExportDialog.open = true;
+}
+
+function closeTorrentExportDialog() {
+  if (torrentExportDialog.submitting) return;
+  torrentExportDialog.open = false;
+  torrentExportDialog.error = '';
+  torrentExportDialog.completed = false;
+}
+
+async function confirmTorrentExport() {
+  if (!activeQb.value || !selectedTaskHashes.value.length || torrentExportDialog.submitting) return;
+  torrentExportDialog.submitting = true;
+  torrentExportDialog.error = '';
   try {
     const response = await fetch(`/api/qb/${activeQb.value.id}/torrents/export?hashes=${encodeURIComponent(selectedTaskHashes.value.join('|'))}`, { credentials: 'include' });
-    if (!response.ok) throw new Error('导出 torrent 失败');
+    if (!response.ok) {
+      const responseText = await response.text();
+      let responseError = '导出 torrent 失败，请稍后重试。';
+      try { responseError = JSON.parse(responseText)?.error || responseError; } catch { if (responseText) responseError = responseText; }
+      throw new Error(responseError);
+    }
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('未收到可导出的 torrent 文件。');
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(await response.blob());
-    link.download = 'selected-torrents.torrent';
+    const objectURL = URL.createObjectURL(blob);
+    const filenameMatch = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i);
+    link.href = objectURL;
+    link.download = filenameMatch?.[1] || (selectedTaskHashes.value.length === 1 ? `${selectedTaskHashes.value[0]}.torrent` : 'selected-torrents.zip');
+    link.style.display = 'none';
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(link.href);
-    taskMenu.value = null;
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectURL), 1000);
+    torrentExportDialog.completed = true;
   } catch (requestError) {
-    tasksError.value = requestError.message;
+    torrentExportDialog.error = requestError.message || '导出 torrent 失败，请稍后重试。';
+  } finally {
+    torrentExportDialog.submitting = false;
   }
 }
 
