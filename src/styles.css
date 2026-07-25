@@ -1717,9 +1717,9 @@ select:focus {
 
 .tracker-mapping-list {
   display: grid;
-  grid-auto-rows: 42px;
-  gap: 9px;
-  max-height: 195px;
+  grid-auto-rows: 52px;
+  gap: 10px;
+  max-height: 238px;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -1731,8 +1731,8 @@ select:focus {
 
 .tracker-mapping-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
 }
 
@@ -1740,6 +1740,8 @@ select:focus {
    even when this panel expands to match the opposite settings column. */
 .tracker-mapping-panel .button-row {
   align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
 }
 
 .tracker-mapping-panel .button-row button {
@@ -1749,6 +1751,9 @@ select:focus {
 
 .tracker-mapping-row input {
   min-width: 0;
+  height: 52px;
+  padding: 0 14px;
+  font-size: 16px;
 }
 
 .tasks-page {
@@ -2733,6 +2738,9 @@ select:focus {
   display: grid !important;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .tasks-page .task-filter-popover .filter-option-heading {
@@ -2757,10 +2765,15 @@ select:focus {
 }
 
 .tasks-page .task-filter-popover .filter-option-list {
+  display: grid;
+  align-content: start;
   gap: 4px;
   min-height: 0;
+  height: 100%;
   padding: 7px 9px;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }

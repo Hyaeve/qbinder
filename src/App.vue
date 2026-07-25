@@ -59,7 +59,7 @@
             <h2><KeyRound />登录账号</h2>
             <label>账号<input v-model="credentialForm.username" /></label>
             <label>新密码<input v-model="credentialForm.password" type="password" /></label>
-            <button class="primary-button"><Save />保存账号密码</button>
+            <button class="primary-button"><Save />保存</button>
           </form>
 
           <section class="setting-panel tracker-mapping-panel">
@@ -131,8 +131,8 @@
             <p v-if="backupMessage" :class="backupOk ? 'form-ok' : 'form-error'">{{ backupMessage }}</p>
             <input ref="backupFileInput" type="file" accept="application/json,.json" hidden @change="restoreBackup" />
             <div class="button-row">
-              <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份当前配置</button>
-              <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份配置</button>
+              <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份配置</button>
+              <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份</button>
             </div>
           </section>
         </div>
