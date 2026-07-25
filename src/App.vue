@@ -54,85 +54,88 @@
       </header>
 
       <section class="settings-grid">
-        <form class="setting-panel" @submit.prevent="saveCredentials">
-          <h2><KeyRound />登录账号</h2>
-          <label>账号<input v-model="credentialForm.username" /></label>
-          <label>新密码<input v-model="credentialForm.password" type="password" /></label>
-          <button class="primary-button"><Save />保存账号密码</button>
-        </form>
+        <div class="settings-column settings-column-left">
+          <form class="setting-panel" @submit.prevent="saveCredentials">
+            <h2><KeyRound />登录账号</h2>
+            <label>账号<input v-model="credentialForm.username" /></label>
+            <label>新密码<input v-model="credentialForm.password" type="password" /></label>
+            <button class="primary-button"><Save />保存账号密码</button>
+          </form>
 
-        <section class="setting-panel wide">
-          <h2><Layers />添加 qBittorrent</h2>
-          <div class="qb-form">
-            <label>别名<input v-model="qbForm.alias" @input="verified = false" /></label>
-            <label>协议<select v-model="qbForm.protocol" @change="verified = false"><option>http</option><option>https</option></select></label>
-            <label>地址<input v-model="qbForm.host" placeholder="192.168.1.10" @input="verified = false" /></label>
-            <label>端口<input v-model="qbForm.port" @input="verified = false" /></label>
-            <label>账号<input v-model="qbForm.username" @input="verified = false" /></label>
-            <label>密码<input v-model="qbForm.password" type="password" @input="verified = false" /></label>
-          </div>
-          <p v-if="message" :class="verified ? 'form-ok' : 'form-error'">{{ message }}</p>
-          <div class="button-row">
-            <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
-            <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
-          </div>
-          <section class="configured-qb-accounts" aria-label="已配置 qB 账户">
-            <div class="configured-qb-heading">
-              <h3>已配置 qB 账户</h3>
-              <span>{{ config.qbittorrents.length }} 个账户</span>
-            </div>
-            <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
-              <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
-                <div class="configured-qb-card-main">
-                  <Layers />
-                  <strong :title="account.alias">{{ account.alias }}</strong>
-                  <span :title="`${account.protocol}://${account.host}:${account.port}`">{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
-                  <em :class="{ unverified: !account.lastVerifiedAt }">{{ account.lastVerifiedAt ? '已验证' : '未验证' }}</em>
-                </div>
-                <div class="configured-qb-actions">
-                  <button type="button" class="secondary-button" @click="editQb(account)">编辑</button>
-                  <button type="button" class="danger-button" @click="deleteQb(account.id)">删除</button>
-                </div>
-              </article>
-              <div class="configured-qb-empty">
-                <Plus />
-                <span>{{ config.qbittorrents.length ? '预留账户窗口' : '添加后的 qBittorrent 账户将显示在这里。' }}</span>
+          <section class="setting-panel tracker-mapping-panel">
+            <h2><Table2 />Tracker 展示名称</h2>
+            <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
+            <div class="tracker-mapping-list">
+              <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
+                <input v-model="mapping.keyword" placeholder="域名或关键词，例如 m-team" aria-label="Tracker 域名关键词" />
+                <input v-model="mapping.name" placeholder="展示名称，例如 M-Team" aria-label="Tracker 展示名称" />
+                <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
               </div>
             </div>
-          </section>
-        </section>
-
-        <section class="setting-panel tracker-mapping-panel">
-          <h2><Table2 />Tracker 展示名称</h2>
-          <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
-          <div class="tracker-mapping-list">
-            <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
-              <input v-model="mapping.keyword" placeholder="域名或关键词，例如 m-team" aria-label="Tracker 域名关键词" />
-              <input v-model="mapping.name" placeholder="展示名称，例如 M-Team" aria-label="Tracker 展示名称" />
-              <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
+            <div class="button-row">
+              <button type="button" class="secondary-button" @click="addTrackerMapping"><Plus />新增映射</button>
+              <button type="button" class="primary-button" @click="saveTrackerMappings"><Save />保存映射</button>
             </div>
-          </div>
-          <div class="button-row">
-            <button type="button" class="secondary-button" @click="addTrackerMapping"><Plus />新增映射</button>
-            <button type="button" class="primary-button" @click="saveTrackerMappings"><Save />保存映射</button>
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <section class="setting-panel backup-panel">
-          <h2><Save />配置备份</h2>
-          <div class="backup-summary">
-            <span>{{ config.qbittorrents.length }} 个 qB 账户</span>
-            <span>{{ config.lanes.length }} 个横栏</span>
-            <span>{{ config.cards.length }} 张卡片</span>
-            <span>{{ config.tagPool.length }} 个标签</span>
-          </div>
-          <p v-if="backupMessage" :class="backupOk ? 'form-ok' : 'form-error'">{{ backupMessage }}</p>
-          <input ref="backupFileInput" type="file" accept="application/json,.json" hidden @change="restoreBackup" />
-          <div class="button-row">
-            <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份当前配置</button>
-            <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份配置</button>
-          </div>
-        </section>
+        <div class="settings-column settings-column-right">
+          <section class="setting-panel wide">
+            <h2><Layers />添加 qBittorrent</h2>
+            <div class="qb-form">
+              <label>别名<input v-model="qbForm.alias" @input="verified = false" /></label>
+              <label>协议<select v-model="qbForm.protocol" @change="verified = false"><option>http</option><option>https</option></select></label>
+              <label>地址<input v-model="qbForm.host" placeholder="192.168.1.10" @input="verified = false" /></label>
+              <label>端口<input v-model="qbForm.port" @input="verified = false" /></label>
+              <label>账号<input v-model="qbForm.username" @input="verified = false" /></label>
+              <label>密码<input v-model="qbForm.password" type="password" @input="verified = false" /></label>
+            </div>
+            <p v-if="message" :class="verified ? 'form-ok' : 'form-error'">{{ message }}</p>
+            <div class="button-row">
+              <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
+              <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
+            </div>
+            <section class="configured-qb-accounts" aria-label="已配置 qB 账户">
+              <div class="configured-qb-heading">
+                <h3>已配置 qB 账户</h3>
+                <span>{{ config.qbittorrents.length }} 个账户</span>
+              </div>
+              <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
+                <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
+                  <div class="configured-qb-card-main">
+                    <Layers />
+                    <strong :title="account.alias">{{ account.alias }}</strong>
+                    <span :title="`${account.protocol}://${account.host}:${account.port}`">{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
+                  </div>
+                  <div class="configured-qb-actions">
+                    <button type="button" class="secondary-button" @click="editQb(account)">编辑</button>
+                    <button type="button" class="danger-button" @click="deleteQb(account.id)">删除</button>
+                  </div>
+                </article>
+                <div class="configured-qb-empty">
+                  <Plus />
+                  <span>{{ config.qbittorrents.length ? '预留账户窗口' : '添加后的 qBittorrent 账户将显示在这里。' }}</span>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="setting-panel backup-panel">
+            <h2><Save />配置备份</h2>
+            <div class="backup-summary">
+              <span>{{ config.qbittorrents.length }} 个 qB 账户</span>
+              <span>{{ config.lanes.length }} 个横栏</span>
+              <span>{{ config.cards.length }} 张卡片</span>
+              <span>{{ config.tagPool.length }} 个标签</span>
+            </div>
+            <p v-if="backupMessage" :class="backupOk ? 'form-ok' : 'form-error'">{{ backupMessage }}</p>
+            <input ref="backupFileInput" type="file" accept="application/json,.json" hidden @change="restoreBackup" />
+            <div class="button-row">
+              <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份当前配置</button>
+              <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份配置</button>
+            </div>
+          </section>
+        </div>
       </section>
 
     </div>
@@ -167,7 +170,7 @@
             <section class="filter-candidates" aria-label="筛选候选区域">
               <div class="filter-candidates-heading"><strong>筛选候选</strong><span>{{ selectedFilterCandidates.length }} 项</span></div>
               <div v-if="hasFilterCandidates" class="filter-selected">
-                <button v-for="item in selectedFilterCandidates" :key="`${item.key}-${item.value}`" :class="`filter-tone-${taskTagTone(`${item.key}-${item.value}`)}`" @click="removeFilterCandidate(item.key, item.value)">
+                <button v-for="item in selectedFilterCandidates" :key="`${item.key}-${item.value}`" :class="`filter-tone-${taskTagTone(`${item.key}-${item.value}`)}`" @click="removeFilterCandidate(item)">
                   <small>{{ item.groupLabel }}</small>{{ item.label }}<X />
                 </button>
               </div>
@@ -652,10 +655,10 @@ const statusOptions = [
   { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
 ];
 const taskFilterGroups = computed(() => [
-  { key: 'status', label: '任务状态', values: statusOptions.map((item) => item.key), labels: Object.fromEntries(statusOptions.map((item) => [item.key, item.label])) },
-  { key: 'path', label: '保存路径', values: uniqueTaskValues((task) => task.save_path) },
-  { key: 'tags', label: '任务标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
-  { key: 'tracker', label: 'Tracker 站点', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
+  { key: 'status', label: '状态', values: statusOptions.map((item) => item.key), labels: Object.fromEntries(statusOptions.map((item) => [item.key, item.label])) },
+  { key: 'path', label: '路径', values: uniqueTaskValues((task) => task.save_path) },
+  { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
+  { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
 ]);
 const activeTaskFilterGroup = computed(() => taskFilterGroups.value.find((group) => group.key === activeFilterGroup.value) || taskFilterGroups.value[0]);
 const filterPageCount = computed(() => Math.max(1, Math.ceil(activeTaskFilterGroup.value.values.length / 10)));
@@ -1257,12 +1260,18 @@ const selectedTaskFilters = computed(() => taskFilterGroups.value.flatMap((group
   label: group.labels?.[value] || value
 }))));
 
-const selectedFilterCandidates = computed(() => taskFilterGroups.value.flatMap((group) => filterDraft[group.key].map((value) => ({
-  key: group.key,
-  value,
-  groupLabel: group.label,
-  label: group.labels?.[value] || value
-}))));
+const selectedFilterCandidates = computed(() => taskFilterGroups.value.flatMap((group) => {
+  const selected = filterDraft[group.key];
+  const allSelected = group.values.length > 0 && group.values.every((value) => selected.includes(value));
+  if (allSelected) return [{ key: group.key, value: '__all__', groupLabel: group.label, label: '全部', all: true }];
+  return selected.map((value) => ({
+    key: group.key,
+    value,
+    groupLabel: group.label,
+    label: group.labels?.[value] || value,
+    all: false
+  }));
+}));
 
 const hasFilterCandidates = computed(() => selectedFilterCandidates.value.length > 0);
 
@@ -1276,8 +1285,12 @@ function toggleTaskFilter() {
   filterOpen.value = true;
 }
 
-function removeFilterCandidate(key, value) {
-  filterDraft[key] = filterDraft[key].filter((item) => item !== value);
+function removeFilterCandidate(candidate) {
+  if (candidate.all) {
+    filterDraft[candidate.key] = [];
+    return;
+  }
+  filterDraft[candidate.key] = filterDraft[candidate.key].filter((item) => item !== candidate.value);
 }
 
 function clearFilterCandidates() {

@@ -742,7 +742,18 @@ select:focus {
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(360px, 1fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.settings-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-column-left .tracker-mapping-panel {
+  flex: 1 1 auto;
 }
 
 .setting-panel,
@@ -1526,6 +1537,10 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .settings-column-left .tracker-mapping-panel {
+    flex: 0 0 auto;
+  }
+
   .card-row {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 16px;
@@ -2032,6 +2047,10 @@ select:focus {
 .task-header-cell > span {
   min-width: 0;
   overflow: hidden;
+  color: #413e49;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .015em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
