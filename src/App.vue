@@ -163,10 +163,6 @@
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
           </div>
           <section v-if="filterOpen" class="task-filter-popover" aria-label="任务筛选">
-            <header class="filter-heading">
-              <div><strong>筛选任务</strong><span>选择候选条件后，点击确认应用筛选</span></div>
-              <button v-if="hasFilterCandidates" @click="clearFilterCandidates">清空候选</button>
-            </header>
             <section class="filter-candidates" aria-label="筛选候选区域">
               <div class="filter-candidates-heading"><strong>筛选候选</strong><span>{{ selectedFilterCandidates.length }} 项</span></div>
               <div v-if="hasFilterCandidates" class="filter-selected">
@@ -204,8 +200,8 @@
               </div>
             </div>
             <footer class="filter-confirm-actions">
-              <button class="secondary-button" @click="discardTaskFilters">取消</button>
-              <button class="primary-button" @click="applyTaskFilters">确认筛选<span v-if="hasFilterCandidates">（{{ selectedFilterCandidates.length }}）</span></button>
+              <button class="secondary-button" @click="clearFilterCandidates">清除</button>
+              <button class="primary-button" @click="applyTaskFilters">确认</button>
             </footer>
           </section>
         </header>
