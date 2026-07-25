@@ -37,22 +37,15 @@
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
         <span class="sidebar-toggle-action" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
-            <path d="M7 5v14" />
-            <polyline v-if="sidebarCollapsed" points="14 8 18 12 14 16" />
-            <polyline v-else points="15 8 11 12 15 16" />
+            <path class="sidebar-toggle-stem" d="M12 4v16" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="15 7 9 12 15 17" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="9 7 15 12 9 17" />
           </svg>
         </span>
       </button>
     </aside>
 
     <div v-if="view === 'settings'" class="content settings-page">
-      <header class="page-header">
-        <div>
-          <h1>设置</h1>
-          <p>管理 qBinder 登录账号和 qBittorrent 连接。</p>
-        </div>
-      </header>
-
       <section class="settings-grid">
         <div class="settings-column settings-column-left">
           <form class="setting-panel" @submit.prevent="saveCredentials">
@@ -67,8 +60,8 @@
             <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
             <div class="tracker-mapping-list">
               <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
-                <input v-model="mapping.keyword" placeholder="域名或关键词，例如 m-team" aria-label="Tracker 域名关键词" />
-                <input v-model="mapping.name" placeholder="展示名称，例如 M-Team" aria-label="Tracker 展示名称" />
+                <input v-model="mapping.keyword" placeholder="关键词" aria-label="Tracker 域名关键词" />
+                <input v-model="mapping.name" placeholder="展示名称" aria-label="Tracker 展示名称" />
                 <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
               </div>
             </div>
@@ -175,7 +168,7 @@
             <div class="filter-browser">
               <nav class="filter-category-list" aria-label="一级筛选类别">
                 <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="selectFilterGroup(group.key)">
-                  <span>{{ group.label }}</span><em>{{ filterDraft[group.key].length || '全部' }}</em>
+                  <span>{{ group.label }}</span><em v-if="filterDraft[group.key].length">{{ filterDraft[group.key].length }}</em>
                 </button>
               </nav>
               <div class="filter-option-panel">
@@ -234,7 +227,16 @@
           <div ref="taskHorizontalScrollbar" class="task-horizontal-scrollbar" aria-label="任务列表横向滚动" @scroll="syncTaskTableScroll">
             <div :style="taskScrollbarContentStyle"></div>
           </div>
-          <span class="task-summary-count">{{ selectedTaskIndexes.length ? `所选第 ${selectedTaskIndexes.join('、')} 行，共 ${selectedTaskIndexes.length} 个任务` : hoveredTaskIndex ? `所选第 ${hoveredTaskIndex} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务` : `显示第 ${taskRangeStart}–${taskRangeEnd} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务` }}</span>
+          <span class="task-summary-count">{{ selectedTaskSummary || (hoveredTaskIndex ? `所选第 ${hoveredTaskIndex} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务` : `显示第 ${taskRangeStart}–${taskRangeEnd} 行，共 ${filteredTasks.length} / ${tasks.length} 个任务`) }}</span>
+          <button
+            type="button"
+            class="transfer-alt-speed-button"
+            :class="{ active: transferInfo.altSpeedLimitsOn }"
+            :disabled="transferInfo.togglingAltSpeedLimits"
+            :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
+            :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
+            @click="toggleAlternativeSpeedLimits"
+          ><Gauge /></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
             <span class="transfer-value">{{ formatSpeed(transferInfo.upSpeed) }} <em>[{{ formatLimit(transferInfo.upRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.uploaded) }})</small></span>
@@ -354,8 +356,8 @@
       </template>
     </div>
 
-    <div v-if="editingQb" class="modal-backdrop">
-      <section class="modal">
+    <div v-if="editingQb" class="modal-backdrop" @click.self="editingQb = null">
+      <section class="modal edit-qb-modal">
         <header>
           <h2>编辑 qBittorrent</h2>
           <button class="icon-button" @click="editingQb = null"><X /></button>
@@ -374,6 +376,37 @@
       </section>
     </div>
 
+    <div v-if="pendingBackupRestore.open" class="modal-backdrop" @click.self="closeBackupRestoreDialog">
+      <section class="modal backup-restore-modal">
+        <header>
+          <h2>加载备份</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" :disabled="pendingBackupRestore.submitting" @click="closeBackupRestoreDialog"><X /></button>
+        </header>
+        <p>将使用「{{ pendingBackupRestore.filename }}」覆盖当前 qB 账户、横栏、卡片和标签池。</p>
+        <p v-if="pendingBackupRestore.error" class="form-error">{{ pendingBackupRestore.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" :disabled="pendingBackupRestore.submitting" @click="closeBackupRestoreDialog">取消</button>
+          <button type="button" class="primary-button" :disabled="pendingBackupRestore.submitting" @click="confirmBackupRestore"><Loader2 v-if="pendingBackupRestore.submitting" class="spin" /><Upload v-else />确认加载</button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="taskRenameDialog.open" class="modal-backdrop" @click.self="closeTaskRenameDialog">
+      <form class="modal task-rename-modal" @submit.prevent="saveSelectedTaskName">
+        <header>
+          <h2>重命名种子</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskRenameDialog"><X /></button>
+        </header>
+        <p>为已选种子设置新的名称。</p>
+        <label>种子名称<input v-model.trim="taskRenameDialog.name" autofocus /></label>
+        <p v-if="taskRenameDialog.error" class="form-error">{{ taskRenameDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" @click="closeTaskRenameDialog">取消</button>
+          <button class="primary-button" :disabled="!taskRenameDialog.name">确认重命名</button>
+        </div>
+      </form>
+    </div>
+
     <div v-if="taskPathDialog.open" class="modal-backdrop" @click.self="closeTaskPathDialog">
       <form class="modal task-path-modal" @submit.prevent="saveSelectedTaskPath">
         <header>
@@ -381,7 +414,7 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskPathDialog"><X /></button>
         </header>
         <p>将把已选 {{ selectedTaskHashes.length }} 个种子移动到以下保存路径。</p>
-        <label>保存路径<input v-model.trim="taskPathDialog.savePath" autofocus placeholder="例如 /downloads/movies" /></label>
+        <label>保存路径<input v-model.trim="taskPathDialog.savePath" autofocus placeholder="/downloads/movies" /></label>
         <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary-button" @click="closeTaskPathDialog">取消</button>
@@ -507,6 +540,7 @@ import {
   Table2,
   Search,
   Filter,
+  Gauge,
   RefreshCw,
   ChevronUp,
   ChevronDown,
@@ -549,6 +583,7 @@ const draggingLaneId = ref('');
 const laneInputs = reactive({});
 const backupFileInput = ref(null);
 const backupBusy = ref(false);
+const pendingBackupRestore = reactive({ open: false, backup: null, filename: '', error: '', submitting: false });
 const backupMessage = ref('');
 const backupOk = ref(false);
 const tasks = ref([]);
@@ -572,9 +607,10 @@ const hoveredTaskHash = ref('');
 const selectedTaskHashes = ref([]);
 const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
+const taskRenameDialog = reactive({ open: false, name: '', error: '' });
 const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
-const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
+const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
 let taskNameTooltipTimer = null;
@@ -638,6 +674,12 @@ const hoveredTaskIndex = computed(() => {
   return index < 0 ? 0 : index + 1;
 });
 const selectedTaskIndexes = computed(() => selectedTaskHashes.value.map((hash) => filteredTasks.value.findIndex((task) => task.hash === hash) + 1).filter(Boolean).sort((left, right) => left - right));
+const selectedTaskSummary = computed(() => {
+  const indexes = selectedTaskIndexes.value;
+  if (!indexes.length) return '';
+  const rows = indexes.length === 1 ? `${indexes[0]}` : `${indexes[0]}–${indexes[indexes.length - 1]}`;
+  return `所选第 ${rows} 行，共 ${indexes.length} 个任务`;
+});
 function syncTaskScrollbar(event) {
   if (taskHorizontalScrollbar.value) taskHorizontalScrollbar.value.scrollLeft = event.currentTarget.scrollLeft;
 }
@@ -787,18 +829,42 @@ async function restoreBackup(event) {
   backupMessage.value = '';
   backupOk.value = false;
   try {
-    const text = await file.text();
-    const backup = JSON.parse(text);
-    if (!window.confirm('确认用备份覆盖当前 qB 账户、横栏、卡片和标签池？')) return;
-    config.value = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(backup) });
-    activeQbId.value = config.value.qbittorrents[0]?.id || '';
-    backupOk.value = true;
-    backupMessage.value = '备份已加载';
+    pendingBackupRestore.backup = JSON.parse(await file.text());
+    pendingBackupRestore.filename = file.name;
+    pendingBackupRestore.error = '';
+    pendingBackupRestore.open = true;
   } catch (requestError) {
     backupMessage.value = requestError.message || '备份文件解析失败';
   } finally {
     backupBusy.value = false;
     event.target.value = '';
+  }
+}
+
+function closeBackupRestoreDialog(force = false) {
+  if (pendingBackupRestore.submitting && !force) return;
+  pendingBackupRestore.open = false;
+  pendingBackupRestore.backup = null;
+  pendingBackupRestore.filename = '';
+  pendingBackupRestore.error = '';
+}
+
+async function confirmBackupRestore() {
+  if (!pendingBackupRestore.backup) return;
+  pendingBackupRestore.submitting = true;
+  pendingBackupRestore.error = '';
+  backupMessage.value = '';
+  backupOk.value = false;
+  try {
+    config.value = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(pendingBackupRestore.backup) });
+    activeQbId.value = config.value.qbittorrents[0]?.id || '';
+    backupOk.value = true;
+    backupMessage.value = '备份已加载';
+    closeBackupRestoreDialog(true);
+  } catch (requestError) {
+    pendingBackupRestore.error = requestError.message || '备份加载失败';
+  } finally {
+    pendingBackupRestore.submitting = false;
   }
 }
 
@@ -1336,20 +1402,57 @@ function openTaskMenu(task, event) {
 }
 
 async function runTorrentAction(action, extra = {}) {
-  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  if (!activeQb.value || !selectedTaskHashes.value.length) return false;
   try {
     await api(`/api/qb/${activeQb.value.id}/torrents/action`, { method: 'POST', body: JSON.stringify({ action, hashes: selectedTaskHashes.value, ...extra }) });
     taskMenu.value = null;
     await loadTasks();
+    return true;
   } catch (requestError) {
     tasksError.value = requestError.message;
+    return false;
   }
 }
 
 function renameSelectedTask() {
   const task = tasks.value.find((item) => item.hash === selectedTaskHashes.value[0]);
-  const name = window.prompt('新的种子名称', task?.name || '');
-  if (name?.trim()) runTorrentAction('rename', { name: name.trim() });
+  taskMenu.value = null;
+  taskRenameDialog.name = task?.name || '';
+  taskRenameDialog.error = '';
+  taskRenameDialog.open = true;
+}
+
+async function toggleAlternativeSpeedLimits() {
+  if (!activeQb.value || transferInfo.togglingAltSpeedLimits) return;
+  transferInfo.togglingAltSpeedLimits = true;
+  tasksError.value = '';
+  try {
+    await api(`/api/qb/${activeQb.value.id}/transfer/toggle-speed-limits`, { method: 'POST' });
+    transferInfo.altSpeedLimitsOn = !transferInfo.altSpeedLimitsOn;
+    await loadTasks();
+  } catch (requestError) {
+    tasksError.value = requestError.message || '备用速度切换失败';
+  } finally {
+    transferInfo.togglingAltSpeedLimits = false;
+  }
+}
+
+function closeTaskRenameDialog() {
+  taskRenameDialog.open = false;
+  taskRenameDialog.name = '';
+  taskRenameDialog.error = '';
+}
+
+async function saveSelectedTaskName() {
+  const name = taskRenameDialog.name.trim();
+  if (!name) {
+    taskRenameDialog.error = '请输入种子名称。';
+    return;
+  }
+  if (!activeQb.value || selectedTaskHashes.value.length !== 1) return;
+  const saved = await runTorrentAction('rename', { name });
+  if (saved) closeTaskRenameDialog();
+  else taskRenameDialog.error = tasksError.value || '重命名失败，请稍后重试。';
 }
 
 function changeSelectedTaskPath() {

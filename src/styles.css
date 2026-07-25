@@ -296,8 +296,8 @@ select:focus {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
-  transition: grid-template-columns .24s ease;
+  grid-template-columns: 252px minmax(0, 1fr);
+  transition: grid-template-columns .32s cubic-bezier(.22, 1, .36, 1);
 }
 
 .app-shell.sidebar-collapsed {
@@ -1035,9 +1035,18 @@ select:focus {
   max-height: calc(100vh - 48px);
   overflow: auto;
   padding: 24px;
-  border-radius: 20px;
+  border-radius: 24px;
   background: #fff;
   box-shadow: 0 26px 80px rgba(40, 41, 51, .22);
+}
+
+.modal::-webkit-scrollbar {
+  display: none;
+}
+
+.edit-qb-modal {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .modal header {
@@ -1774,7 +1783,7 @@ select:focus {
   position: fixed;
   right: 0;
   bottom: 0;
-  left: 292px;
+  left: 252px;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -1799,6 +1808,36 @@ select:focus {
   color: #8c8896;
   font-size: 12px;
 }
+
+.transfer-alt-speed-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  margin: 0 12px 0 4px;
+  place-items: center;
+  border: 1px solid #dce2e8;
+  border-radius: 11px;
+  color: #87909d;
+  background: #f6f8fa;
+  transition: color .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.transfer-alt-speed-button:hover:not(:disabled) {
+  border-color: #9eb7d4;
+  color: #5b83af;
+  background: #edf4fa;
+}
+
+.transfer-alt-speed-button.active {
+  border-color: #7ca1c5;
+  color: #fff;
+  background: #668db5;
+  box-shadow: 0 5px 14px rgba(83, 127, 168, .25);
+}
+
+.transfer-alt-speed-button:disabled { opacity: .6; }
+.transfer-alt-speed-button svg { width: 18px; height: 18px; }
 
 .task-summary .transfer-stat {
   display: inline-flex;
@@ -1849,6 +1888,10 @@ select:focus {
   .task-summary-count,
   .task-summary .transfer-stat > span {
     display: none;
+  }
+
+  .transfer-alt-speed-button {
+    margin-right: 6px;
   }
 
   .task-summary .transfer-stat {
@@ -2305,11 +2348,15 @@ select:focus {
   cursor: help;
 }
 
-.task-path-modal {
+.task-path-modal,
+.task-rename-modal,
+.backup-restore-modal {
   width: min(460px, calc(100vw - 32px));
 }
 
-.task-path-modal > p {
+.task-path-modal > p,
+.task-rename-modal > p,
+.backup-restore-modal > p {
   margin: -3px 0 2px;
   color: #74717d;
   font-size: 13px;
@@ -2443,7 +2490,7 @@ select:focus {
 .task-status.is-错误 { border-color: #edc6c6; color: #a75f5f; background: #fff4f4; }
 .task-status.is-运行 { border-color: #ced8e9; color: #596f9a; background: #f2f5fc; }
 
-/* Sidebar edge rail: a quiet divider at rest, with a light folded-line cue on intent. */
+/* Sidebar edge: calm gray divider at rest, animated Monet folded line on intent. */
 .sidebar-toggle,
 .app-shell.sidebar-collapsed .sidebar-toggle {
   position: absolute;
@@ -2468,32 +2515,53 @@ select:focus {
   width: 1px;
   height: 106px;
   border-radius: 999px;
-  background: #d4d9de;
-  transition: width .32s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), background .42s ease, box-shadow .42s ease;
+  background: #cfd4db;
+  transition: width .34s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), background .42s ease, box-shadow .42s ease;
 }
 
 .sidebar-toggle-action {
   position: absolute;
   display: grid;
-  width: 27px;
-  height: 34px;
+  width: 28px;
+  height: 36px;
   place-items: center;
-  color: transparent;
-  background: transparent;
+  color: #8193a1;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-5px) scale(.92);
-  transition: opacity .22s ease, color .34s ease, transform .42s cubic-bezier(.22, 1, .36, 1);
+  transform: scale(.28);
+  transition: opacity .16s ease, color .34s ease, transform .44s cubic-bezier(.22, 1, .36, 1);
 }
 
 .sidebar-toggle-action svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   overflow: visible;
+  opacity: 1;
   filter: drop-shadow(0 1px 2px rgba(91, 145, 163, 0));
   pointer-events: none;
+  transform: none;
   transition: filter .4s ease;
 }
+
+.sidebar-toggle-stem,
+.sidebar-toggle-fold {
+  transition: opacity .22s ease, stroke-dashoffset .44s cubic-bezier(.22, 1, .36, 1), transform .44s cubic-bezier(.22, 1, .36, 1);
+  transform-origin: 12px 12px;
+}
+
+.sidebar-toggle-stem {
+  opacity: .88;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 0;
+}
+
+.sidebar-toggle-fold {
+  opacity: 0;
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+}
+
+.sidebar-toggle-fold-expand { transform: scaleX(.15); }
 
 .sidebar-toggle:hover .sidebar-toggle-rail,
 .sidebar-toggle:focus-visible .sidebar-toggle-rail {
@@ -2507,12 +2575,40 @@ select:focus {
 .sidebar-toggle:focus-visible .sidebar-toggle-action {
   color: #6d9eb3;
   opacity: 1;
-  transform: translateX(1px) scale(1);
+  transform: scale(1);
+}
+
+.sidebar-toggle:hover .sidebar-toggle-stem,
+.sidebar-toggle:focus-visible .sidebar-toggle-stem {
+  opacity: 0;
+  stroke-dashoffset: -16;
+}
+
+.sidebar-toggle:hover .sidebar-toggle-fold-collapse,
+.sidebar-toggle:focus-visible .sidebar-toggle-fold-collapse {
+  opacity: 1;
+  stroke-dashoffset: 0;
+  transform: scaleX(1);
+}
+
+.app-shell.sidebar-collapsed .sidebar-toggle:hover .sidebar-toggle-fold-collapse,
+.app-shell.sidebar-collapsed .sidebar-toggle:focus-visible .sidebar-toggle-fold-collapse {
+  opacity: 0;
+  stroke-dashoffset: -18;
+  transform: scaleX(.15);
+}
+
+.app-shell.sidebar-collapsed .sidebar-toggle:hover .sidebar-toggle-fold-expand,
+.app-shell.sidebar-collapsed .sidebar-toggle:focus-visible .sidebar-toggle-fold-expand {
+  opacity: 1;
+  stroke-dashoffset: 0;
+  transform: scaleX(1);
 }
 
 .sidebar-toggle:hover .sidebar-toggle-action svg,
 .sidebar-toggle:focus-visible .sidebar-toggle-action svg {
   filter: drop-shadow(0 1px 2px rgba(91, 145, 163, .2));
+  transform: none;
 }
 
 .sidebar-toggle:focus-visible {

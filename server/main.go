@@ -576,15 +576,17 @@ type transferInfo struct {
 	Uploaded      int64 `json:"up_info_data"`
 	DownRateLimit int64 `json:"dl_rate_limit"`
 	UpRateLimit   int64 `json:"up_rate_limit"`
+	AltSpeedsOn   bool  `json:"alt_speeds_on"`
 }
 
 type transferStatus struct {
-	DownSpeed     int64 `json:"downSpeed"`
-	UpSpeed       int64 `json:"upSpeed"`
-	Downloaded    int64 `json:"downloaded"`
-	Uploaded      int64 `json:"uploaded"`
-	DownRateLimit int64 `json:"downRateLimit"`
-	UpRateLimit   int64 `json:"upRateLimit"`
+	DownSpeed        int64 `json:"downSpeed"`
+	UpSpeed          int64 `json:"upSpeed"`
+	Downloaded       int64 `json:"downloaded"`
+	Uploaded         int64 `json:"uploaded"`
+	DownRateLimit    int64 `json:"downRateLimit"`
+	UpRateLimit      int64 `json:"upRateLimit"`
+	AltSpeedLimitsOn bool  `json:"altSpeedLimitsOn"`
 }
 
 type torrentListResponse struct {
@@ -611,6 +613,14 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 			return
 		}
 		s.handleQBTorrents(w, r, config, parts[0])
+		return
+	}
+	if len(parts) == 3 && parts[1] == "transfer" && parts[2] == "toggle-speed-limits" {
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w)
+			return
+		}
+		s.handleQBTransferToggleSpeedLimits(w, r, config, parts[0])
 		return
 	}
 	if len(parts) == 3 && parts[1] == "torrents" && parts[2] == "action" {
@@ -775,6 +785,38 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleQBTransferToggleSpeedLimits(w http.ResponseWriter, r *http.Request, config Config, id string) {
+	account, ok := findQB(config.QBittorrents, id)
+	if !ok {
+		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
+		return
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		logQBFailure("toggle_speed_limits_login", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/api/v2/transfer/toggleSpeedLimitsMode", nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		logQBFailure("toggle_speed_limits_request", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent alternate speed toggle failed: %d", response.StatusCode))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config Config, id string) {
 	account, ok := findQB(config.QBittorrents, id)
 	if !ok {
@@ -851,12 +893,13 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		return
 	}
 	result.Transfer = transferStatus{
-		DownSpeed:     qBTransfer.DownSpeed,
-		UpSpeed:       qBTransfer.UpSpeed,
-		Downloaded:    qBTransfer.Downloaded,
-		Uploaded:      qBTransfer.Uploaded,
-		DownRateLimit: qBTransfer.DownRateLimit,
-		UpRateLimit:   qBTransfer.UpRateLimit,
+		DownSpeed:        qBTransfer.DownSpeed,
+		UpSpeed:          qBTransfer.UpSpeed,
+		Downloaded:       qBTransfer.Downloaded,
+		Uploaded:         qBTransfer.Uploaded,
+		DownRateLimit:    qBTransfer.DownRateLimit,
+		UpRateLimit:      qBTransfer.UpRateLimit,
+		AltSpeedLimitsOn: qBTransfer.AltSpeedsOn,
 	}
 	writeJSON(w, http.StatusOK, result)
 }
