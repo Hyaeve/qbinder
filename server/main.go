@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -1124,63 +1125,61 @@ func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Confi
 		}
 	}
 
-	pipeReader, pipeWriter := io.Pipe()
-	writer := multipart.NewWriter(pipeWriter)
-	writeDone := make(chan error, 1)
-	go func() {
-		defer pipeWriter.Close()
-		for _, header := range files {
-			file, err := header.Open()
-			if err != nil {
-				writeDone <- err
-				return
-			}
-			part, err := writer.CreateFormFile("torrents", header.Filename)
-			if err == nil {
-				_, err = io.Copy(part, file)
-			}
-			file.Close()
-			if err != nil {
-				pipeWriter.CloseWithError(err)
-				writeDone <- err
-				return
-			}
+	// Build a complete multipart request so qBittorrent receives a Content-Length.
+	// Some WebUI/proxy combinations reject the chunked request produced by io.Pipe.
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
 		}
-		if err := writer.WriteField("savepath", card.SavePath); err == nil {
-			err = writer.WriteField("autoTMM", "false")
-		}
-		if err == nil && len(card.Tags) > 0 {
-			err = writer.WriteField("tags", strings.Join(card.Tags, ","))
-		}
+		part, err := writer.CreateFormFile("torrents", header.Filename)
 		if err == nil {
-			err = writer.Close()
+			_, err = io.Copy(part, file)
 		}
-		writeDone <- err
-	}()
+		file.Close()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+	if err := writer.WriteField("savepath", card.SavePath); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := writer.WriteField("autoTMM", "false"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(card.Tags) > 0 {
+		if err := writer.WriteField("tags", strings.Join(card.Tags, ",")); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	if err := writer.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/api/v2/torrents/add", pipeReader)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/api/v2/torrents/add", &body)
 	if err != nil {
-		pipeReader.Close()
-		<-writeDone
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("Cookie", cookie)
 	response, err := qBHTTPClient.Do(request)
-	pipeReader.Close()
-	writeErr := <-writeDone
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	if writeErr != nil {
-		writeError(w, http.StatusBadRequest, writeErr)
-		return
-	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent add torrents failed: %d", response.StatusCode))
+		message, _ := io.ReadAll(io.LimitReader(response.Body, maxQBResponseSize))
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent add torrents failed: %d %s", response.StatusCode, strings.TrimSpace(string(message))))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(files)})

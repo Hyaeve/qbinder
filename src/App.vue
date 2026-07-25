@@ -170,7 +170,7 @@
         </header>
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
-        <section ref="taskTableShell" class="task-table-shell" @click.stop @scroll="syncTaskScrollbar">
+        <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenuOnOutsideClick" @click.stop @scroll="syncTaskScrollbar">
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
@@ -352,6 +352,31 @@
       </form>
     </div>
 
+    <div v-if="pendingCardUpload.open" class="modal-backdrop" @click.self="closeCardUploadDialog">
+      <form class="modal card-upload-modal" @submit.prevent="confirmCardUpload">
+        <header>
+          <h2>确认添加种子</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" :disabled="pendingCardUpload.submitting" @click="closeCardUploadDialog"><X /></button>
+        </header>
+        <p>将向「{{ pendingCardUpload.card?.name }}」添加 {{ pendingCardUpload.files.length }} 个种子。</p>
+        <div class="card-upload-file-list" aria-label="待添加的种子文件">
+          <span v-for="file in pendingCardUpload.files.slice(0, 5)" :key="`${file.name}-${file.lastModified}`">{{ file.name }}</span>
+          <span v-if="pendingCardUpload.files.length > 5">另有 {{ pendingCardUpload.files.length - 5 }} 个种子文件</span>
+        </div>
+        <p v-if="pendingCardUpload.error" class="form-error">{{ pendingCardUpload.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" :disabled="pendingCardUpload.submitting" @click="closeCardUploadDialog">取消</button>
+          <button class="primary-button" :disabled="pendingCardUpload.submitting"><Loader2 v-if="pendingCardUpload.submitting" class="spin" /><UploadCloud v-else />{{ pendingCardUpload.submitting ? '添加中' : '确认添加' }}</button>
+        </div>
+      </form>
+    </div>
+
+    <div v-if="uploadNotice.visible" class="upload-result-toast" :class="`is-${uploadNotice.tone}`" role="status" aria-live="polite">
+      <CheckCircle2 v-if="uploadNotice.tone === 'success'" />
+      <X v-else />
+      <span>{{ uploadNotice.text }}</span>
+    </div>
+
     <div v-if="editingCard" class="modal-backdrop">
       <section class="modal">
         <header>
@@ -443,6 +468,9 @@ const coverMode = ref('monet');
 const tagInput = ref('');
 const uploadingCardId = ref('');
 const fileInputs = reactive({});
+const pendingCardUpload = reactive({ open: false, card: null, files: [], input: null, error: '', submitting: false });
+const uploadNotice = reactive({ visible: false, text: '', tone: 'success' });
+let uploadNoticeTimer = null;
 const editQbMessage = ref('');
 const editingLaneId = ref('');
 const editingLaneName = ref('');
@@ -844,24 +872,56 @@ function setFileInput(id) {
   };
 }
 
-async function uploadFiles(card, event) {
+function uploadFiles(card, event) {
   const files = [...event.target.files];
   const maxUploadSize = 32 * 1024 * 1024;
   if (!files.length) return;
   if (files.length > 50 || files.some((file) => !file.name.toLowerCase().endsWith('.torrent')) || files.reduce((total, file) => total + file.size, 0) > maxUploadSize) {
-    window.alert('仅支持最多 50 个 .torrent 文件，总大小不能超过 32 MB。');
     event.target.value = '';
+    showUploadNotice('仅支持最多 50 个 .torrent 文件，总大小不能超过 32 MB。', 'error');
     return;
   }
+  Object.assign(pendingCardUpload, { open: true, card, files, input: event.target, error: '', submitting: false });
+}
+
+function closeCardUploadDialog() {
+  if (pendingCardUpload.submitting) return;
+  pendingCardUpload.input && (pendingCardUpload.input.value = '');
+  Object.assign(pendingCardUpload, { open: false, card: null, files: [], input: null, error: '', submitting: false });
+}
+
+function showUploadNotice(text, tone = 'success') {
+  window.clearTimeout(uploadNoticeTimer);
+  Object.assign(uploadNotice, { visible: true, text, tone });
+  uploadNoticeTimer = window.setTimeout(() => {
+    uploadNotice.visible = false;
+  }, 4200);
+}
+
+async function confirmCardUpload() {
+  const { card, files } = pendingCardUpload;
+  if (!card || !files.length) return;
   const form = new FormData();
   files.forEach((file) => form.append('torrents', file));
+  pendingCardUpload.submitting = true;
+  pendingCardUpload.error = '';
   uploadingCardId.value = card.id;
   try {
-    await api(`/api/cards/${card.id}/upload`, { method: 'POST', body: form });
+    const result = await api(`/api/cards/${card.id}/upload`, { method: 'POST', body: form });
+    const count = Number(result?.count) || files.length;
+    closeCardUploadDialogAfterSubmit();
+    showUploadNotice(`成功添加 ${count} 个种子`);
+  } catch (requestError) {
+    pendingCardUpload.error = requestError.message || '添加种子失败';
   } finally {
     uploadingCardId.value = '';
-    event.target.value = '';
+    pendingCardUpload.submitting = false;
   }
+}
+
+function closeCardUploadDialogAfterSubmit() {
+  pendingCardUpload.input && (pendingCardUpload.input.value = '');
+  Object.assign(pendingCardUpload, { open: false, card: null, files: [], input: null, error: '', submitting: false });
 }
 
 function addTag(value) {
@@ -930,7 +990,7 @@ function loadTaskColumns() {
     const saved = JSON.parse(localStorage.getItem('qbinder-task-columns') || '[]');
     if (!Array.isArray(saved)) return defaults;
     const byKey = new Map(saved.map((column) => [column.key, column]));
-    const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: base.key === 'progress' ? Math.max(240, clampWidth(byKey.get(base.key)?.width, base.width)) : clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
+    const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
     defaults.filter((column) => !byKey.has(column.key)).forEach((column) => ordered.push({ ...column }));
     const pinned = defaults.slice(0, 2).map((column) => ordered.find((item) => item.key === column.key));
     const movable = ordered.filter((column) => !column.locked);
@@ -991,7 +1051,7 @@ function startTaskRefresh() {
   stopTaskRefresh();
   taskRefreshTimer = window.setInterval(() => {
     if (view.value === 'tasks' && document.visibilityState === 'visible') loadTasks();
-  }, 10000);
+  }, 2000);
 }
 
 function stopTaskRefresh() {
@@ -1116,6 +1176,10 @@ function closeTaskPopovers() {
   columnMenu.value = null;
   taskMenu.value = null;
   accountMenuOpen.value = false;
+}
+
+function closeTaskMenuOnOutsideClick(event) {
+  if (taskMenu.value && !event.target.closest('.task-menu')) taskMenu.value = null;
 }
 
 function selectTask(task, event) {
@@ -1274,6 +1338,7 @@ function startColumnResize(column, event) {
 
 onUnmounted(() => {
   window.removeEventListener('hashchange', syncViewFromHash);
+  window.clearTimeout(uploadNoticeTimer);
   stopTaskRefresh();
 });
 

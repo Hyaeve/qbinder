@@ -1902,7 +1902,7 @@ select:focus {
   background: linear-gradient(90deg, rgba(91, 161, 210, .12), rgba(141, 104, 239, .05));
 }
 
-/* Native qB-style filled progress bar with a Monet-blue fill. */
+/* qB-style fill with a slow-moving, low-saturation Monet palette. */
 .progress-value {
   display: block;
   width: 100%;
@@ -1913,17 +1913,20 @@ select:focus {
   width: 100%;
   height: 24px;
   overflow: hidden;
-  border: 1px solid #9eabb8;
-  border-radius: 0;
-  background: #f5f7f8;
+  border: 1px solid #a8bcc3;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #f4f7f6, #eef3f7);
   box-shadow: inset 0 1px 1px rgba(42, 67, 87, .09);
 }
 
 .progress-value > div > span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #6c9eb8, #91b6c8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26);
+  min-width: 0;
+  background: linear-gradient(105deg, #6fabc3 0%, #99c2bd 30%, #b3c5a4 50%, #9ebcd1 72%, #c5a9bd 100%);
+  background-size: 240% 100%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38);
+  animation: monet-progress-flow 9s ease-in-out infinite alternate;
 }
 
 .progress-value b {
@@ -1936,8 +1939,17 @@ select:focus {
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 1px rgba(31, 82, 117, .4);
+  text-shadow: 0 1px 2px rgba(43, 84, 100, .52);
   transform: translate(-50%, -50%);
+}
+
+@keyframes monet-progress-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-value > div > span { animation: none; }
 }
 
 .column-resizer {
@@ -2198,22 +2210,22 @@ select:focus {
 .task-status.is-错误 { border-color: #edc6c6; color: #a75f5f; background: #fff4f4; }
 .task-status.is-运行 { border-color: #ced8e9; color: #596f9a; background: #f2f5fc; }
 
-/* Sidebar edge rail: neutral at rest, animated Monet action on hover/focus. */
+/* Sidebar edge rail: neutral line at rest, Monet-highlighted line on hover. */
 .sidebar-toggle,
 .app-shell.sidebar-collapsed .sidebar-toggle {
   position: absolute;
   top: 50%;
-  right: -22px;
+  right: -18px;
   z-index: 20;
   display: grid;
-  width: 44px;
-  height: 176px;
+  width: 36px;
+  height: 148px;
   place-items: center;
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
-  color: #6097ba;
+  color: #fff;
   background: transparent;
   box-shadow: none;
   transform: translateY(-50%);
@@ -2221,32 +2233,33 @@ select:focus {
 }
 
 .sidebar-toggle-rail {
-  width: 3px;
-  height: 126px;
+  width: 2px;
+  height: 112px;
   border-radius: 999px;
-  background: #d7dde3;
-  transition: width .2s ease, height .2s ease, opacity .2s ease, background .2s ease;
+  background: #d8dde2;
+  transition: width .22s ease, height .22s ease, background .35s ease, box-shadow .35s ease;
 }
 
 .sidebar-toggle-action {
   position: absolute;
   display: grid;
-  width: 36px;
-  height: 52px;
+  width: 32px;
+  height: 40px;
   place-items: center;
-  border: 0;
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, .48);
+  border-radius: 13px;
   color: transparent;
   background: transparent;
+  box-shadow: none;
   opacity: 0;
-  transform: scale(.78);
-  transition: opacity .2s ease, color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease;
+  transform: scale(.86);
+  transition: opacity .2s ease, color .2s ease, background .3s ease, box-shadow .3s ease, transform .2s ease;
 }
 
 .sidebar-toggle-action svg {
   position: static;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   opacity: 1;
   pointer-events: none;
   transform: none;
@@ -2254,17 +2267,17 @@ select:focus {
 
 .sidebar-toggle:hover .sidebar-toggle-rail,
 .sidebar-toggle:focus-visible .sidebar-toggle-rail {
-  width: 5px;
-  height: 144px;
-  opacity: .22;
-  background: linear-gradient(180deg, #86bdd4, #c7d5c0 46%, #d5b6c4 100%);
+  width: 4px;
+  height: 126px;
+  background: linear-gradient(180deg, #8fc4dc 0%, #a9cfbf 48%, #cbb0c1 100%);
+  box-shadow: 0 0 10px rgba(125, 181, 188, .34);
 }
 
 .sidebar-toggle:hover .sidebar-toggle-action,
 .sidebar-toggle:focus-visible .sidebar-toggle-action {
   color: #fff;
-  background: linear-gradient(145deg, #71abc6, #a9c8b8 50%, #c5a9bd);
-  box-shadow: 0 8px 22px rgba(82, 134, 159, .28), inset 0 1px 1px rgba(255, 255, 255, .5);
+  background: linear-gradient(160deg, rgba(107, 174, 200, .88), rgba(164, 202, 184, .9) 50%, rgba(199, 170, 190, .88));
+  box-shadow: 0 6px 18px rgba(78, 133, 148, .2), inset 0 1px 1px rgba(255, 255, 255, .56);
   opacity: 1;
   transform: scale(1);
 }
@@ -2337,3 +2350,78 @@ select:focus {
 .column-menu-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 12px; }
 .column-menu-columns label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: #6d6a76; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .column-menu input { width: auto; margin: 0; accent-color: #8d68ef; }
+
+.card-upload-modal > p {
+  margin: 4px 0 0;
+  color: #63727b;
+  line-height: 1.65;
+}
+
+.card-upload-file-list {
+  display: grid;
+  gap: 6px;
+  max-height: 172px;
+  margin-top: 16px;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #d7e3e7;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f4faf9, #f5f8fc);
+}
+
+.card-upload-file-list span {
+  overflow: hidden;
+  color: #517183;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-result-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid #c8ded4;
+  border-radius: 14px;
+  color: #356e58;
+  background: rgba(247, 253, 250, .96);
+  box-shadow: 0 14px 38px rgba(50, 102, 82, .18);
+  backdrop-filter: blur(12px);
+  animation: upload-notice-in .24s ease-out;
+}
+
+.upload-result-toast svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+}
+
+.upload-result-toast span {
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.upload-result-toast.is-error {
+  border-color: #eccdcd;
+  color: #a75555;
+  background: rgba(255, 248, 248, .97);
+  box-shadow: 0 14px 38px rgba(132, 70, 70, .16);
+}
+
+@keyframes upload-notice-in {
+  from { opacity: 0; transform: translateY(-10px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 600px) {
+  .upload-result-toast { top: 16px; right: 16px; }
+}
