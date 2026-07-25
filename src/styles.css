@@ -1824,20 +1824,45 @@ select:focus {
 }
 
 .transfer-alt-speed-button:hover:not(:disabled) {
-  border-color: #9eb7d4;
-  color: #5b83af;
-  background: #edf4fa;
+  border-color: #b4c3d1;
+  color: #697f96;
+  background: #f0f4f6;
 }
 
 .transfer-alt-speed-button.active {
-  border-color: #7ca1c5;
-  color: #fff;
-  background: #668db5;
-  box-shadow: 0 5px 14px rgba(83, 127, 168, .25);
+  color: #2f7181;
+  animation: transfer-alt-speed-monet 5s ease-in-out infinite;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
-.transfer-alt-speed-button svg { width: 18px; height: 18px; }
+.transfer-alt-speed-button svg {
+  width: 18px;
+  height: 18px;
+  transform: rotate(90deg);
+  transition: transform .34s cubic-bezier(.2, .8, .2, 1), color .2s ease;
+}
+.transfer-alt-speed-button.active svg { transform: rotate(-90deg); }
+
+@keyframes transfer-alt-speed-monet {
+  0%, 100% {
+    border-color: #9dbbc5;
+    color: #397988;
+    background: #e2f0ed;
+    box-shadow: 0 5px 15px rgba(102, 157, 164, .25);
+  }
+  33% {
+    border-color: #b3a8c6;
+    color: #6e5e8a;
+    background: #eee8f1;
+    box-shadow: 0 5px 15px rgba(145, 121, 167, .22);
+  }
+  67% {
+    border-color: #c6b49b;
+    color: #856b45;
+    background: #f1ece0;
+    box-shadow: 0 5px 15px rgba(176, 144, 91, .2);
+  }
+}
 
 .task-summary .transfer-stat {
   display: inline-flex;
@@ -2351,6 +2376,7 @@ select:focus {
 .task-path-modal,
 .task-rename-modal,
 .task-tags-modal,
+.task-delete-modal,
 .backup-restore-modal {
   width: min(460px, calc(100vw - 32px));
 }
@@ -2358,6 +2384,7 @@ select:focus {
 .task-path-modal > p,
 .task-rename-modal > p,
 .task-tags-modal > p,
+.task-delete-modal > p,
 .backup-restore-modal > p {
   margin: -3px 0 2px;
   color: #74717d;
@@ -2427,6 +2454,59 @@ select:focus {
 .task-tags-hint {
   color: #87989b !important;
   font-size: 12px !important;
+}
+
+.task-delete-modal {
+  border: 1px solid #eadde0;
+  background: linear-gradient(145deg, #fff, #fffbfa);
+}
+
+.task-delete-modal > p:first-of-type {
+  color: #635b62;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.task-delete-files-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid #ecd9dc;
+  border-radius: 12px;
+  color: #774f57;
+  background: #fff7f6;
+  cursor: pointer;
+}
+
+.task-delete-files-option input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #bf6974;
+}
+
+.task-delete-files-option span {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.task-delete-hint {
+  margin-top: -9px !important;
+  color: #958087 !important;
+  font-size: 12px !important;
+}
+
+.task-delete-modal .danger-button {
+  border: 1px solid #e5b9bf;
+  color: #9e3f4c;
+  background: #f9e7e8;
+}
+
+.task-delete-modal .danger-button:hover:not(:disabled) {
+  border-color: #d996a0;
+  color: #842e3a;
+  background: #f5dce0;
 }
 
 .task-row.selected {
@@ -2869,17 +2949,17 @@ select:focus {
 }
 
 .tasks-page .task-filter-popover .filter-category-list .filter-confirm-buttons .primary-button {
-  border-color: #82abc4;
-  color: #173f55;
-  background: linear-gradient(135deg, #83c5da 0%, #aad5b8 48%, #c7acc8 100%);
-  box-shadow: 0 4px 11px rgba(94, 145, 164, .24);
-  text-shadow: 0 1px rgba(255, 255, 255, .45);
+  border-color: #79a9ae;
+  color: #173f46;
+  background: #a9c9c3;
+  box-shadow: 0 4px 11px rgba(85, 133, 137, .22);
+  text-shadow: 0 1px rgba(255, 255, 255, .38);
 }
 
 .tasks-page .task-filter-popover .filter-category-list .filter-confirm-buttons .primary-button:hover {
-  border-color: #6498b3;
-  color: #10394f;
-  background: linear-gradient(135deg, #70b8d4 0%, #96cda9 48%, #bc9bbc 100%);
+  border-color: #5f949a;
+  color: #10373e;
+  background: #96bbb4;
 }
 
 .tasks-page .task-filter-popover .filter-category-list button {
@@ -3058,7 +3138,7 @@ select:focus {
 }
 
 .tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:first-child svg { transform: rotate(-90deg); }
-.tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:last-child svg { transform: rotate(90deg); }
+.tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:last-child svg { transform: rotate(-90deg); }
 .tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:hover:not(:disabled) { color: #356f7e; background: #eaf4f3; }
 .tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:disabled { color: #c4d0d2; background: transparent; }
 

@@ -287,7 +287,7 @@
           <button @click="changeSelectedTaskPath">更改保存路径</button>
           <button @click="setSelectedUploadLimit">限制上传速率</button>
           <button @click="exportSelectedTorrents">导出 torrent</button>
-          <button class="danger" @click="deleteSelectedTasks">删除种子</button>
+          <button class="danger" @click="openTaskDeleteDialog">删除种子</button>
         </div>
       </template>
     </div>
@@ -456,6 +456,23 @@
       </form>
     </div>
 
+    <div v-if="taskDeleteDialog.open" class="modal-backdrop" @click.self="closeTaskDeleteDialog">
+      <section class="modal task-delete-modal">
+        <header>
+          <h2>删除种子</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskDeleteDialog"><X /></button>
+        </header>
+        <p>确认删除已选 {{ selectedTaskHashes.length }} 个种子任务？</p>
+        <label class="task-delete-files-option"><input v-model="taskDeleteDialog.deleteFiles" type="checkbox" /><span>同时删除已下载的文件</span></label>
+        <p class="task-delete-hint">未勾选时仅从 qBittorrent 中移除种子任务。</p>
+        <p v-if="taskDeleteDialog.error" class="form-error">{{ taskDeleteDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" :disabled="taskDeleteDialog.submitting" @click="closeTaskDeleteDialog">取消</button>
+          <button type="button" class="danger-button" :disabled="taskDeleteDialog.submitting" @click="confirmTaskDelete"><Loader2 v-if="taskDeleteDialog.submitting" class="spin" /><Trash2 v-else />确认删除</button>
+        </div>
+      </section>
+    </div>
+
     <div v-if="taskUploadLimitDialog.open" class="modal-backdrop" @click.self="closeTaskUploadLimitDialog">
       <form class="modal task-upload-limit-modal" @submit.prevent="saveSelectedUploadLimit">
         <header>
@@ -575,6 +592,7 @@ import {
   Filter,
   Gauge,
   RefreshCw,
+  Trash2,
   ChevronUp,
   ChevronDown,
   Tags,
@@ -645,6 +663,7 @@ const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
 const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input: '', error: '' });
 const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
+const taskDeleteDialog = reactive({ open: false, deleteFiles: false, submitting: false, error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
@@ -1609,9 +1628,36 @@ async function saveSelectedUploadLimit() {
   }
 }
 
-function deleteSelectedTasks() {
-  const deleteFiles = window.confirm('是否同时删除已下载的文件？\n“取消”仅删除种子任务。');
-  if (window.confirm(`确认删除选中的 ${selectedTaskHashes.value.length} 个种子？`)) runTorrentAction('delete', { deleteFiles });
+function openTaskDeleteDialog() {
+  taskMenu.value = null;
+  taskDeleteDialog.deleteFiles = false;
+  taskDeleteDialog.error = '';
+  taskDeleteDialog.open = true;
+}
+
+function closeTaskDeleteDialog() {
+  if (taskDeleteDialog.submitting) return;
+  taskDeleteDialog.open = false;
+  taskDeleteDialog.deleteFiles = false;
+  taskDeleteDialog.error = '';
+}
+
+async function confirmTaskDelete() {
+  if (!activeQb.value || !selectedTaskHashes.value.length || taskDeleteDialog.submitting) return;
+  taskDeleteDialog.submitting = true;
+  taskDeleteDialog.error = '';
+  try {
+    await api(`/api/qb/${activeQb.value.id}/torrents/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', hashes: selectedTaskHashes.value, deleteFiles: taskDeleteDialog.deleteFiles })
+    });
+    taskDeleteDialog.submitting = false;
+    closeTaskDeleteDialog();
+    await loadTasks();
+  } catch (requestError) {
+    taskDeleteDialog.error = requestError.message || '删除种子失败，请稍后重试。';
+    taskDeleteDialog.submitting = false;
+  }
 }
 
 async function exportSelectedTorrents() {
