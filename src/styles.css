@@ -1292,12 +1292,22 @@ select:focus {
   .task-search input { border: 0; padding: 11px 0; box-shadow: none; }
   .icon-button.selected { color: #fff; background: #8d68ef; }
   .task-filter-popover, .column-menu { position: fixed; z-index: 30; width: min(360px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 120px)); overflow: auto; padding: 16px; border: 1px solid #e2e0eb; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 22px 50px rgba(62,60,74,.18); }
-  .task-filter-popover { top: 64px; right: 36px; display: grid; gap: 15px; }
+  .task-filter-popover { top: 64px; right: 36px; display: grid; gap: 12px; }
   .filter-heading { display: flex; align-items: center; justify-content: space-between; color: #45424e; }
   .filter-heading button { color: #8264ea; font-weight: 800; }
-  .filter-group { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 13px; border-top: 1px solid #eeedf3; }
-  .filter-group > strong { width: 100%; color: #625e70; font-size: 13px; }
-  .filter-group label, .column-menu label { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: #6d6a76; font-size: 12px; font-weight: 700; }
+  .filter-selected { display: flex; max-height: 64px; flex-wrap: wrap; gap: 6px; overflow-y: auto; }
+  .filter-selected button { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 5px 8px; border-radius: 8px; color: #7957df; background: #f0eaff; font-size: 12px; font-weight: 800; }
+  .filter-selected svg { width: 13px; height: 13px; }
+  .filter-category-tabs { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; border-bottom: 1px solid #eeedf3; }
+  .filter-category-tabs button { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 7px 9px; border-radius: 8px 8px 0 0; color: #777381; font-size: 12px; font-weight: 800; }
+  .filter-category-tabs button.active { color: #805dde; background: #f1ecff; }
+  .filter-category-tabs em { display: grid; min-width: 16px; height: 16px; place-items: center; border-radius: 999px; color: #fff; background: #8d68ef; font-size: 10px; font-style: normal; }
+  .filter-group { display: grid; gap: 8px; padding-top: 2px; }
+  .filter-group > strong { color: #625e70; font-size: 13px; }
+  .filter-option-list { display: grid; max-height: 300px; overflow-y: auto; padding-right: 4px; }
+  .filter-group label, .column-menu label { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 34px; padding: 7px 9px; border-radius: 8px; color: #6d6a76; font-size: 12px; font-weight: 700; }
+  .filter-option-list label:hover { background: #f7f4ff; }
+  .filter-option-list label.checked { color: #7957df; background: #f0eaff; }
   .filter-group input, .column-menu input { width: auto; margin: 0; accent-color: #8d68ef; }
   .filter-none { color: #9b98a4; font-size: 12px; }
   .task-error { margin: 0 0 16px; }
@@ -1326,13 +1336,22 @@ select:focus {
   .task-summary strong:first-of-type svg { color: #6693dc; }
   .task-summary strong:last-child svg { color: #a873c8; }
   .task-summary svg { width: 17px; height: 17px; }
-  .column-menu { display: grid; gap: 7px; width: 200px; padding: 12px; }
+  .column-menu {
+    display: grid;
+    gap: 9px;
+    width: min(430px, calc(100vw - 32px));
+    padding: 13px;
+  }
   .column-menu strong { color: #494551; }
-  .column-menu > span { margin-top: 3px; color: #96929f; font-size: 12px; font-weight: 800; }
-  .column-menu button { padding: 7px 8px; border-radius: 8px; color: #625d6e; text-align: left; font-size: 13px; font-weight: 700; }
+  .column-menu > span { margin-top: 1px; color: #96929f; font-size: 12px; font-weight: 800; }
+  .column-menu-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+  .column-menu button { padding: 7px 9px; border-radius: 8px; color: #625d6e; text-align: left; font-size: 13px; font-weight: 700; }
+  .column-menu-actions button { flex: 1 1 auto; white-space: nowrap; }
   .column-menu button:hover:not(:disabled) { background: #f1edff; color: #805dde; }
   .column-menu button:disabled { cursor: not-allowed; opacity: .45; }
-  .column-menu-divider { height: 1px; margin: 3px 0; background: #ecebf1; }
+  .column-menu-divider { height: 1px; margin: 1px 0; background: #ecebf1; }
+  .column-menu-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 12px; }
+  .column-menu-columns label { min-width: 0; white-space: nowrap; }
 
   @media (max-width: 900px) {
     .task-toolbar { align-items: stretch; flex-direction: column; }
@@ -1737,26 +1756,34 @@ select:focus {
 
 .tasks-page .task-search {
   position: relative;
+  display: block;
   width: clamp(280px, 27vw, 390px);
   min-width: 0;
   height: 44px;
-  padding: 0 14px;
+  padding: 0;
   border-color: #deddea;
   border-radius: 14px;
   box-shadow: 0 7px 20px rgba(69, 65, 82, .05);
 }
 
 .tasks-page .task-search svg {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
   width: 19px;
   height: 19px;
   color: #756f80;
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .tasks-page .task-search input {
+  display: block;
+  width: 100%;
   min-width: 0;
   height: 42px;
-  padding: 0;
+  padding: 0 14px 0 44px;
   font-weight: 700;
 }
 
@@ -1772,10 +1799,20 @@ select:focus {
 }
 
 .task-header-cell {
-  min-height: 52px;
-  padding: 14px 16px;
+  min-height: 40px;
+  height: 40px;
+  padding: 8px 16px;
   border-right: 1px solid rgba(218, 218, 227, .6);
   color: #595561;
+}
+
+.task-header-cell .task-sort-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  color: #1495e8;
+  stroke-width: 3.25;
 }
 
 .task-cell {
@@ -1828,18 +1865,17 @@ select:focus {
 
 .task-summary .transfer-stat {
   position: relative;
-  flex-wrap: wrap;
-  column-gap: 7px;
-  row-gap: 1px;
-  min-width: 230px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
   padding: 5px 20px;
+  white-space: nowrap;
 }
 
 .task-summary .transfer-stat small {
-  flex-basis: 100%;
-  margin-left: 26px;
   color: #8d8995;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }

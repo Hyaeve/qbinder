@@ -145,15 +145,21 @@
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
           </div>
           <section v-if="filterOpen" class="task-filter-popover">
-            <div class="filter-heading"><strong>筛选器</strong><button @click="clearTaskFilters">全部选择</button></div>
-            <div class="filter-group">
-              <strong>状态</strong>
-              <label v-for="item in statusOptions" :key="item.key"><input v-model="taskFilters.status" type="checkbox" :value="item.key" />{{ item.label }}</label>
+            <div class="filter-heading"><strong>筛选器</strong><button v-if="hasTaskFilters" @click="clearTaskFilters">清除已选</button></div>
+            <div class="filter-selected" v-if="hasTaskFilters">
+              <button v-for="item in selectedTaskFilters" :key="`${item.key}-${item.value}`" @click="removeTaskFilter(item.key, item.value)">{{ item.label }}<X /></button>
             </div>
-            <div v-for="group in taskFilterGroups" :key="group.key" class="filter-group">
+            <div class="filter-category-tabs" role="tablist">
+              <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="activeFilterGroup = group.key">
+                {{ group.label }}<em v-if="taskFilters[group.key].length">{{ taskFilters[group.key].length }}</em>
+              </button>
+            </div>
+            <div v-for="group in taskFilterGroups" v-show="activeFilterGroup === group.key" :key="group.key" class="filter-group filter-group-options">
               <strong>{{ group.label }}</strong>
-              <label v-for="item in group.values" :key="item"><input v-model="taskFilters[group.key]" type="checkbox" :value="item" />{{ item }}</label>
-              <span v-if="!group.values.length" class="filter-none">暂无可筛选项</span>
+              <div v-if="group.values.length" class="filter-option-list">
+                <label v-for="item in group.values" :key="item" :class="{ checked: taskFilters[group.key].includes(item) }"><input v-model="taskFilters[group.key]" type="checkbox" :value="item" />{{ item }}</label>
+              </div>
+              <span v-else class="filter-none">暂无可筛选项</span>
             </div>
           </section>
         </header>
@@ -163,7 +169,7 @@
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
-                <span>{{ column.label }}</span><ArrowUp v-if="taskSort.key === column.key && taskSort.direction === 'asc'" /><ArrowDown v-else-if="taskSort.key === column.key" />
+                <span>{{ column.label }}</span><ChevronUp v-if="taskSort.key === column.key && taskSort.direction === 'asc'" class="task-sort-icon" /><ChevronDown v-else-if="taskSort.key === column.key" class="task-sort-icon" />
                 <i class="column-resizer" @pointerdown.stop="startColumnResize(column, $event)"></i>
               </div>
             </div>
@@ -182,8 +188,8 @@
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
         <footer class="task-summary" aria-label="传输状态">
           <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
-          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(transferInfo.downSpeed || taskTotals.down) }}</b><small>限速 {{ formatLimit(transferInfo.downRateLimit) }} · 累计 {{ formatBytes(transferInfo.downloaded) }}</small></strong>
-          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(transferInfo.upSpeed || taskTotals.up) }}</b><small>限速 {{ formatLimit(transferInfo.upRateLimit) }} · 累计 {{ formatBytes(transferInfo.uploaded) }}</small></strong>
+          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(transferInfo.downSpeed || taskTotals.down) }}</b><small>[{{ formatLimit(transferInfo.downRateLimit) }}] ({{ formatBytes(transferInfo.downloaded) }})</small></strong>
+          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(transferInfo.upSpeed || taskTotals.up) }}</b><small>[{{ formatLimit(transferInfo.upRateLimit) }}] ({{ formatBytes(transferInfo.uploaded) }})</small></strong>
         </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
           <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
@@ -193,12 +199,16 @@
 
         <div v-if="columnMenu" class="column-menu" :style="{ left: `${columnMenu.x}px`, top: `${columnMenu.y}px` }" @click.stop>
           <strong>{{ columnMenu.column.label }}列</strong>
-          <button :disabled="columnMenu.column.locked" @click="toggleTaskColumn(columnMenu.column.key)">{{ columnMenu.column.hidden ? '显示此列' : '隐藏此列' }}</button>
-          <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, -1)" @click="moveTaskColumn(columnMenu.column.key, -1)">向左移动</button>
-          <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, 1)" @click="moveTaskColumn(columnMenu.column.key, 1)">向右移动</button>
+          <div class="column-menu-actions">
+            <button :disabled="columnMenu.column.locked" @click="toggleTaskColumn(columnMenu.column.key)">{{ columnMenu.column.hidden ? '显示此列' : '隐藏此列' }}</button>
+            <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, -1)" @click="moveTaskColumn(columnMenu.column.key, -1)">向左移动</button>
+            <button :disabled="columnMenu.column.locked || !canMoveColumn(columnMenu.column.key, 1)" @click="moveTaskColumn(columnMenu.column.key, 1)">向右移动</button>
+          </div>
           <div class="column-menu-divider"></div>
           <span>显示列</span>
-          <label v-for="column in taskColumns" :key="column.key"><input type="checkbox" :checked="!column.hidden" :disabled="column.locked" @change="toggleTaskColumn(column.key)" />{{ column.label }}</label>
+          <div class="column-menu-columns">
+            <label v-for="column in taskColumns" :key="column.key"><input type="checkbox" :checked="!column.hidden" :disabled="column.locked" @change="toggleTaskColumn(column.key)" />{{ column.label }}</label>
+          </div>
         </div>
       </template>
     </div>
@@ -359,8 +369,7 @@ import {
   Search,
   Filter,
   RefreshCw,
-  ArrowDown,
-  ArrowUp,
+  ChevronUp,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
@@ -407,6 +416,7 @@ const tasksLoading = ref(false);
 const tasksError = ref('');
 const taskSearch = ref('');
 const filterOpen = ref(false);
+const activeFilterGroup = ref('status');
 const columnMenu = ref(null);
 const accountMenuOpen = ref(false);
 const taskSort = reactive({ key: 'name', direction: 'asc' });
@@ -473,6 +483,7 @@ const statusOptions = [
   { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
 ];
 const taskFilterGroups = computed(() => [
+  { key: 'status', label: '状态', values: statusOptions.map((item) => item.key), labels: Object.fromEntries(statusOptions.map((item) => [item.key, item.label])) },
   { key: 'path', label: '保存路径', values: uniqueTaskValues((task) => task.save_path) },
   { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
   { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
@@ -983,6 +994,16 @@ function formatTaskValue(task, key) {
 
 function taskCellTitle(task, key) {
   return ['name', 'tracker', 'save_path'].includes(key) ? formatTaskValue(task, key) : '';
+}
+
+const selectedTaskFilters = computed(() => taskFilterGroups.value.flatMap((group) => taskFilters[group.key].map((value) => ({
+  key: group.key,
+  value,
+  label: group.labels?.[value] || value
+}))));
+
+function removeTaskFilter(key, value) {
+  taskFilters[key] = taskFilters[key].filter((item) => item !== value);
 }
 
 function clearTaskFilters() {
