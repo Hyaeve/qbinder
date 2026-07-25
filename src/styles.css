@@ -1717,6 +1717,157 @@ select:focus {
   pointer-events: none;
 }
 
+/* Refined torrent view: share the cards-page top rhythm and make dense lists readable. */
+.tasks-page {
+  padding-top: 32px;
+}
+
+.tasks-page .task-toolbar {
+  min-height: 48px;
+  padding: 0 0 18px;
+  margin-bottom: 16px;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(245, 245, 250, .99) 70%, rgba(245, 245, 250, .88));
+}
+
+.tasks-page .task-toolbar-actions {
+  align-items: center;
+  gap: 8px;
+}
+
+.tasks-page .task-search {
+  position: relative;
+  width: clamp(280px, 27vw, 390px);
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-color: #deddea;
+  border-radius: 14px;
+  box-shadow: 0 7px 20px rgba(69, 65, 82, .05);
+}
+
+.tasks-page .task-search svg {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  color: #756f80;
+}
+
+.tasks-page .task-search input {
+  min-width: 0;
+  height: 42px;
+  padding: 0;
+  font-weight: 700;
+}
+
+.task-table-shell {
+  overflow: auto;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .84);
+  box-shadow: 0 14px 36px rgba(76, 76, 90, .07);
+}
+
+.task-table-header {
+  box-shadow: 0 2px 6px rgba(77, 74, 92, .05);
+}
+
+.task-header-cell {
+  min-height: 52px;
+  padding: 14px 16px;
+  border-right: 1px solid rgba(218, 218, 227, .6);
+  color: #595561;
+}
+
+.task-cell {
+  min-height: 64px;
+  padding: 14px 16px;
+  border-right: 1px solid rgba(232, 231, 238, .65);
+  border-bottom-color: #ecebf1;
+  font-size: 14px;
+}
+
+.task-row:nth-child(odd) {
+  background: rgba(249, 249, 252, .72);
+}
+
+.task-row:hover {
+  background: linear-gradient(90deg, rgba(141, 104, 239, .08), rgba(131, 178, 214, .06));
+}
+
+.column-resizer {
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 4;
+  width: 9px;
+  cursor: col-resize;
+}
+
+.column-resizer::after {
+  position: absolute;
+  top: 13px;
+  bottom: 13px;
+  left: 3px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  content: '';
+  transition: background .16s ease;
+}
+
+.column-resizer:hover::after,
+.task-column-resizing .column-resizer::after {
+  background: #8d68ef;
+}
+
+.task-column-resizing,
+.task-column-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.task-summary .transfer-stat {
+  position: relative;
+  flex-wrap: wrap;
+  column-gap: 7px;
+  row-gap: 1px;
+  min-width: 230px;
+  padding: 5px 20px;
+}
+
+.task-summary .transfer-stat small {
+  flex-basis: 100%;
+  margin-left: 26px;
+  color: #8d8995;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .tasks-page {
+    padding-top: 20px;
+  }
+
+  .tasks-page .task-search {
+    width: min(100%, 390px);
+  }
+
+  .task-summary .transfer-stat {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .tasks-page .task-toolbar-actions {
+    width: 100%;
+  }
+
+  .task-summary .transfer-stat small {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .task-toolbar {
     align-items: stretch;

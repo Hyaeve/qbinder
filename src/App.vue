@@ -182,8 +182,8 @@
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
         <footer class="task-summary" aria-label="传输状态">
           <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
-          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(taskTotals.down) }}</b></strong>
-          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(taskTotals.up) }}</b></strong>
+          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(transferInfo.downSpeed || taskTotals.down) }}</b><small>限速 {{ formatLimit(transferInfo.downRateLimit) }} · 累计 {{ formatBytes(transferInfo.downloaded) }}</small></strong>
+          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(transferInfo.upSpeed || taskTotals.up) }}</b><small>限速 {{ formatLimit(transferInfo.upRateLimit) }} · 累计 {{ formatBytes(transferInfo.uploaded) }}</small></strong>
         </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
           <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
@@ -414,6 +414,7 @@ const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
 const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
+const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
 let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
@@ -862,6 +863,7 @@ async function loadTasks() {
   try {
     const result = await api(`/api/qb/${activeQb.value.id}/torrents`);
     tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
+    Object.assign(transferInfo, result.transfer || {});
   } catch (requestError) {
     tasksError.value = requestError.message;
   } finally {
@@ -879,7 +881,7 @@ function scheduleTaskNameTooltip(task, event) {
     taskNameTooltip.x = Math.min(bounds.left, window.innerWidth - 360);
     taskNameTooltip.y = Math.min(bounds.bottom + 8, window.innerHeight - 72);
     taskNameTooltip.visible = true;
-  }, 1000);
+  }, 500);
 }
 
 function hideTaskNameTooltip() {
@@ -941,6 +943,10 @@ function formatBytes(value) {
 
 function formatSpeed(value) {
   return `${formatBytes(value)}/s`;
+}
+
+function formatLimit(value) {
+  return Number(value) > 0 ? formatSpeed(value) : '不限速';
 }
 
 function formatProgress(value) {
@@ -1021,10 +1027,17 @@ function moveTaskColumn(key, direction) {
 }
 
 function startColumnResize(column, event) {
+  event.preventDefault();
   const startX = event.clientX;
   const startWidth = column.width;
+  document.body.classList.add('task-column-resizing');
   const resize = (moveEvent) => { column.width = clampWidth(startWidth + moveEvent.clientX - startX, startWidth); };
-  const finish = () => { window.removeEventListener('pointermove', resize); window.removeEventListener('pointerup', finish); persistTaskColumns(); };
+  const finish = () => {
+    document.body.classList.remove('task-column-resizing');
+    window.removeEventListener('pointermove', resize);
+    window.removeEventListener('pointerup', finish);
+    persistTaskColumns();
+  };
   window.addEventListener('pointermove', resize);
   window.addEventListener('pointerup', finish);
 }

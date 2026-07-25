@@ -568,10 +568,20 @@ type torrentTask struct {
 	State     string  `json:"state"`
 }
 
+type transferInfo struct {
+	DownSpeed     int64 `json:"dl_info_speed"`
+	UpSpeed       int64 `json:"up_info_speed"`
+	Downloaded    int64 `json:"dl_info_data"`
+	Uploaded      int64 `json:"up_info_data"`
+	DownRateLimit int64 `json:"dl_rate_limit"`
+	UpRateLimit   int64 `json:"up_rate_limit"`
+}
+
 type torrentListResponse struct {
 	Tasks          []torrentTask `json:"tasks"`
 	TotalDownSpeed int64         `json:"totalDownSpeed"`
 	TotalUpSpeed   int64         `json:"totalUpSpeed"`
+	Transfer       transferInfo  `json:"transfer"`
 }
 
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -654,6 +664,32 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 	for _, task := range tasks {
 		result.TotalDownSpeed += task.DownSpeed
 		result.TotalUpSpeed += task.UpSpeed
+	}
+	transferRequest, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/transfer/info", nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	transferRequest.Header.Set("Cookie", cookie)
+	transferResponse, err := qBHTTPClient.Do(transferRequest)
+	if err != nil {
+		logQBFailure("transfer_info_request", account, err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer transferResponse.Body.Close()
+	if transferResponse.StatusCode < http.StatusOK || transferResponse.StatusCode >= http.StatusMultipleChoices {
+		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent transfer info failed: %d", transferResponse.StatusCode))
+		return
+	}
+	transferBody, err := io.ReadAll(io.LimitReader(transferResponse.Body, maxQBResponseSize+1))
+	if err != nil || len(transferBody) > maxQBResponseSize {
+		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent transfer info response")
+		return
+	}
+	if err := json.Unmarshal(transferBody, &result.Transfer); err != nil {
+		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent transfer info response")
+		return
 	}
 	writeJSON(w, http.StatusOK, result)
 }
