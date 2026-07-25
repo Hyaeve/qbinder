@@ -864,7 +864,7 @@ function persistTaskColumns() {
 
 function clampWidth(value, fallback) {
   const width = Number(value);
-  return Number.isFinite(width) ? Math.max(80, Math.min(480, width)) : fallback;
+  return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
 }
 
 async function loadTasks() {

@@ -1801,14 +1801,23 @@ select:focus {
 .task-header-cell {
   min-height: 40px;
   height: 40px;
+  min-width: 0;
   padding: 8px 16px;
+  overflow: hidden;
   border-right: 1px solid rgba(218, 218, 227, .6);
   color: #595561;
 }
 
+.task-header-cell > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .task-header-cell .task-sort-icon {
   flex: 0 0 auto;
-  width: 22px;
+  width: 18px;
   height: 22px;
   margin-left: auto;
   color: #1495e8;
@@ -1833,10 +1842,11 @@ select:focus {
 
 .column-resizer {
   top: 0;
-  right: -4px;
+  right: -5px;
   bottom: 0;
-  z-index: 4;
-  width: 9px;
+  z-index: 6;
+  width: 11px;
+  touch-action: none;
   cursor: col-resize;
 }
 
@@ -1917,3 +1927,31 @@ select:focus {
     width: auto;
   }
 }
+
+/* Keep the header context menu fixed at the pointer position rather than in document flow. */
+.column-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 9px;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(620px, calc(100vh - 32px));
+  overflow: auto;
+  padding: 13px;
+  border: 1px solid #e2e0eb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 22px 50px rgba(62, 60, 74, .18);
+}
+
+.column-menu strong { color: #494551; }
+.column-menu > span { margin-top: 1px; color: #96929f; font-size: 12px; font-weight: 800; }
+.column-menu-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.column-menu button { padding: 7px 9px; border-radius: 8px; color: #625d6e; text-align: left; font-size: 13px; font-weight: 700; }
+.column-menu-actions button { flex: 1 1 auto; white-space: nowrap; }
+.column-menu button:hover:not(:disabled) { color: #805dde; background: #f1edff; }
+.column-menu button:disabled { cursor: not-allowed; opacity: .45; }
+.column-menu-divider { height: 1px; margin: 1px 0; background: #ecebf1; }
+.column-menu-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 12px; }
+.column-menu-columns label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: #6d6a76; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.column-menu input { width: auto; margin: 0; accent-color: #8d68ef; }
