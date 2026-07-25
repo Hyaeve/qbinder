@@ -37,8 +37,15 @@
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
         <span class="sidebar-toggle-action" aria-hidden="true">
           <svg viewBox="0 0 24 120" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25">
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="17 2 7 60 17 118" />
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="7 2 17 60 7 118" />
+            <defs>
+              <linearGradient id="sidebar-monet-fold" x1="4" y1="0" x2="20" y2="120" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#69b9dd"><animate attributeName="stop-color" values="#69b9dd;#9ac9b4;#c59ab9;#69b9dd" dur="4s" repeatCount="indefinite" /></stop>
+                <stop offset=".48" stop-color="#9ac9b4"><animate attributeName="stop-color" values="#9ac9b4;#c59ab9;#69b9dd;#9ac9b4" dur="4s" repeatCount="indefinite" /></stop>
+                <stop offset="1" stop-color="#c59ab9"><animate attributeName="stop-color" values="#c59ab9;#69b9dd;#9ac9b4;#c59ab9" dur="4s" repeatCount="indefinite" /></stop>
+              </linearGradient>
+            </defs>
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="17 2 7 60 17 118" stroke="url(#sidebar-monet-fold)" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="7 2 17 60 7 118" stroke="url(#sidebar-monet-fold)" />
           </svg>
         </span>
       </button>
