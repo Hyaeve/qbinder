@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -597,12 +598,14 @@ type torrentListResponse struct {
 }
 
 type torrentActionRequest struct {
-	Action      string   `json:"action"`
-	Hashes      []string `json:"hashes"`
-	Name        string   `json:"name"`
-	SavePath    string   `json:"savePath"`
-	UploadLimit int64    `json:"uploadLimit"`
-	DeleteFiles bool     `json:"deleteFiles"`
+	Action       string   `json:"action"`
+	Hashes       []string `json:"hashes"`
+	Name         string   `json:"name"`
+	SavePath     string   `json:"savePath"`
+	Tags         []string `json:"tags"`
+	ExistingTags []string `json:"existingTags"`
+	UploadLimit  int64    `json:"uploadLimit"`
+	DeleteFiles  bool     `json:"deleteFiles"`
 }
 
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -747,6 +750,35 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		}
 		endpoint = "/api/v2/torrents/setLocation"
 		form.Set("location", strings.TrimSpace(payload.SavePath))
+	case "setTags":
+		for _, tag := range append(payload.Tags, payload.ExistingTags...) {
+			if strings.TrimSpace(tag) == "" || strings.Contains(tag, ",") {
+				writeErrorText(w, http.StatusBadRequest, "标签名称无效")
+				return
+			}
+		}
+		baseURL, cookie, err := loginQB(account)
+		if err != nil {
+			logQBFailure("torrent_action_login", account, err)
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+		if len(payload.ExistingTags) > 0 {
+			form.Set("tags", strings.Join(payload.ExistingTags, ","))
+			if err := postQBForm(r.Context(), baseURL, cookie, "/api/v2/torrents/removeTags", form); err != nil {
+				writeError(w, http.StatusBadGateway, err)
+				return
+			}
+		}
+		if len(payload.Tags) > 0 {
+			form.Set("tags", strings.Join(payload.Tags, ","))
+			if err := postQBForm(r.Context(), baseURL, cookie, "/api/v2/torrents/addTags", form); err != nil {
+				writeError(w, http.StatusBadGateway, err)
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
 	case "setUploadLimit":
 		if payload.UploadLimit < -1 {
 			writeErrorText(w, http.StatusBadRequest, "上传限速无效")
@@ -815,6 +847,24 @@ func (s *Server) handleQBTransferToggleSpeedLimits(w http.ResponseWriter, r *htt
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func postQBForm(ctx context.Context, baseURL, cookie, endpoint string, form url.Values) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Cookie", cookie)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("qBittorrent tags update failed: %d", response.StatusCode)
+	}
+	return nil
 }
 
 func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config Config, id string) {

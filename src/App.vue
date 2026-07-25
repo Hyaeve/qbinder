@@ -283,6 +283,7 @@
           <button @click="runTorrentAction('forceStart')">强制开始</button>
           <button @click="runTorrentAction('stop')">停止</button>
           <button :disabled="selectedTaskHashes.length !== 1" @click="renameSelectedTask">重命名</button>
+          <button @click="editSelectedTaskTags">编辑标签</button>
           <button @click="changeSelectedTaskPath">更改保存路径</button>
           <button @click="setSelectedUploadLimit">限制上传速率</button>
           <button @click="exportSelectedTorrents">导出 torrent</button>
@@ -431,6 +432,26 @@
         <div class="modal-actions">
           <button type="button" class="secondary-button" @click="closeTaskPathDialog">取消</button>
           <button class="primary-button" :disabled="!taskPathDialog.savePath">确认更改</button>
+        </div>
+      </form>
+    </div>
+
+    <div v-if="taskTagsDialog.open" class="modal-backdrop" @click.self="closeTaskTagsDialog">
+      <form class="modal task-tags-modal" @submit.prevent="saveSelectedTaskTags">
+        <header>
+          <h2>编辑种子标签</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskTagsDialog"><X /></button>
+        </header>
+        <p>为已选 {{ selectedTaskHashes.length }} 个种子设置标签；输入后按回车添加。</p>
+        <div class="task-tags-editor" @click="tagEditorInput?.focus()">
+          <span v-for="tag in taskTagsDialog.tags" :key="tag" class="task-edit-tag">{{ tag }}<button type="button" :title="`删除标签 ${tag}`" @click.stop="removeTaskTag(tag)"><X /></button></span>
+          <input ref="tagEditorInput" v-model="taskTagsDialog.input" aria-label="添加标签" placeholder="输入标签后按回车" @keydown.enter.prevent="addTaskTag" />
+        </div>
+        <p class="task-tags-hint">多个标签请逐个输入并按回车；保存后将替换所选种子的现有标签。</p>
+        <p v-if="taskTagsDialog.error" class="form-error">{{ taskTagsDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" @click="closeTaskTagsDialog">取消</button>
+          <button class="primary-button">保存标签</button>
         </div>
       </form>
     </div>
@@ -621,6 +642,8 @@ const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
 const taskRenameDialog = reactive({ open: false, name: '', error: '' });
 const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
+const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input: '', error: '' });
+const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const taskTableShell = ref(null);
@@ -1465,6 +1488,55 @@ async function saveSelectedTaskName() {
   const saved = await runTorrentAction('rename', { name });
   if (saved) closeTaskRenameDialog();
   else taskRenameDialog.error = tasksError.value || '重命名失败，请稍后重试。';
+}
+
+function editSelectedTaskTags() {
+  const selected = tasks.value.filter((task) => selectedTaskHashes.value.includes(task.hash));
+  taskMenu.value = null;
+  taskTagsDialog.tags = [...new Set(selected.flatMap((task) => taskTags(task)))];
+  taskTagsDialog.originalTags = [...taskTagsDialog.tags];
+  taskTagsDialog.input = '';
+  taskTagsDialog.error = '';
+  taskTagsDialog.open = true;
+}
+
+function addTaskTag() {
+  const tag = taskTagsDialog.input.trim();
+  if (!tag) return true;
+  if (tag.includes(',')) {
+    taskTagsDialog.error = '标签名称不能包含英文逗号。';
+    return false;
+  }
+  if (!taskTagsDialog.tags.includes(tag)) taskTagsDialog.tags.push(tag);
+  taskTagsDialog.input = '';
+  taskTagsDialog.error = '';
+  return true;
+}
+
+function removeTaskTag(tag) {
+  taskTagsDialog.tags = taskTagsDialog.tags.filter((item) => item !== tag);
+}
+
+function closeTaskTagsDialog() {
+  taskTagsDialog.open = false;
+  taskTagsDialog.tags = [];
+  taskTagsDialog.originalTags = [];
+  taskTagsDialog.input = '';
+  taskTagsDialog.error = '';
+}
+
+async function saveSelectedTaskTags() {
+  if (!addTaskTag() || !activeQb.value || !selectedTaskHashes.value.length) return;
+  try {
+    await api(`/api/qb/${activeQb.value.id}/torrents/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'setTags', hashes: selectedTaskHashes.value, tags: taskTagsDialog.tags, existingTags: taskTagsDialog.originalTags })
+    });
+    closeTaskTagsDialog();
+    await loadTasks();
+  } catch (requestError) {
+    taskTagsDialog.error = requestError.message || '保存标签失败，请稍后重试。';
+  }
 }
 
 function changeSelectedTaskPath() {
