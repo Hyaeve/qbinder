@@ -165,7 +165,7 @@
         </header>
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
-        <section class="task-table-shell" @click.stop>
+        <section ref="taskTableShell" class="task-table-shell" @click.stop @scroll="syncTaskScrollbar">
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
@@ -185,11 +185,20 @@
           <div v-if="tasksLoading" class="task-table-loading"><Loader2 class="spin" />正在同步任务…</div>
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
+        <div ref="taskHorizontalScrollbar" class="task-horizontal-scrollbar" aria-label="任务列表横向滚动" @scroll="syncTaskTableScroll">
+          <div :style="taskScrollbarContentStyle"></div>
+        </div>
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
-        <footer class="task-summary" aria-label="传输状态">
+        <footer class="task-summary" aria-label="qBittorrent 传输状态">
           <span class="task-summary-count">显示第 {{ taskRangeStart }}–{{ taskRangeEnd }} 个，共 {{ filteredTasks.length }} / {{ tasks.length }} 个任务</span>
-          <strong class="transfer-stat is-download"><Download /><span>下载</span><b>{{ formatSpeed(transferInfo.downSpeed || taskTotals.down) }}</b><small>[{{ formatLimit(transferInfo.downRateLimit) }}] ({{ formatBytes(transferInfo.downloaded) }})</small></strong>
-          <strong class="transfer-stat is-upload"><Upload /><span>上传</span><b>{{ formatSpeed(transferInfo.upSpeed || taskTotals.up) }}</b><small>[{{ formatLimit(transferInfo.upRateLimit) }}] ({{ formatBytes(transferInfo.uploaded) }})</small></strong>
+          <div class="transfer-stat is-download" aria-label="下载传输状态">
+            <Download aria-hidden="true" />
+            <span class="transfer-value">{{ formatSpeed(transferInfo.downSpeed) }} <em>[{{ formatLimit(transferInfo.downRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.downloaded) }})</small></span>
+          </div>
+          <div class="transfer-stat is-upload" aria-label="上传传输状态">
+            <Upload aria-hidden="true" />
+            <span class="transfer-value">{{ formatSpeed(transferInfo.upSpeed) }} <em>[{{ formatLimit(transferInfo.upRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.uploaded) }})</small></span>
+          </div>
         </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
           <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
@@ -425,6 +434,8 @@ const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
 const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
+const taskTableShell = ref(null);
+const taskHorizontalScrollbar = ref(null);
 let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
@@ -478,6 +489,15 @@ const imageUrlValue = computed(() => {
 
 const visibleTaskColumns = computed(() => taskColumns.filter((column) => !column.hidden));
 const taskGridStyle = computed(() => ({ '--task-columns': visibleTaskColumns.value.map((column) => `${column.width}px`).join(' ') }));
+const taskScrollbarContentStyle = computed(() => ({ width: `${visibleTaskColumns.value.reduce((total, column) => total + column.width, 0)}px` }));
+function syncTaskScrollbar(event) {
+  if (taskHorizontalScrollbar.value) taskHorizontalScrollbar.value.scrollLeft = event.currentTarget.scrollLeft;
+}
+
+function syncTaskTableScroll(event) {
+  if (taskTableShell.value) taskTableShell.value.scrollLeft = event.currentTarget.scrollLeft;
+}
+
 const statusOptions = [
   { key: 'downloading', label: '下载' }, { key: 'seeding', label: '做种' }, { key: 'completed', label: '完成' },
   { key: 'running', label: '正运行' }, { key: 'stopped', label: '已停止' }, { key: 'error', label: '错误' }
@@ -1049,18 +1069,26 @@ function moveTaskColumn(key, direction) {
 
 function startColumnResize(column, event) {
   event.preventDefault();
+  event.stopPropagation();
+  const handle = event.currentTarget;
   const startX = event.clientX;
   const startWidth = column.width;
+  handle.setPointerCapture?.(event.pointerId);
   document.body.classList.add('task-column-resizing');
-  const resize = (moveEvent) => { column.width = clampWidth(startWidth + moveEvent.clientX - startX, startWidth); };
+  const resize = (moveEvent) => {
+    column.width = clampWidth(startWidth + moveEvent.clientX - startX, startWidth);
+  };
   const finish = () => {
+    handle.releasePointerCapture?.(event.pointerId);
     document.body.classList.remove('task-column-resizing');
     window.removeEventListener('pointermove', resize);
     window.removeEventListener('pointerup', finish);
+    window.removeEventListener('pointercancel', finish);
     persistTaskColumns();
   };
   window.addEventListener('pointermove', resize);
   window.addEventListener('pointerup', finish);
+  window.addEventListener('pointercancel', finish);
 }
 
 onUnmounted(stopTaskRefresh);
