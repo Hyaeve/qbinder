@@ -28,14 +28,14 @@
         </div>
       </div>
       <nav>
-        <button :class="{ active: view === 'cards' }" title="卡片" @click="view = 'cards'"><Boxes /><span>卡片</span></button>
-        <button :class="{ active: view === 'tasks' }" title="视图" @click="view = 'tasks'"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'settings' }" title="设置" @click="view = 'settings'"><Settings /><span>设置</span></button>
+        <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
+        <button :class="{ active: view === 'tasks' }" title="视图" @click="navigateToView('tasks')"><Table2 /><span>视图</span></button>
+        <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
       <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
-        <span class="sidebar-toggle-mark" aria-hidden="true"></span>
-        <PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else />
+        <span class="sidebar-toggle-rail" aria-hidden="true"></span>
+        <span class="sidebar-toggle-action" aria-hidden="true"><PanelLeftOpen v-if="sidebarCollapsed" /><PanelLeftClose v-else /></span>
       </button>
     </aside>
 
@@ -181,7 +181,8 @@
             <div v-for="task in pagedTasks" :key="task.hash" class="task-row" :class="{ selected: selectedTaskHashes.includes(task.hash) }" @mouseenter="hoveredTaskHash = task.hash" @mouseleave="hoveredTaskHash = ''" @click.stop="selectTask(task, $event)" @contextmenu.prevent.stop="openTaskMenu(task, $event)">
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
                 <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
-                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
+                <template v-else-if="column.key === 'status'"><span class="task-status" :class="taskStatusClass(task)">{{ taskStatusLabel(task) }}</span></template>
+                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
                 <template v-else-if="column.key === 'name'"><span class="task-cell-text" @mouseenter="scheduleTaskNameTooltip(task, $event)" @mouseleave="hideTaskNameTooltip">{{ formatTaskValue(task, column.key) }}</span></template>
                 <template v-else><span class="task-cell-text" :title="taskCellTitle(task, column.key)">{{ formatTaskValue(task, column.key) }}</span></template>
               </div>
@@ -335,6 +336,22 @@
       </section>
     </div>
 
+    <div v-if="taskPathDialog.open" class="modal-backdrop" @click.self="closeTaskPathDialog">
+      <form class="modal task-path-modal" @submit.prevent="saveSelectedTaskPath">
+        <header>
+          <h2>更改保存路径</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskPathDialog"><X /></button>
+        </header>
+        <p>将把已选 {{ selectedTaskHashes.length }} 个种子移动到以下保存路径。</p>
+        <label>保存路径<input v-model.trim="taskPathDialog.savePath" autofocus placeholder="例如 /downloads/movies" /></label>
+        <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" @click="closeTaskPathDialog">取消</button>
+          <button class="primary-button" :disabled="!taskPathDialog.savePath">确认更改</button>
+        </div>
+      </form>
+    </div>
+
     <div v-if="editingCard" class="modal-backdrop">
       <section class="modal">
         <header>
@@ -413,7 +430,9 @@ const busy = ref(false);
 const error = ref('');
 const user = ref(null);
 const config = ref(null);
-const view = ref('cards');
+const viewRoutes = { cards: 'cards', tasks: 'tasks', settings: 'setting' };
+const routeViews = Object.fromEntries(Object.entries(viewRoutes).map(([viewName, route]) => [route, viewName]));
+const view = ref(viewFromHash());
 const verified = ref(false);
 const message = ref('');
 const laneName = ref('');
@@ -454,6 +473,7 @@ const hoveredTaskHash = ref('');
 const selectedTaskHashes = ref([]);
 const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
+const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0 });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
@@ -466,6 +486,8 @@ const credentialForm = reactive({ username: '', password: '' });
 const qbForm = reactive({ alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
 
 onMounted(async () => {
+  window.addEventListener('hashchange', syncViewFromHash);
+  syncViewFromHash();
   try {
     const response = await api('/api/config');
     config.value = response;
@@ -893,7 +915,8 @@ function loadTaskColumns() {
   const defaults = [
     { key: 'name', label: '名称', width: 280, locked: true },
     { key: 'size', label: '大小', width: 110, locked: true },
-    { key: 'progress', label: '进度', width: 190 },
+    { key: 'progress', label: '进度', width: 240 },
+    { key: 'status', label: '状态', width: 104 },
     { key: 'seeders', label: '做种', width: 96 },
     { key: 'leechers', label: '用户', width: 96 },
     { key: 'dlspeed', label: '下载', width: 118 },
@@ -907,10 +930,15 @@ function loadTaskColumns() {
     const saved = JSON.parse(localStorage.getItem('qbinder-task-columns') || '[]');
     if (!Array.isArray(saved)) return defaults;
     const byKey = new Map(saved.map((column) => [column.key, column]));
-    const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
+    const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: base.key === 'progress' ? Math.max(240, clampWidth(byKey.get(base.key)?.width, base.width)) : clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
     defaults.filter((column) => !byKey.has(column.key)).forEach((column) => ordered.push({ ...column }));
     const pinned = defaults.slice(0, 2).map((column) => ordered.find((item) => item.key === column.key));
-    return [...pinned, ...ordered.filter((column) => !column.locked)];
+    const movable = ordered.filter((column) => !column.locked);
+    const statusIndex = movable.findIndex((column) => column.key === 'status');
+    const status = statusIndex >= 0 ? movable.splice(statusIndex, 1)[0] : null;
+    const progressIndex = movable.findIndex((column) => column.key === 'progress');
+    if (status) movable.splice(Math.max(0, progressIndex + 1), 0, status);
+    return [...pinned, ...movable];
   } catch {
     return defaults;
   }
@@ -989,10 +1017,23 @@ function taskMatchesStatus(task, category) {
   return !state.includes('paused') && !state.includes('error') && !state.includes('missing');
 }
 
+function taskStatusLabel(task) {
+  if (task.progress >= 1) return taskMatchesStatus(task, 'seeding') ? '做种中' : '已完成';
+  if (taskMatchesStatus(task, 'error')) return '错误';
+  if (taskMatchesStatus(task, 'stopped')) return '已停止';
+  if (taskMatchesStatus(task, 'downloading')) return '下载中';
+  if (taskMatchesStatus(task, 'seeding')) return '做种中';
+  return '运行中';
+}
+
+function taskStatusClass(task) {
+  return `is-${taskStatusLabel(task).replaceAll('中', '').replaceAll('已', '')}`;
+}
+
 function compareTasks(left, right, key, direction) {
   const valueKey = { seeders: 'num_seeds', leechers: 'num_leechs' }[key] || key;
-  const leftValue = key === 'tags' ? taskTags(left).join(',') : key === 'tracker' ? trackerDisplayName(left.tracker) : left[valueKey];
-  const rightValue = key === 'tags' ? taskTags(right).join(',') : key === 'tracker' ? trackerDisplayName(right.tracker) : right[valueKey];
+  const leftValue = key === 'status' ? taskStatusLabel(left) : key === 'tags' ? taskTags(left).join(',') : key === 'tracker' ? trackerDisplayName(left.tracker) : left[valueKey];
+  const rightValue = key === 'status' ? taskStatusLabel(right) : key === 'tags' ? taskTags(right).join(',') : key === 'tracker' ? trackerDisplayName(right.tracker) : right[valueKey];
   const numeric = ['size', 'progress', 'seeders', 'leechers', 'dlspeed', 'upspeed', 'added_on'].includes(key);
   const compared = numeric ? Number(leftValue || 0) - Number(rightValue || 0) : String(leftValue || '').localeCompare(String(rightValue || ''), 'zh-CN', { numeric: true });
   return direction === 'asc' ? compared : -compared;
@@ -1039,6 +1080,7 @@ function trackerDisplayName(tracker) {
 
 function formatTaskValue(task, key) {
   switch (key) {
+    case 'status': return taskStatusLabel(task);
     case 'size': return formatBytes(task.size);
     case 'seeders': return task.num_seeds ?? 0;
     case 'leechers': return task.num_leechs ?? 0;
@@ -1115,8 +1157,35 @@ function renameSelectedTask() {
 }
 
 function changeSelectedTaskPath() {
-  const savePath = window.prompt('新的保存路径');
-  if (savePath?.trim()) runTorrentAction('setLocation', { savePath: savePath.trim() });
+  taskMenu.value = null;
+  taskPathDialog.savePath = '';
+  taskPathDialog.error = '';
+  taskPathDialog.open = true;
+}
+
+function closeTaskPathDialog() {
+  taskPathDialog.open = false;
+  taskPathDialog.savePath = '';
+  taskPathDialog.error = '';
+}
+
+async function saveSelectedTaskPath() {
+  const savePath = taskPathDialog.savePath.trim();
+  if (!savePath) {
+    taskPathDialog.error = '请输入保存路径。';
+    return;
+  }
+  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  try {
+    await api(`/api/qb/${activeQb.value.id}/torrents/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'setLocation', hashes: selectedTaskHashes.value, savePath })
+    });
+    closeTaskPathDialog();
+    await loadTasks();
+  } catch (requestError) {
+    taskPathDialog.error = requestError.message;
+  }
 }
 
 function setSelectedUploadLimit() {
@@ -1203,7 +1272,34 @@ function startColumnResize(column, event) {
   window.addEventListener('pointercancel', finish);
 }
 
-onUnmounted(stopTaskRefresh);
+onUnmounted(() => {
+  window.removeEventListener('hashchange', syncViewFromHash);
+  stopTaskRefresh();
+});
+
+function viewFromHash() {
+  const route = window.location.hash.replace(/^#\/?/, '').trim();
+  return routeViews[route] || 'cards';
+}
+
+function syncViewFromHash() {
+  const nextView = viewFromHash();
+  const canonicalHash = `#/${viewRoutes[nextView]}`;
+  if (window.location.hash !== canonicalHash) {
+    window.history.replaceState(null, '', canonicalHash);
+  }
+  view.value = nextView;
+}
+
+function navigateToView(nextView) {
+  const route = viewRoutes[nextView] || viewRoutes.cards;
+  const nextHash = `#/${route}`;
+  if (window.location.hash === nextHash) {
+    view.value = nextView;
+    return;
+  }
+  window.location.hash = `/${route}`;
+}
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value;

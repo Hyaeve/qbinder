@@ -1922,7 +1922,7 @@ select:focus {
 .progress-value > div > span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #348dcc, #5fa9db);
+  background: linear-gradient(90deg, #6c9eb8, #91b6c8);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26);
 }
 
@@ -2085,8 +2085,26 @@ select:focus {
 .column-menu-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .column-menu button { padding: 7px 9px; border-radius: 8px; color: #625d6e; text-align: left; font-size: 13px; font-weight: 700; }
 
-.task-row {
+.task-row,
+.task-row * {
   cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.task-row .task-cell-text[title] {
+  cursor: help;
+}
+
+.task-path-modal {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.task-path-modal > p {
+  margin: -3px 0 2px;
+  color: #74717d;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .task-row.selected {
@@ -2126,6 +2144,178 @@ select:focus {
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* Compact, readable tags without arbitrary color blocks. */
+.task-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  max-height: 46px;
+  overflow: hidden;
+}
+
+.task-tags span {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 4px 8px;
+  border: 1px solid #ccdbe2;
+  border-radius: 5px;
+  color: #3d6277;
+  background: #f2f7f8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-tags em {
+  color: #929aa0;
+  font-style: normal;
+}
+
+.task-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 58px;
+  padding: 4px 8px;
+  border: 1px solid #d5e1e5;
+  border-radius: 999px;
+  color: #527487;
+  background: #f2f7f8;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.task-status.is-下载 { border-color: #bed8e7; color: #397493; background: #edf7fc; }
+.task-status.is-做种 { border-color: #c7dfd0; color: #4b8066; background: #f0f8f3; }
+.task-status.is-完成 { border-color: #d8dce1; color: #66717a; background: #f5f6f7; }
+.task-status.is-停止 { border-color: #e4d9bc; color: #8b7542; background: #fbf8ed; }
+.task-status.is-错误 { border-color: #edc6c6; color: #a75f5f; background: #fff4f4; }
+.task-status.is-运行 { border-color: #ced8e9; color: #596f9a; background: #f2f5fc; }
+
+/* Sidebar edge rail: neutral at rest, animated Monet action on hover/focus. */
+.sidebar-toggle,
+.app-shell.sidebar-collapsed .sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: -22px;
+  z-index: 20;
+  display: grid;
+  width: 44px;
+  height: 176px;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #6097ba;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(-50%);
+  isolation: isolate;
+}
+
+.sidebar-toggle-rail {
+  width: 3px;
+  height: 126px;
+  border-radius: 999px;
+  background: #d7dde3;
+  transition: width .2s ease, height .2s ease, opacity .2s ease, background .2s ease;
+}
+
+.sidebar-toggle-action {
+  position: absolute;
+  display: grid;
+  width: 36px;
+  height: 52px;
+  place-items: center;
+  border: 0;
+  border-radius: 18px;
+  color: transparent;
+  background: transparent;
+  opacity: 0;
+  transform: scale(.78);
+  transition: opacity .2s ease, color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.sidebar-toggle-action svg {
+  position: static;
+  width: 20px;
+  height: 20px;
+  opacity: 1;
+  pointer-events: none;
+  transform: none;
+}
+
+.sidebar-toggle:hover .sidebar-toggle-rail,
+.sidebar-toggle:focus-visible .sidebar-toggle-rail {
+  width: 5px;
+  height: 144px;
+  opacity: .22;
+  background: linear-gradient(180deg, #86bdd4, #c7d5c0 46%, #d5b6c4 100%);
+}
+
+.sidebar-toggle:hover .sidebar-toggle-action,
+.sidebar-toggle:focus-visible .sidebar-toggle-action {
+  color: #fff;
+  background: linear-gradient(145deg, #71abc6, #a9c8b8 50%, #c5a9bd);
+  box-shadow: 0 8px 22px rgba(82, 134, 159, .28), inset 0 1px 1px rgba(255, 255, 255, .5);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sidebar-toggle:focus-visible {
+  outline: 0;
+}
+
+.sidebar-toggle:focus-visible .sidebar-toggle-action {
+  outline: 2px solid #6aaed1;
+  outline-offset: 3px;
+}
+
+/* The two-level filter is always an overlay anchored beneath the top controls. */
+.tasks-page .task-filter-popover {
+  position: fixed !important;
+  top: 92px !important;
+  right: 32px !important;
+  z-index: 60 !important;
+  display: grid !important;
+  grid-template-columns: none;
+  width: min(500px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 150px));
+  margin: 0 !important;
+  overflow: hidden;
+  padding: 14px;
+  border: 1px solid #d8e2e7;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 18px 46px rgba(40, 70, 86, .2);
+}
+
+.tasks-page .task-filter-popover .filter-browser {
+  grid-template-columns: 142px minmax(0, 1fr);
+  min-height: 300px;
+}
+
+.tasks-page .task-filter-popover .filter-category-list {
+  display: grid;
+  align-content: start;
+}
+
+.tasks-page .task-filter-popover .filter-option-panel {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .tasks-page .task-filter-popover {
+    top: 144px !important;
+    right: 16px !important;
+  }
 }
 
 .task-menu button:hover:not(:disabled) {
