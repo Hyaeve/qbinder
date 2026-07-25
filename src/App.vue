@@ -76,6 +76,30 @@
             <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
             <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
           </div>
+          <section class="configured-qb-accounts" aria-label="已配置 qB 账户">
+            <div class="configured-qb-heading">
+              <h3>已配置 qB 账户</h3>
+              <span>{{ config.qbittorrents.length }} 个账户</span>
+            </div>
+            <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
+              <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
+                <div class="configured-qb-card-main">
+                  <Layers />
+                  <strong :title="account.alias">{{ account.alias }}</strong>
+                  <span :title="`${account.protocol}://${account.host}:${account.port}`">{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
+                  <em :class="{ unverified: !account.lastVerifiedAt }">{{ account.lastVerifiedAt ? '已验证' : '未验证' }}</em>
+                </div>
+                <div class="configured-qb-actions">
+                  <button type="button" class="secondary-button" @click="editQb(account)">编辑</button>
+                  <button type="button" class="danger-button" @click="deleteQb(account.id)">删除</button>
+                </div>
+              </article>
+              <div class="configured-qb-empty">
+                <Plus />
+                <span>{{ config.qbittorrents.length ? '预留账户窗口' : '添加后的 qBittorrent 账户将显示在这里。' }}</span>
+              </div>
+            </div>
+          </section>
         </section>
 
         <section class="setting-panel tracker-mapping-panel">
@@ -111,21 +135,6 @@
         </section>
       </section>
 
-      <section class="accounts-list">
-        <h2>已配置 qB 账户</h2>
-        <div v-if="config.qbittorrents.length === 0" class="empty-state">还没有添加 qBittorrent 账户。</div>
-        <div v-for="account in config.qbittorrents" :key="account.id" class="account-row">
-          <div>
-            <strong>{{ account.alias }}</strong>
-            <span>{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
-            <em v-if="account.lastVerifiedAt">已验证</em>
-          </div>
-          <div class="account-actions">
-            <button class="secondary-button" @click="editQb(account)">编辑</button>
-            <button class="danger-button" @click="deleteQb(account.id)">删除</button>
-          </div>
-        </div>
-      </section>
     </div>
 
     <div v-else-if="view === 'tasks'" class="content tasks-page" @click="closeTaskPopovers">
@@ -147,31 +156,54 @@
           </div>
           <div class="task-toolbar-actions">
             <label class="task-search"><Search /><input v-model="taskSearch" placeholder="搜索种子名称、标签或路径" /></label>
-            <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="filterOpen = !filterOpen"><Filter /></button>
+            <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="toggleTaskFilter"><Filter /></button>
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
           </div>
           <section v-if="filterOpen" class="task-filter-popover" aria-label="任务筛选">
-            <div class="filter-heading"><strong>筛选任务</strong><button v-if="hasTaskFilters" @click="clearTaskFilters">清除全部</button></div>
-            <div class="filter-selected" v-if="hasTaskFilters">
-              <button v-for="item in selectedTaskFilters" :key="`${item.key}-${item.value}`" @click="removeTaskFilter(item.key, item.value)">{{ item.label }}<X /></button>
-            </div>
+            <header class="filter-heading">
+              <div><strong>筛选任务</strong><span>选择候选条件后，点击确认应用筛选</span></div>
+              <button v-if="hasFilterCandidates" @click="clearFilterCandidates">清空候选</button>
+            </header>
+            <section class="filter-candidates" aria-label="筛选候选区域">
+              <div class="filter-candidates-heading"><strong>筛选候选</strong><span>{{ selectedFilterCandidates.length }} 项</span></div>
+              <div v-if="hasFilterCandidates" class="filter-selected">
+                <button v-for="item in selectedFilterCandidates" :key="`${item.key}-${item.value}`" :class="`filter-tone-${taskTagTone(`${item.key}-${item.value}`)}`" @click="removeFilterCandidate(item.key, item.value)">
+                  <small>{{ item.groupLabel }}</small>{{ item.label }}<X />
+                </button>
+              </div>
+              <p v-else class="filter-candidates-empty">从左侧选择类别，再勾选具体筛选项；同类可多选。</p>
+            </section>
             <div class="filter-browser">
-              <nav class="filter-category-list" aria-label="筛选类别">
+              <nav class="filter-category-list" aria-label="一级筛选类别">
                 <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="selectFilterGroup(group.key)">
-                  <span>{{ group.label }}</span><em v-if="taskFilters[group.key].length">{{ taskFilters[group.key].length }}</em><ChevronDown />
+                  <span>{{ group.label }}</span><em>{{ filterDraft[group.key].length || '全部' }}</em>
                 </button>
               </nav>
               <div class="filter-option-panel">
-                <div class="filter-option-heading"><strong>{{ activeTaskFilterGroup.label }}</strong><span>{{ activeTaskFilterGroup.values.length }} 项</span></div>
+                <div class="filter-option-heading">
+                  <div><strong>{{ activeTaskFilterGroup.label }}</strong><span>候选 {{ filterDraft[activeFilterGroup].length }} / {{ activeTaskFilterGroup.values.length }} 项</span></div>
+                  <div v-if="pagedFilterValues.length" class="filter-option-actions">
+                    <button @click="selectCurrentFilterPage">全选本页</button>
+                    <button v-if="filterDraft[activeFilterGroup].length" @click="clearCurrentFilterGroup">清空</button>
+                  </div>
+                </div>
                 <div v-if="pagedFilterValues.length" class="filter-option-list">
-                  <label v-for="item in pagedFilterValues" :key="item" :class="{ checked: taskFilters[activeFilterGroup].includes(item) }"><input v-model="taskFilters[activeFilterGroup]" type="checkbox" :value="item" />{{ filterValueLabel(activeTaskFilterGroup, item) }}</label>
+                  <label v-for="item in pagedFilterValues" :key="item" :class="{ checked: filterDraft[activeFilterGroup].includes(item) }">
+                    <input v-model="filterDraft[activeFilterGroup]" type="checkbox" :value="item" />
+                    <span class="filter-check"><Check /></span>
+                    <span class="filter-option-label">{{ filterValueLabel(activeTaskFilterGroup, item) }}</span>
+                  </label>
                 </div>
                 <span v-else class="filter-none">暂无可筛选项目</span>
                 <footer v-if="filterPageCount > 1" class="filter-option-pagination">
-                  <button :disabled="filterValuePage === 1" @click="filterValuePage--">上一页</button><span>{{ filterValuePage }} / {{ filterPageCount }}</span><button :disabled="filterValuePage === filterPageCount" @click="filterValuePage++">下一页</button>
+                  <button :disabled="filterValuePage === 1" @click="filterValuePage--">上一页</button><span>第 {{ filterValuePage }} / {{ filterPageCount }} 页</span><button :disabled="filterValuePage === filterPageCount" @click="filterValuePage++">下一页</button>
                 </footer>
               </div>
             </div>
+            <footer class="filter-confirm-actions">
+              <button class="secondary-button" @click="discardTaskFilters">取消</button>
+              <button class="primary-button" @click="applyTaskFilters">确认筛选<span v-if="hasFilterCandidates">（{{ selectedFilterCandidates.length }}）</span></button>
+            </footer>
           </section>
         </header>
 
@@ -470,6 +502,7 @@ import {
   Loader2,
   LogOut,
   Plus,
+  Check,
   Save,
   Settings,
   Table2,
@@ -532,6 +565,7 @@ const columnMenu = ref(null);
 const accountMenuOpen = ref(false);
 const taskSort = reactive({ key: 'name', direction: 'asc' });
 const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
+const filterDraft = reactive({ status: [], path: [], tags: [], tracker: [] });
 const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
 const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
@@ -629,6 +663,15 @@ const pagedFilterValues = computed(() => activeTaskFilterGroup.value.values.slic
 function selectFilterGroup(key) {
   activeFilterGroup.value = key;
   filterValuePage.value = 1;
+}
+
+function selectCurrentFilterPage() {
+  const selected = filterDraft[activeFilterGroup.value];
+  filterDraft[activeFilterGroup.value] = [...new Set([...selected, ...pagedFilterValues.value])];
+}
+
+function clearCurrentFilterGroup() {
+  filterDraft[activeFilterGroup.value] = [];
 }
 
 function filterValueLabel(group, value) {
@@ -802,6 +845,10 @@ async function addQb() {
   } catch (requestError) {
     message.value = requestError.message;
   }
+}
+
+function scrollQbAccounts(event) {
+  event.currentTarget.scrollLeft += event.deltaY || event.deltaX;
 }
 
 function editQb(account) {
@@ -1210,16 +1257,45 @@ const selectedTaskFilters = computed(() => taskFilterGroups.value.flatMap((group
   label: group.labels?.[value] || value
 }))));
 
-function removeTaskFilter(key, value) {
-  taskFilters[key] = taskFilters[key].filter((item) => item !== value);
+const selectedFilterCandidates = computed(() => taskFilterGroups.value.flatMap((group) => filterDraft[group.key].map((value) => ({
+  key: group.key,
+  value,
+  groupLabel: group.label,
+  label: group.labels?.[value] || value
+}))));
+
+const hasFilterCandidates = computed(() => selectedFilterCandidates.value.length > 0);
+
+function copyFilterValues(target, source) {
+  Object.keys(target).forEach((key) => { target[key] = [...source[key]]; });
 }
 
-function clearTaskFilters() {
-  Object.keys(taskFilters).forEach((key) => { taskFilters[key] = []; });
+function toggleTaskFilter() {
+  if (filterOpen.value) return discardTaskFilters();
+  copyFilterValues(filterDraft, taskFilters);
+  filterOpen.value = true;
+}
+
+function removeFilterCandidate(key, value) {
+  filterDraft[key] = filterDraft[key].filter((item) => item !== value);
+}
+
+function clearFilterCandidates() {
+  Object.keys(filterDraft).forEach((key) => { filterDraft[key] = []; });
+}
+
+function applyTaskFilters() {
+  copyFilterValues(taskFilters, filterDraft);
+  filterOpen.value = false;
+}
+
+function discardTaskFilters() {
+  filterOpen.value = false;
+  copyFilterValues(filterDraft, taskFilters);
 }
 
 function closeTaskPopovers() {
-  filterOpen.value = false;
+  if (filterOpen.value) discardTaskFilters();
   columnMenu.value = null;
   taskMenu.value = null;
   accountMenuOpen.value = false;
