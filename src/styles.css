@@ -2513,7 +2513,7 @@ select:focus {
 
 .sidebar-toggle-rail {
   width: 1px;
-  height: 106px;
+  height: 118px;
   border-radius: 999px;
   background: #cfd4db;
   transition: width .34s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), background .42s ease, box-shadow .42s ease;
@@ -2522,19 +2522,19 @@ select:focus {
 .sidebar-toggle-action {
   position: absolute;
   display: grid;
-  width: 22px;
-  height: 42px;
+  width: 24px;
+  height: 118px;
   place-items: center;
   color: #58acec;
   opacity: 0;
   pointer-events: none;
-  transform: scaleX(.12) scaleY(.72);
+  transform: scaleX(.1);
   transition: opacity .16s ease, color .34s ease, transform .44s cubic-bezier(.22, 1, .36, 1);
 }
 
 .sidebar-toggle-action svg {
   width: 24px;
-  height: 38px;
+  height: 118px;
   overflow: visible;
   opacity: 1;
   filter: drop-shadow(0 1px 2px rgba(91, 145, 163, 0));
@@ -2543,29 +2543,18 @@ select:focus {
   transition: filter .4s ease;
 }
 
-.sidebar-toggle-stem,
-.sidebar-toggle-fold {
-  transition: opacity .22s ease, stroke-dashoffset .44s cubic-bezier(.22, 1, .36, 1), transform .44s cubic-bezier(.22, 1, .36, 1);
-  transform-origin: 12px 12px;
-}
-
-.sidebar-toggle-stem {
-  opacity: .88;
-  stroke-dasharray: 16;
-  stroke-dashoffset: 0;
-}
-
 .sidebar-toggle-fold {
   opacity: 0;
-  stroke-dasharray: 18;
-  stroke-dashoffset: 18;
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+  transform: scaleX(.1);
+  transform-origin: 12px 60px;
+  transition: opacity .18s ease, stroke-dashoffset .44s cubic-bezier(.22, 1, .36, 1), transform .44s cubic-bezier(.22, 1, .36, 1);
 }
-
-.sidebar-toggle-fold-expand { transform: scaleX(.15); }
 
 .sidebar-toggle:hover .sidebar-toggle-rail,
 .sidebar-toggle:focus-visible .sidebar-toggle-rail {
-  width: 2px;
+  width: 0;
   height: 118px;
   background: linear-gradient(180deg, #8cbdd0 0%, #a8cbb9 48%, #c5a9bc 100%);
   box-shadow: 0 0 8px rgba(116, 170, 180, .26);
@@ -2575,13 +2564,7 @@ select:focus {
 .sidebar-toggle:focus-visible .sidebar-toggle-action {
   color: #58acec;
   opacity: 1;
-  transform: scaleX(1) scaleY(1);
-}
-
-.sidebar-toggle:hover .sidebar-toggle-stem,
-.sidebar-toggle:focus-visible .sidebar-toggle-stem {
-  opacity: 0;
-  stroke-dashoffset: -16;
+  transform: scaleX(1);
 }
 
 .sidebar-toggle:hover .sidebar-toggle-fold-collapse,
@@ -2594,8 +2577,8 @@ select:focus {
 .app-shell.sidebar-collapsed .sidebar-toggle:hover .sidebar-toggle-fold-collapse,
 .app-shell.sidebar-collapsed .sidebar-toggle:focus-visible .sidebar-toggle-fold-collapse {
   opacity: 0;
-  stroke-dashoffset: -18;
-  transform: scaleX(.15);
+  stroke-dashoffset: -120;
+  transform: scaleX(.1);
 }
 
 .app-shell.sidebar-collapsed .sidebar-toggle:hover .sidebar-toggle-fold-expand,
@@ -2638,7 +2621,7 @@ select:focus {
   right: 32px !important;
   z-index: 60 !important;
   display: grid !important;
-  grid-template-rows: auto minmax(0, 320px) auto;
+  grid-template-rows: auto minmax(0, 320px);
   gap: 8px;
   width: min(600px, calc(100vw - 32px));
   max-height: min(600px, 100vh);
@@ -2786,12 +2769,37 @@ select:focus {
 }
 
 .tasks-page .task-filter-popover .filter-category-list {
-  display: grid;
-  align-content: start;
-  gap: 5px;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 9px;
   padding: 9px;
   border-color: #dce7e8;
   background: linear-gradient(180deg, #f4f9f8, #f8f8f5);
+}
+
+.tasks-page .task-filter-popover .filter-category-options {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.tasks-page .task-filter-popover .filter-category-list .filter-confirm-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  margin-top: auto;
+}
+
+.tasks-page .task-filter-popover .filter-category-list .filter-confirm-buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 30px;
+  flex: 1 1 0;
+  padding: 5px 6px;
+  font-size: 11px;
 }
 
 .tasks-page .task-filter-popover .filter-category-list button {
@@ -2832,7 +2840,7 @@ select:focus {
 
 .tasks-page .task-filter-popover .filter-option-panel {
   display: grid !important;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -2843,6 +2851,14 @@ select:focus {
   align-items: center;
   padding: 9px 12px 7px;
   border-color: #e4ecec;
+}
+
+.tasks-page .task-filter-popover .filter-option-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
 }
 
 .tasks-page .task-filter-popover .filter-option-heading > div:first-child {
@@ -2966,26 +2982,7 @@ select:focus {
 .tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:hover:not(:disabled) { color: #356f7e; background: #eaf4f3; }
 .tasks-page .task-filter-popover .filter-option-pagination .filter-page-button:disabled { color: #c4d0d2; background: transparent; }
 
-.tasks-page .task-filter-popover .filter-confirm-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  gap: 10px;
-}
-
-.tasks-page .task-filter-popover .filter-confirm-buttons {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 5px;
-}
-
-.tasks-page .task-filter-popover .filter-confirm-actions .filter-confirm-buttons button {
-  min-width: 52px;
-  min-height: 30px;
-  padding: 5px 10px;
-  font-size: 12px;
-}
+.tasks-page .task-filter-popover .filter-confirm-actions { display: none; }
 
 .tasks-page .task-filter-popover .filter-confirm-actions .primary-button {
   border-color: #63969c;

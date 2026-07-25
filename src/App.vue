@@ -36,10 +36,9 @@
       <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
         <span class="sidebar-toggle-action" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25">
-            <path class="sidebar-toggle-stem" d="M12 3v18" />
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="15.5 5 8.5 12 15.5 19" />
-            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="8.5 5 15.5 12 8.5 19" />
+          <svg viewBox="0 0 24 120" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25">
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-collapse" points="17 2 7 60 17 118" />
+            <polyline class="sidebar-toggle-fold sidebar-toggle-fold-expand" points="7 2 17 60 7 118" />
           </svg>
         </span>
       </button>
@@ -167,16 +166,29 @@
             </section>
             <div class="filter-browser">
               <nav class="filter-category-list" aria-label="一级筛选类别">
-                <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="selectFilterGroup(group.key)">
-                  <span>{{ group.label }}</span><em v-if="filterDraft[group.key].length">{{ filterDraft[group.key].length }}</em>
-                </button>
+                <div class="filter-category-options">
+                  <button v-for="group in taskFilterGroups" :key="group.key" :class="{ active: activeFilterGroup === group.key }" @click="selectFilterGroup(group.key)">
+                    <span>{{ group.label }}</span><em v-if="filterDraft[group.key].length">{{ filterDraft[group.key].length }}</em>
+                  </button>
+                </div>
+                <div class="filter-confirm-buttons">
+                  <button class="secondary-button" @click="clearFilterCandidates">清除</button>
+                  <button class="primary-button" @click="applyTaskFilters">确认</button>
+                </div>
               </nav>
               <div class="filter-option-panel">
                 <div class="filter-option-heading">
                   <div><strong>{{ activeTaskFilterGroup.label }}</strong><span>候选 {{ filterDraft[activeFilterGroup].length }} / {{ activeTaskFilterGroup.values.length }} 项</span></div>
-                  <div v-if="pagedFilterValues.length" class="filter-option-actions">
-                    <button @click="selectCurrentFilterPage">全选本页</button>
-                    <button v-if="filterDraft[activeFilterGroup].length" @click="clearCurrentFilterGroup">清空</button>
+                  <div class="filter-option-heading-actions">
+                    <div v-if="pagedFilterValues.length" class="filter-option-actions">
+                      <button @click="selectCurrentFilterPage">全选本页</button>
+                      <button v-if="filterDraft[activeFilterGroup].length" @click="clearCurrentFilterGroup">清空</button>
+                    </div>
+                    <div v-if="filterPageCount > 1" class="filter-option-pagination">
+                      <button class="filter-page-button" :disabled="filterValuePage === 1" title="上一页" aria-label="上一页" @click="filterValuePage--"><ChevronUp /></button>
+                      <span>第 {{ filterValuePage }} / {{ filterPageCount }} 页</span>
+                      <button class="filter-page-button" :disabled="filterValuePage === filterPageCount" title="下一页" aria-label="下一页" @click="filterValuePage++"><ChevronDown /></button>
+                    </div>
                   </div>
                 </div>
                 <div v-if="pagedFilterValues.length" class="filter-option-list">
@@ -189,17 +201,6 @@
                 <span v-else class="filter-none">暂无可筛选项目</span>
               </div>
             </div>
-            <footer class="filter-confirm-actions">
-              <div v-if="filterPageCount > 1" class="filter-option-pagination">
-                <button class="filter-page-button" :disabled="filterValuePage === 1" title="上一页" aria-label="上一页" @click="filterValuePage--"><ChevronUp /></button>
-                <span>第 {{ filterValuePage }} / {{ filterPageCount }} 页</span>
-                <button class="filter-page-button" :disabled="filterValuePage === filterPageCount" title="下一页" aria-label="下一页" @click="filterValuePage++"><ChevronDown /></button>
-              </div>
-              <div class="filter-confirm-buttons">
-                <button class="secondary-button" @click="clearFilterCandidates">清除</button>
-                <button class="primary-button" @click="applyTaskFilters">确认</button>
-              </div>
-            </footer>
           </section>
         </header>
 
