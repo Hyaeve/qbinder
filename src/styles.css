@@ -1830,38 +1830,50 @@ select:focus {
 }
 
 .transfer-alt-speed-button.active {
-  color: #2f7181;
-  animation: transfer-alt-speed-monet 5s ease-in-out infinite;
+  border-color: #d9e1e8;
+  background: #fbfcfd;
+  box-shadow: none;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
-.transfer-alt-speed-button svg {
+.transfer-alt-speed-button > svg {
   width: 18px;
   height: 18px;
   transform: rotate(90deg);
   transition: transform .34s cubic-bezier(.2, .8, .2, 1), color .2s ease;
 }
-.transfer-alt-speed-button.active svg { transform: rotate(-90deg); }
+.transfer-alt-speed-button.active > .transfer-alt-speed-active-icon {
+  width: 21px;
+  height: 21px;
+  transform: none;
+  overflow: visible;
+}
 
-@keyframes transfer-alt-speed-monet {
-  0%, 100% {
-    border-color: #9dbbc5;
-    color: #397988;
-    background: #e2f0ed;
-    box-shadow: 0 5px 15px rgba(102, 157, 164, .25);
-  }
-  33% {
-    border-color: #b3a8c6;
-    color: #6e5e8a;
-    background: #eee8f1;
-    box-shadow: 0 5px 15px rgba(145, 121, 167, .22);
-  }
-  67% {
-    border-color: #c6b49b;
-    color: #856b45;
-    background: #f1ece0;
-    box-shadow: 0 5px 15px rgba(176, 144, 91, .2);
-  }
+.transfer-alt-speed-active-icon path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.3;
+}
+
+.transfer-alt-speed-active-icon .alt-speed-blue {
+  stroke: #1689ee;
+  animation: transfer-alt-speed-blue 1.8s ease-in-out infinite;
+}
+
+.transfer-alt-speed-active-icon .alt-speed-red {
+  stroke: #f24242;
+  animation: transfer-alt-speed-red 1.8s ease-in-out infinite;
+}
+
+@keyframes transfer-alt-speed-blue {
+  0%, 100% { stroke: #1689ee; }
+  50% { stroke: #4ab6f3; }
+}
+
+@keyframes transfer-alt-speed-red {
+  0%, 100% { stroke: #f24242; }
+  50% { stroke: #f5797a; }
 }
 
 .task-summary .transfer-stat {
