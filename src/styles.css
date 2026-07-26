@@ -1820,17 +1820,16 @@ select:focus {
   border-radius: 9px;
   color: #2f7ce7;
   background: transparent;
-  transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+  transition: background .18s ease, transform .18s ease;
 }
 
 .transfer-alt-speed-button:hover:not(:disabled) {
-  background: #eef5ff;
+  background: #f0f5fb;
   transform: translateY(-1px);
 }
 
 .transfer-alt-speed-button.active {
-  background: #eef5ff;
-  box-shadow: 0 4px 12px rgba(47, 124, 231, .15);
+  background: transparent;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
@@ -1841,36 +1840,46 @@ select:focus {
   overflow: visible;
 }
 
-.transfer-alt-speed-icon .download-box-top,
-.transfer-alt-speed-icon .download-box-body {
-  fill: #2f7ce7;
-  stroke: #1968d4;
-  stroke-linejoin: round;
-  stroke-width: .45;
-}
-
-.transfer-alt-speed-icon .download-box-slot {
+.transfer-alt-speed-icon path {
   fill: none;
-  stroke: #fff;
-  stroke-linecap: round;
-  stroke-width: 1.25;
-}
-
-.transfer-alt-speed-icon .download-arrow {
-  fill: none;
-  stroke: #fff;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.7;
+  stroke-width: 3.1;
 }
 
-.transfer-alt-speed-icon.is-on {
-  animation: transfer-download-box-glow 2.4s ease-in-out infinite;
+.transfer-alt-speed-icon .alt-speed-blue,
+.transfer-alt-speed-icon .alt-speed-blue-arrow {
+  stroke: #078cf0;
 }
 
-@keyframes transfer-download-box-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(47, 124, 231, 0)); }
-  50% { filter: drop-shadow(0 0 2px rgba(47, 124, 231, .55)); }
+.transfer-alt-speed-icon .alt-speed-red,
+.transfer-alt-speed-icon .alt-speed-red-arrow {
+  stroke: #f02745;
+}
+
+.transfer-alt-speed-icon .alt-speed-green,
+.transfer-alt-speed-icon .alt-speed-green-arrow {
+  stroke: #19b994;
+}
+
+.transfer-alt-speed-icon.is-on .alt-speed-blue,
+.transfer-alt-speed-icon.is-on .alt-speed-blue-arrow {
+  animation: transfer-alt-speed-blue 2.25s ease-in-out infinite;
+}
+
+.transfer-alt-speed-icon.is-on .alt-speed-green,
+.transfer-alt-speed-icon.is-on .alt-speed-green-arrow {
+  animation: transfer-alt-speed-green 2.25s ease-in-out infinite;
+}
+
+@keyframes transfer-alt-speed-blue {
+  0%, 100% { stroke: #078cf0; filter: drop-shadow(0 0 0 rgba(7, 140, 240, 0)); }
+  50% { stroke: #48b4f2; filter: drop-shadow(0 0 2px rgba(7, 140, 240, .5)); }
+}
+
+@keyframes transfer-alt-speed-green {
+  0%, 100% { stroke: #19b994; filter: drop-shadow(0 0 0 rgba(25, 185, 148, 0)); }
+  50% { stroke: #65d0a7; filter: drop-shadow(0 0 2px rgba(25, 185, 148, .5)); }
 }
 
 .task-summary .transfer-stat {

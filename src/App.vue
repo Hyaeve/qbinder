@@ -248,11 +248,16 @@
             :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
-          ><svg class="transfer-alt-speed-icon" :class="{ 'is-on': transferInfo.altSpeedLimitsOn }" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="download-box-top" d="M4 7.2 11.4 4a1.5 1.5 0 0 1 1.2 0L20 7.2v1.6l-7.8 3.4a.5.5 0 0 1-.4 0L4 8.8Z" />
-            <path class="download-box-body" d="M4 10.3v7.3c0 .6.3 1.1.8 1.4l6.6 3a1.5 1.5 0 0 0 1.2 0l6.6-3c.5-.3.8-.8.8-1.4v-7.3l-7.8 3.4a.5.5 0 0 1-.4 0Z" />
-            <path class="download-box-slot" d="M6.7 12.8 9.5 14m-2.8 1.6 2.8 1.2" />
-            <path class="download-arrow" d="M15 11.7v4m0 0-1.8-1.8M15 15.7l1.8-1.8" />
+          ><svg v-if="transferInfo.altSpeedLimitsOn" class="transfer-alt-speed-icon is-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="alt-speed-blue" d="M9.6 3.8c4.9.6 8.3 4.9 7.6 9.7" />
+            <path class="alt-speed-blue-arrow" d="m17.2 13.5-3.5-2.2m3.5 2.2-2.1 3.5" />
+            <path class="alt-speed-green" d="M14.4 20.2c-4.9-.6-8.3-4.9-7.6-9.7" />
+            <path class="alt-speed-green-arrow" d="m6.8 10.5 3.5 2.2m-3.5-2.2 2.1-3.5" />
+          </svg><svg v-else class="transfer-alt-speed-icon is-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="alt-speed-blue" d="M9.6 3.8c4.9.6 8.3 4.9 7.6 9.7" />
+            <path class="alt-speed-blue-arrow" d="m17.2 13.5-3.5-2.2m3.5 2.2-2.1 3.5" />
+            <path class="alt-speed-red" d="M14.4 20.2c-4.9-.6-8.3-4.9-7.6-9.7" />
+            <path class="alt-speed-red-arrow" d="m6.8 10.5 3.5 2.2m-3.5-2.2 2.1-3.5" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
