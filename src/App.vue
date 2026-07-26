@@ -248,10 +248,12 @@
             :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
-          ><svg class="transfer-alt-speed-gauge" :class="{ 'is-on': transferInfo.altSpeedLimitsOn }" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="alt-speed-gauge-arc" d="M4.5 16a8 8 0 0 1 15 0" />
-            <path class="alt-speed-gauge-needle" :d="transferInfo.altSpeedLimitsOn ? 'M12 16 6.1 10.1' : 'M12 16 17.9 10.1'" />
-            <circle cx="12" cy="16" r="1.35" class="alt-speed-gauge-hub" />
+          ><svg v-if="transferInfo.altSpeedLimitsOn" class="transfer-alt-speed-icon is-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="alt-speed-arc-blue" d="M8.3 4.7A8.7 8.7 0 0 0 4.2 15l-1.5 2.1 5.8 1.8.8-6-2.2 1a5.2 5.2 0 0 1 2.4-6.1l1-3.1Z" />
+            <path class="alt-speed-arc-green" d="M15.7 19.3A8.7 8.7 0 0 0 19.8 9l1.5-2.1-5.8-1.8-.8 6 2.2-1a5.2 5.2 0 0 1-2.4 6.1l-1 3.1Z" />
+          </svg><svg v-else class="transfer-alt-speed-icon is-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="alt-speed-arc-blue" d="M8.3 4.7A8.7 8.7 0 0 0 4.2 15l-1.5 2.1 5.8 1.8.8-6-2.2 1a5.2 5.2 0 0 1 2.4-6.1l1-3.1Z" />
+            <path class="alt-speed-arc-red" d="M15.7 19.3A8.7 8.7 0 0 0 19.8 9l1.5-2.1-5.8-1.8-.8 6 2.2-1a5.2 5.2 0 0 1-2.4 6.1l-1 3.1Z" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />

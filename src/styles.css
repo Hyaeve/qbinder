@@ -1830,45 +1830,33 @@ select:focus {
 
 .transfer-alt-speed-button.active {
   background: #f7fbfa;
-  animation: transfer-alt-speed-monet 4.2s ease-in-out infinite;
+  box-shadow: 0 4px 12px rgba(84, 146, 130, .15);
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
 
-.transfer-alt-speed-gauge {
-  width: 22px;
-  height: 22px;
+.transfer-alt-speed-icon {
+  width: 23px;
+  height: 23px;
   overflow: visible;
 }
 
-.transfer-alt-speed-gauge-arc,
-.transfer-alt-speed-gauge-needle {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.transfer-alt-speed-icon path { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.9; }
+.transfer-alt-speed-icon .alt-speed-arc-blue { stroke: #158be8; }
+.transfer-alt-speed-icon.is-off .alt-speed-arc-red { stroke: #f04747; }
+.transfer-alt-speed-icon.is-on .alt-speed-arc-green { stroke: #31b384; }
+
+.transfer-alt-speed-icon.is-on .alt-speed-arc-blue { animation: transfer-alt-speed-blue 2.4s ease-in-out infinite; }
+.transfer-alt-speed-icon.is-on .alt-speed-arc-green { animation: transfer-alt-speed-green 2.4s ease-in-out infinite; }
+
+@keyframes transfer-alt-speed-blue {
+  0%, 100% { stroke: #158be8; filter: drop-shadow(0 0 0 rgba(21, 139, 232, 0)); }
+  50% { stroke: #4da8e9; filter: drop-shadow(0 0 2px rgba(63, 156, 220, .5)); }
 }
 
-.transfer-alt-speed-gauge-arc { stroke-width: 1.9; }
-.transfer-alt-speed-gauge-needle { stroke-width: 2.55; transition: d .28s ease; }
-.transfer-alt-speed-gauge-hub { fill: currentColor; }
-
-@keyframes transfer-alt-speed-monet {
-  0%, 100% {
-    color: #397988;
-    background: #e2f0ed;
-    box-shadow: 0 4px 12px rgba(102, 157, 164, .25);
-  }
-  33% {
-    color: #6e5e8a;
-    background: #eee8f1;
-    box-shadow: 0 4px 12px rgba(145, 121, 167, .22);
-  }
-  67% {
-    color: #856b45;
-    background: #f1ece0;
-    box-shadow: 0 4px 12px rgba(176, 144, 91, .2);
-  }
+@keyframes transfer-alt-speed-green {
+  0%, 100% { stroke: #31b384; filter: drop-shadow(0 0 0 rgba(49, 179, 132, 0)); }
+  50% { stroke: #78c79a; filter: drop-shadow(0 0 2px rgba(94, 181, 137, .5)); }
 }
 
 .task-summary .transfer-stat {
