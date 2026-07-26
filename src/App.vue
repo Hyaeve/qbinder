@@ -248,7 +248,11 @@
             :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
-          ><Gauge /></button>
+          ><svg class="transfer-alt-speed-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="alt-speed-arc" d="M6.4 7.1a8.2 8.2 0 0 1 11.2 1.1" />
+            <path class="alt-speed-pointer" d="M18.3 8.2 19 3.7l-4.4 1.2" />
+            <path class="alt-speed-arc alt-speed-arc-secondary" d="M17.6 16.9a8.2 8.2 0 0 1-11.2-1.1" />
+          </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
             <span class="transfer-value">{{ formatSpeed(transferInfo.upSpeed) }} <em>[{{ formatLimit(transferInfo.upRateLimit) }}]</em> <small>({{ formatBytes(transferInfo.uploaded) }})</small></span>

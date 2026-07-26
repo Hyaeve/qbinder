@@ -1830,40 +1830,54 @@ select:focus {
 }
 
 .transfer-alt-speed-button.active {
-  animation: transfer-alt-speed-monet 5s ease-in-out infinite;
+  border-color: #d9e3e8;
+  background: #f9fcfc;
+  box-shadow: 0 4px 12px rgba(93, 146, 158, .14);
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
-.transfer-alt-speed-button > svg {
-  width: 18px;
-  height: 18px;
-  transform: rotate(90deg);
-  transition: transform .34s cubic-bezier(.2, .8, .2, 1), color .2s ease;
+
+.transfer-alt-speed-button > .transfer-alt-speed-icon {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+  transform: none;
+  transition: transform .34s cubic-bezier(.2, .8, .2, 1);
 }
 
-.transfer-alt-speed-button.active > svg {
-  transform: rotate(-90deg);
+.transfer-alt-speed-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.25;
+}
+
+.transfer-alt-speed-icon .alt-speed-arc-secondary { opacity: .54; }
+
+.transfer-alt-speed-button.active > .transfer-alt-speed-icon {
+  transform: scaleX(-1);
+}
+
+.transfer-alt-speed-button.active .alt-speed-arc,
+.transfer-alt-speed-button.active .alt-speed-pointer {
+  animation: transfer-alt-speed-blue 3.8s ease-in-out infinite;
+}
+
+.transfer-alt-speed-button.active .alt-speed-arc-secondary {
+  animation: transfer-alt-speed-monet 3.8s ease-in-out infinite;
+}
+
+@keyframes transfer-alt-speed-blue {
+  0%, 100% { stroke: #208fd7; }
+  35% { stroke: #5c9eaa; }
+  68% { stroke: #6d89c2; }
 }
 
 @keyframes transfer-alt-speed-monet {
-  0%, 100% {
-    border-color: #9dbbc5;
-    color: #397988;
-    background: #e2f0ed;
-    box-shadow: 0 5px 15px rgba(102, 157, 164, .25);
-  }
-  33% {
-    border-color: #b3a8c6;
-    color: #6e5e8a;
-    background: #eee8f1;
-    box-shadow: 0 5px 15px rgba(145, 121, 167, .22);
-  }
-  67% {
-    border-color: #c6b49b;
-    color: #856b45;
-    background: #f1ece0;
-    box-shadow: 0 5px 15px rgba(176, 144, 91, .2);
-  }
+  0%, 100% { stroke: #e8a565; opacity: .9; }
+  35% { stroke: #b887b5; opacity: .82; }
+  68% { stroke: #89b78f; opacity: .88; }
 }
 
 .task-summary .transfer-stat {
