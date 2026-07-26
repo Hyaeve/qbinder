@@ -1829,21 +1829,29 @@ select:focus {
 }
 
 .transfer-alt-speed-button.active {
-  animation: transfer-alt-speed-monet 5s ease-in-out infinite;
+  background: #f7fbfa;
+  animation: transfer-alt-speed-monet 4.2s ease-in-out infinite;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
 
 .transfer-alt-speed-gauge {
-  width: 20px;
-  height: 20px;
-  transform: rotate(90deg);
-  transition: transform .34s cubic-bezier(.2, .8, .2, 1);
+  width: 22px;
+  height: 22px;
+  overflow: visible;
 }
 
-.transfer-alt-speed-button.active > .transfer-alt-speed-gauge {
-  transform: rotate(-90deg);
+.transfer-alt-speed-gauge-arc,
+.transfer-alt-speed-gauge-needle {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+
+.transfer-alt-speed-gauge-arc { stroke-width: 1.9; }
+.transfer-alt-speed-gauge-needle { stroke-width: 2.55; transition: d .28s ease; }
+.transfer-alt-speed-gauge-hub { fill: currentColor; }
 
 @keyframes transfer-alt-speed-monet {
   0%, 100% {
