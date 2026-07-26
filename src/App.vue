@@ -1707,7 +1707,12 @@ async function confirmTorrentExport() {
   torrentExportDialog.submitting = true;
   torrentExportDialog.error = '';
   try {
-    const response = await fetch(`/api/qb/${activeQb.value.id}/torrents/export?hashes=${encodeURIComponent(selectedTaskHashes.value.join('|'))}`, { credentials: 'include' });
+    const selectedTasks = selectedTaskHashes.value.map((hash) => tasks.value.find((task) => task.hash === hash));
+    const exportQuery = new URLSearchParams({
+      hashes: selectedTaskHashes.value.join('|'),
+      names: selectedTasks.map((task, index) => task?.name || selectedTaskHashes.value[index]).join('|')
+    });
+    const response = await fetch(`/api/qb/${activeQb.value.id}/torrents/export?${exportQuery.toString()}`, { credentials: 'include' });
     if (!response.ok) {
       const responseText = await response.text();
       let responseError = '导出 torrent 失败，请稍后重试。';
@@ -1720,7 +1725,7 @@ async function confirmTorrentExport() {
     const objectURL = URL.createObjectURL(blob);
     const filenameMatch = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i);
     link.href = objectURL;
-    link.download = filenameMatch?.[1] || (selectedTaskHashes.value.length === 1 ? `${selectedTaskHashes.value[0]}.torrent` : 'selected-torrents.zip');
+    link.download = filenameMatch?.[1] || (selectedTaskHashes.value.length === 1 ? `${selectedTasks[0]?.name || selectedTaskHashes.value[0]}.torrent` : 'selected-torrents.zip');
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();

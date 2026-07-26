@@ -692,6 +692,17 @@ func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
+	requestedNames := strings.Split(r.URL.Query().Get("names"), "|")
+	fileNames := make([]string, len(hashes))
+	usedNames := make(map[string]int, len(hashes))
+	for index, hash := range hashes {
+		name := hash
+		if index < len(requestedNames) && strings.TrimSpace(requestedNames[index]) != "" {
+			name = requestedNames[index]
+		}
+		fileNames[index] = uniqueTorrentFilename(name, usedNames)
+	}
+
 	files := make([][]byte, 0, len(hashes))
 	for _, hash := range hashes {
 		query := url.Values{"hash": {hash}}
@@ -726,7 +737,7 @@ func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, c
 
 	if len(files) == 1 {
 		w.Header().Set("Content-Type", "application/x-bittorrent")
-		w.Header().Set("Content-Disposition", "attachment; filename="+hashes[0]+".torrent")
+		w.Header().Set("Content-Disposition", contentDispositionFilename(fileNames[0]))
 		_, _ = w.Write(files[0])
 		return
 	}
@@ -735,7 +746,7 @@ func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, c
 	w.Header().Set("Content-Disposition", "attachment; filename=selected-torrents.zip")
 	archive := zip.NewWriter(w)
 	for index, data := range files {
-		entry, err := archive.Create(hashes[index] + ".torrent")
+		entry, err := archive.Create(fileNames[index])
 		if err != nil {
 			return
 		}
@@ -744,6 +755,28 @@ func (s *Server) handleQBTorrentExport(w http.ResponseWriter, r *http.Request, c
 		}
 	}
 	_ = archive.Close()
+}
+
+func uniqueTorrentFilename(name string, used map[string]int) string {
+	name = strings.TrimSpace(name)
+	name = strings.NewReplacer("\\", "_", "/", "_", ":", "_", "*", "_", "?", "_", "\"", "_", "<", "_", ">", "_", "|", "_").Replace(name)
+	name = strings.Trim(name, " .")
+	if name == "" {
+		name = "torrent"
+	}
+	if len([]rune(name)) > 180 {
+		name = string([]rune(name)[:180])
+	}
+	key := strings.ToLower(name)
+	used[key]++
+	if used[key] > 1 {
+		name = fmt.Sprintf("%s (%d)", name, used[key])
+	}
+	return name + ".torrent"
+}
+
+func contentDispositionFilename(filename string) string {
+	return "attachment; filename*=UTF-8''" + url.QueryEscape(filename)
 }
 
 func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, config Config, id string) {
