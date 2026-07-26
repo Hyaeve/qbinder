@@ -249,9 +249,8 @@
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
           ><svg class="transfer-alt-speed-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="alt-speed-arc" d="M6.4 7.1a8.2 8.2 0 0 1 11.2 1.1" />
-            <path class="alt-speed-pointer" d="M18.3 8.2 19 3.7l-4.4 1.2" />
-            <path class="alt-speed-arc alt-speed-arc-secondary" d="M17.6 16.9a8.2 8.2 0 0 1-11.2-1.1" />
+            <path class="alt-speed-loop alt-speed-loop-leading" d="M9.5 3.4a9 9 0 0 0-5.9 11.2 8.9 8.9 0 0 0 3.6 5l2.3-3.1A5.1 5.1 0 0 1 7.4 10a5.2 5.2 0 0 1 3.5-3.2Z" />
+            <path class="alt-speed-loop alt-speed-loop-trailing" d="M14.5 20.6a9 9 0 0 0 5.9-11.2 8.9 8.9 0 0 0-3.6-5l-2.3 3.1a5.1 5.1 0 0 1 2.1 6.5 5.2 5.2 0 0 1-3.5 3.2Z" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />

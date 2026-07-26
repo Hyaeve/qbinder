@@ -1816,23 +1816,21 @@ select:focus {
   height: 34px;
   margin: 0 12px 0 4px;
   place-items: center;
-  border: 1px solid #dce2e8;
-  border-radius: 11px;
-  color: #87909d;
-  background: #f6f8fa;
-  transition: color .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  border: 0;
+  border-radius: 9px;
+  color: #8c99a7;
+  background: transparent;
+  transition: color .18s ease, background .18s ease, box-shadow .18s ease;
 }
 
 .transfer-alt-speed-button:hover:not(:disabled) {
-  border-color: #b4c3d1;
-  color: #697f96;
+  color: #687d91;
   background: #f0f4f6;
 }
 
 .transfer-alt-speed-button.active {
-  border-color: #d9e3e8;
-  background: #f9fcfc;
-  box-shadow: 0 4px 12px rgba(93, 146, 158, .14);
+  background: transparent;
+  box-shadow: none;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
@@ -1845,26 +1843,20 @@ select:focus {
   transition: transform .34s cubic-bezier(.2, .8, .2, 1);
 }
 
-.transfer-alt-speed-icon path {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 3.25;
+.transfer-alt-speed-icon .alt-speed-loop {
+  fill: currentColor;
+  transition: fill .25s ease;
 }
-
-.transfer-alt-speed-icon .alt-speed-arc-secondary { opacity: .54; }
 
 .transfer-alt-speed-button.active > .transfer-alt-speed-icon {
   transform: scaleX(-1);
 }
 
-.transfer-alt-speed-button.active .alt-speed-arc,
-.transfer-alt-speed-button.active .alt-speed-pointer {
+.transfer-alt-speed-button.active .alt-speed-loop-leading {
   animation: transfer-alt-speed-blue 3.8s ease-in-out infinite;
 }
 
-.transfer-alt-speed-button.active .alt-speed-arc-secondary {
+.transfer-alt-speed-button.active .alt-speed-loop-trailing {
   animation: transfer-alt-speed-monet 3.8s ease-in-out infinite;
 }
 
