@@ -81,20 +81,21 @@ type TrackerMapping struct {
 }
 
 type Schedule struct {
-	ID          string   `json:"id"`
-	QBID        string   `json:"qbId"`
-	Name        string   `json:"name"`
-	Cron        string   `json:"cron"`
-	Action      string   `json:"action"`
-	Hashes      []string `json:"hashes,omitempty"`
-	TorrentURLs string   `json:"torrentUrls,omitempty"`
-	SavePath    string   `json:"savePath,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	DeleteFiles bool     `json:"deleteFiles,omitempty"`
-	Enabled     bool     `json:"enabled"`
-	LastRunAt   string   `json:"lastRunAt,omitempty"`
-	LastError   string   `json:"lastError,omitempty"`
-	CreatedAt   string   `json:"createdAt"`
+	ID           string   `json:"id"`
+	QBID         string   `json:"qbId"`
+	Name         string   `json:"name"`
+	Cron         string   `json:"cron"`
+	Action       string   `json:"action"`
+	Hashes       []string `json:"hashes,omitempty"`
+	TorrentURLs  string   `json:"torrentUrls,omitempty"`
+	TorrentFiles []string `json:"torrentFiles,omitempty"`
+	SavePath     string   `json:"savePath,omitempty"`
+	Tags         []string `json:"tags,omitempty"`
+	DeleteFiles  bool     `json:"deleteFiles,omitempty"`
+	Enabled      bool     `json:"enabled"`
+	LastRunAt    string   `json:"lastRunAt,omitempty"`
+	LastError    string   `json:"lastError,omitempty"`
+	CreatedAt    string   `json:"createdAt"`
 }
 
 type Config struct {
@@ -554,6 +555,10 @@ func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request, config 
 
 func (s *Server) handleScheduleSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
 	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/schedules/"), "/")
+	if id == "upload" && r.Method == http.MethodPost {
+		s.uploadScheduleFiles(w, r)
+		return
+	}
 	if id == "" || strings.Contains(id, "/") {
 		writeErrorText(w, http.StatusNotFound, "Not found")
 		return
@@ -617,8 +622,8 @@ func validateSchedule(schedule Schedule, accounts []QBAccount) error {
 		}
 	case "toggleAltSpeed":
 	case "addURLs":
-		if strings.TrimSpace(schedule.TorrentURLs) == "" {
-			return errors.New("请输入至少一个种子链接")
+		if strings.TrimSpace(schedule.TorrentURLs) == "" && len(schedule.TorrentFiles) == 0 {
+			return errors.New("请选择种子文件或输入至少一个种子链接")
 		}
 	default:
 		return errors.New("不支持的定时操作")
@@ -633,6 +638,9 @@ func normalizeSchedule(schedule Schedule) Schedule {
 	}
 	if schedule.Tags == nil {
 		schedule.Tags = []string{}
+	}
+	if schedule.TorrentFiles == nil {
+		schedule.TorrentFiles = []string{}
 	}
 	return schedule
 }
@@ -683,6 +691,9 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error 
 		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
 	}
 	if schedule.Action == "addURLs" {
+		if len(schedule.TorrentFiles) > 0 {
+			return s.addScheduledTorrentFiles(context.Background(), baseURL, cookie, schedule)
+		}
 		form := url.Values{"urls": {schedule.TorrentURLs}}
 		if schedule.SavePath != "" {
 			form.Set("savepath", schedule.SavePath)
@@ -701,6 +712,95 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error 
 		form.Set("deleteFiles", strconv.FormatBool(schedule.DeleteFiles))
 	}
 	return postQBForm(context.Background(), baseURL, cookie, endpoint, form)
+}
+
+func (s *Server) uploadScheduleFiles(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBodySize)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		writeErrorText(w, http.StatusBadRequest, "无效或过大的种子文件")
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+	files := r.MultipartForm.File["torrents"]
+	if len(files) == 0 || len(files) > maxUploadFiles {
+		writeErrorText(w, http.StatusBadRequest, "请选择 1 至 50 个种子文件")
+		return
+	}
+	directory := filepath.Join(filepath.Dir(s.configPath), "scheduled-torrents")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	stored := make([]string, 0, len(files))
+	for _, header := range files {
+		if !strings.HasSuffix(strings.ToLower(header.Filename), ".torrent") {
+			writeErrorText(w, http.StatusBadRequest, "仅支持 .torrent 文件")
+			return
+		}
+		source, err := header.Open()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		name := randomID() + ".torrent"
+		target, err := os.OpenFile(filepath.Join(directory, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			_, err = io.Copy(target, io.LimitReader(source, maxUploadBodySize))
+			target.Close()
+		}
+		source.Close()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		stored = append(stored, name)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": stored})
+}
+
+func (s *Server) addScheduledTorrentFiles(ctx context.Context, baseURL, cookie string, schedule Schedule) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, name := range schedule.TorrentFiles {
+		if filepath.Base(name) != name || !strings.HasSuffix(name, ".torrent") {
+			return errors.New("无效的已保存种子文件")
+		}
+		data, err := os.ReadFile(filepath.Join(filepath.Dir(s.configPath), "scheduled-torrents", name))
+		if err != nil {
+			return fmt.Errorf("读取种子文件失败: %w", err)
+		}
+		part, err := writer.CreateFormFile("torrents", name)
+		if err != nil {
+			return err
+		}
+		if _, err = part.Write(data); err != nil {
+			return err
+		}
+	}
+	if schedule.SavePath != "" {
+		_ = writer.WriteField("savepath", schedule.SavePath)
+	}
+	if len(schedule.Tags) > 0 {
+		_ = writer.WriteField("tags", strings.Join(schedule.Tags, ","))
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/v2/torrents/add", &body)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Cookie", cookie)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("qBittorrent 添加种子失败: %d", response.StatusCode)
+	}
+	return nil
 }
 
 func validCron(expression string) bool {

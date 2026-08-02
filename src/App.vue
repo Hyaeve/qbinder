@@ -30,7 +30,7 @@
       <nav>
         <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><Gauge /><span>任务</span></button>
+        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-alt-speed-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.7 16.7A8.45 8.45 0 0 1 17.5 5.8" /><path d="M11.6 7.2c-.7 1.8-2.6 3.2-2.4 5.2.1 1.8 1.6 3.1 3.4 3 1.7-.1 2.9-1.6 2.6-3.3-.3-2-2.3-3.2-3.2-4.9Z" /></svg><span>任务</span></button>
         <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
@@ -590,10 +590,10 @@
         <div class="schedule-form-grid"><label>qBittorrent<select v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label>执行操作<select v-model="scheduleEditor.action"><option value="start">开始</option><option value="forceStart">强制开始</option><option value="stop">停止</option><option value="delete">删除</option><option value="toggleAltSpeed">切换备用速度</option><option value="addURLs">添加种子链接</option></select></label></div>
         <label>Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><small>五段格式：分 时 日 月 周，例如 <code>0 2 * * *</code> 表示每日 02:00。</small></label>
         <template v-if="requiresScheduleTargets">
-          <div class="schedule-filter"><div class="schedule-filter-heading"><strong>选择种子</strong><span>已选 {{ scheduleEditor.hashes.length }} 个</span></div><div class="schedule-filter-columns"><section><small>一级：状态</small><label v-for="option in statusOptions" :key="option.key"><input v-model="scheduleFilter.status" type="checkbox" :value="option.key" />{{ option.label }}</label></section><section><small>二级：标签</small><label v-for="tag in scheduleTagOptions" :key="tag"><input v-model="scheduleFilter.tags" type="checkbox" :value="tag" />{{ tag }}</label><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section><small>三级：具体种子</small><label v-for="task in scheduleFilteredTasks" :key="task.hash" class="schedule-torrent-option"><input v-model="scheduleEditor.hashes" type="checkbox" :value="task.hash" /><span>{{ task.name }}</span></label><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
+          <div class="schedule-filter"><div class="schedule-filter-heading"><strong>选择种子</strong><span>已选 {{ scheduleEditor.hashes.length }} 个</span></div><div class="schedule-filter-columns"><section><small>一级：状态</small><label v-for="option in statusOptions" :key="option.key"><input v-model="scheduleFilter.status" type="checkbox" :value="option.key" />{{ option.label }}</label></section><section><small>二级：标签</small><label v-for="tag in scheduleTagOptions" :key="tag"><input v-model="scheduleFilter.tags" type="checkbox" :value="tag" />{{ tag }}</label><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section><small>三级：具体种子</small><label v-for="task in scheduleFilteredTasks" :key="task.hash" class="schedule-torrent-option"><input v-model="scheduleEditor.hashes" type="checkbox" :value="task.hash" /><span :title="task.name">{{ shortScheduleTaskName(task.name) }}</span></label><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
         </template>
-        <template v-else-if="scheduleEditor.action === 'addURLs'"><label>种子链接<textarea v-model.trim="scheduleEditor.torrentUrls" placeholder="每行一个 magnet 或 .torrent URL"></textarea></label><div class="schedule-form-grid"><label>保存路径（可选）<input v-model.trim="scheduleEditor.savePath" placeholder="/downloads" /></label><label>标签（逗号分隔）<input v-model="scheduleTagsText" placeholder="movie, night" /></label></div></template>
+        <template v-else-if="scheduleEditor.action === 'addURLs'"><label>种子链接（可选）<textarea v-model.trim="scheduleEditor.torrentUrls" placeholder="每行一个 magnet 或 .torrent URL"></textarea></label><label class="schedule-file-upload"><span>电脑种子文件（可选）</span><input ref="scheduleFileInput" type="file" accept=".torrent,application/x-bittorrent" multiple hidden @change="uploadScheduleTorrentFiles" /><button type="button" class="secondary-button" :disabled="scheduleEditor.uploading" @click="scheduleFileInput?.click()"><UploadCloud />{{ scheduleEditor.uploading ? '上传中…' : '选择 .torrent 文件' }}</button><small v-if="scheduleEditor.torrentFiles.length">已保存 {{ scheduleEditor.torrentFiles.length }} 个文件，将在计划时间添加。</small></label><div class="schedule-form-grid"><label>保存路径（可选）<input v-model.trim="scheduleEditor.savePath" placeholder="/downloads" /></label><label>标签（逗号分隔）<input v-model="scheduleTagsText" placeholder="movie, night" /></label></div></template>
         <p v-if="scheduleEditor.error" class="form-error">{{ scheduleEditor.error }}</p><div class="modal-actions"><button type="button" class="secondary-button" @click="closeScheduleEditor">取消</button><button class="primary-button">{{ scheduleEditor.id ? '保存任务' : '创建任务' }}</button></div>
       </form>
     </div>
@@ -740,7 +740,8 @@ let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const schedules = ref([]);
 const scheduleError = ref('');
-const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron: '0 2 * * *', action: 'start', hashes: [], torrentUrls: '', savePath: '', tags: [], deleteFiles: false, enabled: true, error: '' });
+const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron: '0 2 * * *', action: 'start', hashes: [], torrentUrls: '', torrentFiles: [], savePath: '', tags: [], deleteFiles: false, enabled: true, uploading: false, error: '' });
+const scheduleFileInput = ref(null);
 const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
 
@@ -1312,7 +1313,7 @@ async function loadSchedules() {
 
 async function openScheduleEditor(schedule = null) {
   scheduleError.value = '';
-  Object.assign(scheduleEditor, { open: true, id: schedule?.id || '', name: schedule?.name || '', qbId: schedule?.qbId || activeQb.value?.id || '', cron: schedule?.cron || '0 2 * * *', action: schedule?.action || 'start', hashes: [...(schedule?.hashes || [])], torrentUrls: schedule?.torrentUrls || '', savePath: schedule?.savePath || '', tags: [...(schedule?.tags || [])], deleteFiles: Boolean(schedule?.deleteFiles), enabled: schedule?.enabled ?? true, error: '' });
+  Object.assign(scheduleEditor, { open: true, id: schedule?.id || '', name: schedule?.name || '', qbId: schedule?.qbId || activeQb.value?.id || '', cron: schedule?.cron || '0 2 * * *', action: schedule?.action || 'start', hashes: [...(schedule?.hashes || [])], torrentUrls: schedule?.torrentUrls || '', torrentFiles: [...(schedule?.torrentFiles || [])], savePath: schedule?.savePath || '', tags: [...(schedule?.tags || [])], deleteFiles: Boolean(schedule?.deleteFiles), enabled: schedule?.enabled ?? true, uploading: false, error: '' });
   scheduleFilter.status = [];
   scheduleFilter.tags = [];
   if (requiresScheduleTargets.value && activeQb.value) await loadTasks();
@@ -1321,13 +1322,27 @@ async function openScheduleEditor(schedule = null) {
 function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; }
 
 async function saveSchedule() {
-  const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron, action: scheduleEditor.action, hashes: scheduleEditor.hashes, torrentUrls: scheduleEditor.torrentUrls, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
+  const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron, action: scheduleEditor.action, hashes: scheduleEditor.hashes, torrentUrls: scheduleEditor.torrentUrls, torrentFiles: scheduleEditor.torrentFiles, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
   scheduleEditor.error = '';
   try {
     const response = await api(scheduleEditor.id ? `/api/schedules/${scheduleEditor.id}` : '/api/schedules', { method: scheduleEditor.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     schedules.value = scheduleEditor.id ? (Array.isArray(response.schedules) ? response.schedules : schedules.value) : [...schedules.value, response];
     closeScheduleEditor();
   } catch (requestError) { scheduleEditor.error = requestError.message || '保存定时任务失败'; }
+}
+
+async function uploadScheduleTorrentFiles(event) {
+  const files = [...(event.target.files || [])];
+  event.target.value = '';
+  if (!files.length) return;
+  if (files.length > 50 || files.some((file) => !file.name.toLowerCase().endsWith('.torrent')) || files.reduce((total, file) => total + file.size, 0) > 32 * 1024 * 1024) { scheduleEditor.error = '仅支持最多 50 个 .torrent 文件，总大小不能超过 32 MB。'; return; }
+  const form = new FormData();
+  files.forEach((file) => form.append('torrents', file));
+  scheduleEditor.uploading = true;
+  scheduleEditor.error = '';
+  try { const response = await api('/api/schedules/upload', { method: 'POST', body: form }); scheduleEditor.torrentFiles = [...new Set([...scheduleEditor.torrentFiles, ...(response.files || [])])]; }
+  catch (requestError) { scheduleEditor.error = requestError.message || '种子文件上传失败'; }
+  finally { scheduleEditor.uploading = false; }
 }
 
 async function toggleSchedule(schedule) {
@@ -1345,6 +1360,7 @@ async function deleteSchedule(schedule) {
   } catch (requestError) { scheduleError.value = requestError.message || '删除定时任务失败'; }
 }
 
+function shortScheduleTaskName(value) { const characters = Array.from(String(value || '')); return characters.length > 7 ? `${characters.slice(0, 7).join('')}…` : characters.join(''); }
 function scheduleActionLabel(action) { return ({ start: '开始', forceStart: '强制开始', stop: '停止', delete: '删除', toggleAltSpeed: '切换备用速度', addURLs: '添加种子链接' })[action] || action; }
 function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; return `${schedule.hashes?.length || 0} 个指定种子`; }
 function formatScheduleDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }); }
