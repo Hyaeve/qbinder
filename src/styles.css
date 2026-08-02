@@ -3481,3 +3481,75 @@ select:focus {
 .schedule-filter { height: min(430px, calc(100vh - 430px)); min-height: 300px; }.schedule-filter-columns { grid-template-columns: 9em 10em minmax(0, 1fr); height: calc(100% - 51px); min-height: 0; }.schedule-filter-columns section { display: flex; align-content: flex-start; align-items: flex-start; flex-wrap: wrap; gap: 8px; max-height: none; padding: 16px 14px; }.schedule-filter-columns section > small { flex: 0 0 100%; display: block; margin-bottom: 5px; font-size: 14px; }.schedule-filter-columns section > label { display: flex !important; align-items: center; width: 100%; min-width: 0; margin: 0; padding: 6px 4px; line-height: 1.35; white-space: nowrap; }.schedule-filter-columns section > label input { flex: 0 0 auto; }.schedule-filter-columns section:nth-child(1) > label span,.schedule-filter-columns section:nth-child(1) > label { max-width: 5em; }.schedule-filter-columns section:nth-child(2) > label { max-width: 6em; overflow: hidden; text-overflow: ellipsis; }.schedule-filter-columns .schedule-torrent-option { width: auto; max-width: 12em; margin-right: 8px; }.schedule-filter-columns .schedule-torrent-option span { display: block; max-width: 10em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.schedule-torrent-option span[title] { cursor: help; }
 .sidebar-task-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 700px) { .schedule-editor { width: calc(100vw - 24px); max-height: calc(100vh - 24px); padding: 22px 18px; }.schedule-filter { height: auto; }.schedule-filter-columns { grid-template-columns: 1fr; height: auto; }.schedule-filter-columns section { max-height: 190px; }.schedule-filter-columns section > label,.schedule-filter-columns .schedule-torrent-option { width: 100%; max-width: none; margin-right: 0; }.schedule-file-upload { align-items: flex-start; flex-direction: column; }.schedule-file-upload span { min-width: 0; } }
+
+/* Schedule picker: compact Monet columns with readable one-row options. */
+.schedule-filter-columns {
+  grid-template-columns: 8.5em 11em minmax(0, 1fr);
+}
+.schedule-filter-columns section {
+  display: flex;
+  align-content: flex-start;
+  align-items: stretch;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.schedule-filter-columns section::-webkit-scrollbar,
+.schedule-editor::-webkit-scrollbar {
+  display: none;
+}
+.schedule-editor { scrollbar-width: none; -ms-overflow-style: none; }
+.schedule-filter-columns section > small {
+  flex: 0 0 auto;
+  margin: -16px -14px 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(116, 157, 151, .18);
+  font-size: 14px;
+  letter-spacing: .04em;
+}
+.schedule-filter-status { background: linear-gradient(180deg, #f1f8f5, #fbfdfc 35%); }
+.schedule-filter-tags { background: linear-gradient(180deg, #f7f3eb, #fdfcf9 35%); }
+.schedule-filter-torrents { background: linear-gradient(180deg, #f0f3f9, #fbfcfe 35%); }
+.schedule-filter-status > small { color: #4f7d72; background: #e4f1ec; }
+.schedule-filter-tags > small { color: #856f4e; background: #f1eadc; }
+.schedule-filter-torrents > small { color: #5b7090; background: #e5ebf5; }
+.schedule-filter-columns section > label,
+.schedule-filter-columns .schedule-torrent-option {
+  box-sizing: border-box;
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: none;
+  min-height: 32px;
+  margin: 0;
+  padding: 6px 5px;
+  overflow: hidden;
+}
+.schedule-filter-columns section > label input {
+  flex: 0 0 auto;
+  margin: 0 7px 0 0;
+}
+.schedule-filter-columns section > label span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #53686d;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-filter-status > label span { max-width: 5em; }
+.schedule-filter-tags > label span { max-width: 6em; }
+.schedule-filter-columns .schedule-torrent-option span { max-width: 10em; color: #53647c; }
+.schedule-filter-columns section > label:hover { background: rgba(218, 235, 230, .62); }
+.schedule-filter-tags > label:hover { background: rgba(239, 229, 210, .66); }
+.schedule-filter-torrents > label:hover { background: rgba(222, 229, 242, .68); }
+@media (max-width: 700px) {
+  .schedule-filter-columns { grid-template-columns: 1fr; }
+  .schedule-filter-columns section > small { margin-top: -16px; }
+}
