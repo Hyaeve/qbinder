@@ -80,12 +80,30 @@ type TrackerMapping struct {
 	Name    string `json:"name"`
 }
 
+type Schedule struct {
+	ID          string   `json:"id"`
+	QBID        string   `json:"qbId"`
+	Name        string   `json:"name"`
+	Cron        string   `json:"cron"`
+	Action      string   `json:"action"`
+	Hashes      []string `json:"hashes,omitempty"`
+	TorrentURLs string   `json:"torrentUrls,omitempty"`
+	SavePath    string   `json:"savePath,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	DeleteFiles bool     `json:"deleteFiles,omitempty"`
+	Enabled     bool     `json:"enabled"`
+	LastRunAt   string   `json:"lastRunAt,omitempty"`
+	LastError   string   `json:"lastError,omitempty"`
+	CreatedAt   string   `json:"createdAt"`
+}
+
 type Config struct {
 	Auth            AuthConfig       `json:"auth"`
 	Sessions        []Session        `json:"sessions"`
 	QBittorrents    []QBAccount      `json:"qbittorrents"`
 	Lanes           []Lane           `json:"lanes"`
 	Cards           []Card           `json:"cards"`
+	Schedules       []Schedule       `json:"schedules"`
 	TagPool         []string         `json:"tagPool"`
 	TrackerMappings []TrackerMapping `json:"trackerMappings"`
 }
@@ -106,6 +124,7 @@ type PublicConfig struct {
 	QBittorrents    []PublicQBAccount `json:"qbittorrents"`
 	Lanes           []Lane            `json:"lanes"`
 	Cards           []Card            `json:"cards"`
+	Schedules       []Schedule        `json:"schedules"`
 	TagPool         []string          `json:"tagPool"`
 	TrackerMappings []TrackerMapping  `json:"trackerMappings"`
 }
@@ -175,6 +194,7 @@ func main() {
 	if err := server.ensureConfig(); err != nil {
 		panic(err)
 	}
+	go server.runScheduleLoop()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/login", server.handleLogin)
@@ -184,6 +204,8 @@ func main() {
 	mux.HandleFunc("/api/config/backup", server.withAuth(server.handleConfigBackup))
 	mux.HandleFunc("/api/config/restore", server.withAuth(server.handleConfigRestore))
 	mux.HandleFunc("/api/tracker-mappings", server.withAuth(server.handleTrackerMappings))
+	mux.HandleFunc("/api/schedules", server.withAuth(server.handleSchedules))
+	mux.HandleFunc("/api/schedules/", server.withAuth(server.handleScheduleSubroutes))
 	mux.HandleFunc("/api/qb/test", server.withAuth(server.handleQBTest))
 	mux.HandleFunc("/api/qb", server.withAuth(server.handleQBCreate))
 	mux.HandleFunc("/api/qb/", server.withAuth(server.handleQBDelete))
@@ -229,7 +251,7 @@ func (s *Server) ensureConfig() error {
 	}
 	config := Config{
 		Auth:     AuthConfig{Username: "qBinder", PasswordHash: hashPassword("qBinder")},
-		Sessions: []Session{}, QBittorrents: []QBAccount{}, Lanes: []Lane{}, Cards: []Card{}, TagPool: []string{}, TrackerMappings: []TrackerMapping{},
+		Sessions: []Session{}, QBittorrents: []QBAccount{}, Lanes: []Lane{}, Cards: []Card{}, Schedules: []Schedule{}, TagPool: []string{}, TrackerMappings: []TrackerMapping{},
 	}
 	return s.writeConfigLocked(config)
 }
@@ -303,6 +325,9 @@ func normalizeConfig(config Config) Config {
 	if config.Cards == nil {
 		config.Cards = []Card{}
 	}
+	if config.Schedules == nil {
+		config.Schedules = []Schedule{}
+	}
 	if config.TagPool == nil {
 		config.TagPool = []string{}
 	}
@@ -317,7 +342,7 @@ func publicConfig(config Config) PublicConfig {
 	for _, item := range config.QBittorrents {
 		accounts = append(accounts, PublicQBAccount{ID: item.ID, Alias: item.Alias, Protocol: item.Protocol, Host: item.Host, Port: item.Port, Username: item.Username, LastVerifiedAt: item.LastVerifiedAt, LastError: item.LastError})
 	}
-	return PublicConfig{Username: config.Auth.Username, QBittorrents: accounts, Lanes: config.Lanes, Cards: config.Cards, TagPool: config.TagPool, TrackerMappings: config.TrackerMappings}
+	return PublicConfig{Username: config.Auth.Username, QBittorrents: accounts, Lanes: config.Lanes, Cards: config.Cards, Schedules: config.Schedules, TagPool: config.TagPool, TrackerMappings: config.TrackerMappings}
 }
 
 func (s *Server) withAuth(next func(http.ResponseWriter, *http.Request, Config, Session)) http.HandlerFunc {
@@ -497,6 +522,267 @@ func normalizeTrackerMappings(mappings []TrackerMapping) []TrackerMapping {
 		result = append(result, TrackerMapping{Keyword: keyword, Name: name})
 	}
 	return result
+}
+
+func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method == http.MethodGet {
+		writeJSON(w, http.StatusOK, map[string]any{"schedules": config.Schedules})
+		return
+	}
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var schedule Schedule
+	if !decodeJSON(w, r, &schedule) {
+		return
+	}
+	if err := validateSchedule(schedule, config.QBittorrents); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	schedule = normalizeSchedule(schedule)
+	schedule.ID = randomID()
+	schedule.CreatedAt = time.Now().Format(time.RFC3339)
+	config.Schedules = append(config.Schedules, schedule)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, schedule)
+}
+
+func (s *Server) handleScheduleSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/schedules/"), "/")
+	if id == "" || strings.Contains(id, "/") {
+		writeErrorText(w, http.StatusNotFound, "Not found")
+		return
+	}
+	index := -1
+	for i := range config.Schedules {
+		if config.Schedules[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		writeErrorText(w, http.StatusNotFound, "定时任务不存在")
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var payload Schedule
+		if !decodeJSON(w, r, &payload) {
+			return
+		}
+		payload.ID, payload.CreatedAt = config.Schedules[index].ID, config.Schedules[index].CreatedAt
+		payload.LastRunAt, payload.LastError = config.Schedules[index].LastRunAt, config.Schedules[index].LastError
+		if err := validateSchedule(payload, config.QBittorrents); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		config.Schedules[index] = normalizeSchedule(payload)
+	case http.MethodDelete:
+		config.Schedules = append(config.Schedules[:index], config.Schedules[index+1:]...)
+	default:
+		methodNotAllowed(w)
+		return
+	}
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"schedules": config.Schedules})
+}
+
+func validateSchedule(schedule Schedule, accounts []QBAccount) error {
+	if strings.TrimSpace(schedule.Name) == "" || len([]rune(strings.TrimSpace(schedule.Name))) > 100 {
+		return errors.New("任务名称不能为空且不能超过 100 个字符")
+	}
+	if _, ok := findQB(accounts, schedule.QBID); !ok {
+		return errors.New("qBittorrent 账户不存在")
+	}
+	if !validCron(schedule.Cron) {
+		return errors.New("Cron 格式无效，请使用标准五段格式：分 时 日 月 周")
+	}
+	switch schedule.Action {
+	case "start", "forceStart", "stop", "delete":
+		if len(schedule.Hashes) == 0 || len(schedule.Hashes) > 1000 {
+			return errors.New("请选择 1 至 1000 个种子")
+		}
+		for _, hash := range schedule.Hashes {
+			if len(hash) != 40 || strings.Trim(hash, "0123456789abcdefABCDEF") != "" {
+				return errors.New("种子 Hash 无效")
+			}
+		}
+	case "toggleAltSpeed":
+	case "addURLs":
+		if strings.TrimSpace(schedule.TorrentURLs) == "" {
+			return errors.New("请输入至少一个种子链接")
+		}
+	default:
+		return errors.New("不支持的定时操作")
+	}
+	return nil
+}
+
+func normalizeSchedule(schedule Schedule) Schedule {
+	schedule.Name, schedule.Cron, schedule.TorrentURLs, schedule.SavePath = strings.TrimSpace(schedule.Name), strings.TrimSpace(schedule.Cron), strings.TrimSpace(schedule.TorrentURLs), strings.TrimSpace(schedule.SavePath)
+	if schedule.Hashes == nil {
+		schedule.Hashes = []string{}
+	}
+	if schedule.Tags == nil {
+		schedule.Tags = []string{}
+	}
+	return schedule
+}
+
+func (s *Server) runScheduleLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for now := range ticker.C {
+		config, err := s.readConfig()
+		if err != nil {
+			log.Printf("schedule read config failed: %v", err)
+			continue
+		}
+		changed := false
+		for i := range config.Schedules {
+			schedule := &config.Schedules[i]
+			if !schedule.Enabled || !cronMatches(schedule.Cron, now) {
+				continue
+			}
+			if last, err := time.Parse(time.RFC3339, schedule.LastRunAt); err == nil && last.Year() == now.Year() && last.YearDay() == now.YearDay() && last.Hour() == now.Hour() && last.Minute() == now.Minute() {
+				continue
+			}
+			schedule.LastRunAt, schedule.LastError = now.Format(time.RFC3339), ""
+			if err := s.executeSchedule(*schedule, config.QBittorrents); err != nil {
+				schedule.LastError = err.Error()
+				log.Printf("schedule %q failed: %v", schedule.Name, err)
+			}
+			changed = true
+		}
+		if changed {
+			if err := s.writeConfig(config); err != nil {
+				log.Printf("schedule save failed: %v", err)
+			}
+		}
+	}
+}
+
+func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error {
+	account, ok := findQB(accounts, schedule.QBID)
+	if !ok {
+		return errors.New("qBittorrent 账户不存在")
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		return err
+	}
+	if schedule.Action == "toggleAltSpeed" {
+		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
+	}
+	if schedule.Action == "addURLs" {
+		form := url.Values{"urls": {schedule.TorrentURLs}}
+		if schedule.SavePath != "" {
+			form.Set("savepath", schedule.SavePath)
+		}
+		if len(schedule.Tags) > 0 {
+			form.Set("tags", strings.Join(schedule.Tags, ","))
+		}
+		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/torrents/add", form)
+	}
+	endpoint := map[string]string{"start": "/api/v2/torrents/start", "forceStart": "/api/v2/torrents/setForceStart", "stop": "/api/v2/torrents/stop", "delete": "/api/v2/torrents/delete"}[schedule.Action]
+	form := url.Values{"hashes": {strings.Join(schedule.Hashes, "|")}}
+	if schedule.Action == "forceStart" {
+		form.Set("value", "true")
+	}
+	if schedule.Action == "delete" {
+		form.Set("deleteFiles", strconv.FormatBool(schedule.DeleteFiles))
+	}
+	return postQBForm(context.Background(), baseURL, cookie, endpoint, form)
+}
+
+func validCron(expression string) bool {
+	parts := strings.Fields(expression)
+	if len(parts) != 5 {
+		return false
+	}
+	limits := [][2]int{{0, 59}, {0, 23}, {1, 31}, {1, 12}, {0, 6}}
+	for i, part := range parts {
+		if !validCronField(part, limits[i][0], limits[i][1]) {
+			return false
+		}
+	}
+	return true
+}
+func cronMatches(expression string, now time.Time) bool {
+	if !validCron(expression) {
+		return false
+	}
+	parts, values := strings.Fields(expression), []int{now.Minute(), now.Hour(), now.Day(), int(now.Month()), int(now.Weekday())}
+	limits := [][2]int{{0, 59}, {0, 23}, {1, 31}, {1, 12}, {0, 6}}
+	for i := range parts {
+		if !cronFieldMatches(parts[i], values[i], limits[i][0], limits[i][1]) {
+			return false
+		}
+	}
+	return true
+}
+func validCronField(field string, min, max int) bool {
+	for _, part := range strings.Split(field, ",") {
+		if !cronFieldMatches(part, min, min, max) && !cronFieldMatches(part, max, min, max) && part != "*" && !strings.Contains(part, "-") {
+			return false
+		}
+	}
+	return true
+}
+func cronFieldMatches(field string, value, min, max int) bool {
+	for _, part := range strings.Split(field, ",") {
+		base, step := part, 1
+		if strings.Contains(part, "/") {
+			pair := strings.Split(part, "/")
+			if len(pair) != 2 {
+				continue
+			}
+			parsed, err := strconv.Atoi(pair[1])
+			if err != nil || parsed < 1 {
+				continue
+			}
+			base, step = pair[0], parsed
+		}
+		start, end := min, max
+		if base != "*" {
+			if strings.Contains(base, "-") {
+				pair := strings.Split(base, "-")
+				if len(pair) != 2 {
+					continue
+				}
+				var err error
+				start, err = strconv.Atoi(pair[0])
+				if err != nil {
+					continue
+				}
+				end, err = strconv.Atoi(pair[1])
+				if err != nil {
+					continue
+				}
+			} else {
+				parsed, err := strconv.Atoi(base)
+				if err != nil {
+					continue
+				}
+				start, end = parsed, parsed
+			}
+		}
+		if start < min || end > max || start > end {
+			continue
+		}
+		if value >= start && value <= end && (value-start)%step == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleQBTest(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -1784,6 +2070,32 @@ func moveLaneToIndex(lanes []Lane, laneIndex int, targetIndex int) []Lane {
 	copy(withoutLane[insertAt+1:], withoutLane[insertAt:])
 	withoutLane[insertAt] = lane
 	return withoutLane
+}
+
+func normalizeBackupSchedules(schedules []Schedule, accounts []QBAccount) []Schedule {
+	result := []Schedule{}
+	for _, schedule := range schedules {
+		if schedule.ID == "" {
+			schedule.ID = randomID()
+		}
+		if schedule.CreatedAt == "" {
+			schedule.CreatedAt = time.Now().Format(time.RFC3339)
+		}
+		if validateSchedule(schedule, accounts) == nil {
+			result = append(result, normalizeSchedule(schedule))
+		}
+	}
+	return result
+}
+
+func filterSchedulesByQB(schedules []Schedule, qbID string) []Schedule {
+	next := []Schedule{}
+	for _, schedule := range schedules {
+		if schedule.QBID != qbID {
+			next = append(next, schedule)
+		}
+	}
+	return next
 }
 
 func filterQB(accounts []QBAccount, id string) []QBAccount {

@@ -1,3 +1,10 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="qBinder">
-  <image href="/reference.png" width="512" height="512" preserveAspectRatio="xMidYMid meet" />
+  <defs>
+    <clipPath id="rounded-icon">
+      <rect width="512" height="512" rx="112" ry="112" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#rounded-icon)">
+    <image href="/reference.png" width="512" height="512" preserveAspectRatio="xMidYMid slice" />
+  </g>
 </svg>
