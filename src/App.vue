@@ -30,7 +30,7 @@
       <nav>
         <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-alt-speed-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.7 16.7A8.45 8.45 0 0 1 17.5 5.8" /><path d="M11.6 7.2c-.7 1.8-2.6 3.2-2.4 5.2.1 1.8 1.6 3.1 3.4 3 1.7-.1 2.9-1.6 2.6-3.3-.3-2-2.3-3.2-3.2-4.9Z" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="3" /><path d="M8 8h.01M8 12h.01M8 16h.01M11 8h5M11 12h5M11 16h3" /></svg><span>任务</span></button>
         <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
