@@ -3485,7 +3485,9 @@ select:focus {
 /* Schedule picker: compact Monet columns with readable one-row options. */
 .schedule-filter-columns {
   grid-template-columns: 8.5em 11em minmax(0, 1fr);
+  height: 100%;
 }
+.schedule-filter { height: min(430px, calc(100vh - 430px)); min-height: 300px; }
 .schedule-filter-columns section {
   display: flex;
   align-content: flex-start;
@@ -3503,6 +3505,9 @@ select:focus {
 }
 .schedule-editor { scrollbar-width: none; -ms-overflow-style: none; }
 .schedule-filter-columns section > small {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
   flex: 0 0 auto;
   margin: -16px -14px 8px;
   padding: 12px 14px;
@@ -3510,6 +3515,7 @@ select:focus {
   font-size: 14px;
   letter-spacing: .04em;
 }
+.schedule-filter-columns section > small em { float: right; color: #7890a4; font-size: 11px; font-style: normal; font-weight: 600; letter-spacing: 0; }
 .schedule-filter-status { background: linear-gradient(180deg, #f1f8f5, #fbfdfc 35%); }
 .schedule-filter-tags { background: linear-gradient(180deg, #f7f3eb, #fdfcf9 35%); }
 .schedule-filter-torrents { background: linear-gradient(180deg, #f0f3f9, #fbfcfe 35%); }
@@ -3535,11 +3541,17 @@ select:focus {
   margin: 0 7px 0 0;
 }
 .schedule-filter-columns section > label span {
-  display: block;
+  display: inline-block !important;
+  visibility: visible !important;
+  flex: 1 1 auto;
+  width: auto !important;
   min-width: 0;
+  opacity: 1 !important;
   overflow: hidden;
-  color: #53686d;
+  color: #53686d !important;
+  font-size: 13px !important;
   line-height: 20px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
