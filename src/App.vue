@@ -271,12 +271,10 @@
             :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
-          ><svg v-if="transferInfo.altSpeedLimitsOn" class="transfer-alt-speed-icon is-on" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="alt-speed-ring" d="M5.7 16.7A8.45 8.45 0 0 1 17.5 5.8" />
-            <path class="alt-speed-drop-on" d="M11.6 7.2c-.7 1.8-2.6 3.2-2.4 5.2.1 1.8 1.6 3.1 3.4 3 1.7-.1 2.9-1.6 2.6-3.3-.3-2-2.3-3.2-3.2-4.9Z" />
-          </svg><svg v-else class="transfer-alt-speed-icon is-off" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="alt-speed-ring" d="M5.7 16.7A8.45 8.45 0 0 1 17.5 5.8" />
-            <path class="alt-speed-drop-off" d="M17.1 9.2c-1.8.7-3.2 2.6-3 4.6.2 1.8 1.7 3 3.5 2.8 1.7-.2 2.7-1.8 2.3-3.5-.4-1.8-1.7-2.8-2.8-3.9Z" />
+          ><svg class="transfer-alt-speed-icon transfer-alt-speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4.5 16.7a7.8 7.8 0 1 1 15 0" />
+            <path d="m12 12 3.15-3.1" />
+            <circle cx="12" cy="12" r="1.05" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />

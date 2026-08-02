@@ -1845,6 +1845,18 @@ select:focus {
   stroke-linejoin: round;
 }
 
+.transfer-alt-speed-icon.transfer-alt-speed-gauge path {
+  fill: none;
+  stroke: #87b5ad;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.transfer-alt-speed-icon.transfer-alt-speed-gauge circle { fill: #87b5ad; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge path { stroke: #638f87; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge circle { fill: #638f87; }
+
 .transfer-alt-speed-icon .alt-speed-blue,
 .transfer-alt-speed-icon .alt-speed-blue-arrow { fill: #078cf0; }
 .transfer-alt-speed-icon .alt-speed-red,
