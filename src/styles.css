@@ -3624,4 +3624,4 @@ select:focus {
 }
 .schedule-filter-status .schedule-filter-option b { max-width: 5em; }
 .schedule-filter-tags .schedule-filter-option b { max-width: 6em; color: #766548 !important; }
-.schedule-filter-torrents .schedule-filter-option b { max-width: 10em; color: #53647c !important; }
+.schedule-filter-torrents .schedule-filter-option b { width: 100%; max-width: none; color: #53647c !important; }

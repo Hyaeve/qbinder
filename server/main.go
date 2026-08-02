@@ -87,6 +87,8 @@ type Schedule struct {
 	Cron         string   `json:"cron"`
 	Action       string   `json:"action"`
 	Hashes       []string `json:"hashes,omitempty"`
+	Statuses     []string `json:"statuses,omitempty"`
+	FilterTags   []string `json:"filterTags,omitempty"`
 	TorrentURLs  string   `json:"torrentUrls,omitempty"`
 	TorrentFiles []string `json:"torrentFiles,omitempty"`
 	SavePath     string   `json:"savePath,omitempty"`
@@ -612,8 +614,11 @@ func validateSchedule(schedule Schedule, accounts []QBAccount) error {
 	}
 	switch schedule.Action {
 	case "start", "forceStart", "stop", "delete":
-		if len(schedule.Hashes) == 0 || len(schedule.Hashes) > 1000 {
-			return errors.New("请选择 1 至 1000 个种子")
+		if len(schedule.Hashes) == 0 && len(schedule.Statuses) == 0 && len(schedule.FilterTags) == 0 {
+			return errors.New("请选择具体种子、状态或标签")
+		}
+		if len(schedule.Hashes) > 1000 {
+			return errors.New("最多选择 1000 个具体种子")
 		}
 		for _, hash := range schedule.Hashes {
 			if len(hash) != 40 || strings.Trim(hash, "0123456789abcdefABCDEF") != "" {
@@ -635,6 +640,12 @@ func normalizeSchedule(schedule Schedule) Schedule {
 	schedule.Name, schedule.Cron, schedule.TorrentURLs, schedule.SavePath = strings.TrimSpace(schedule.Name), strings.TrimSpace(schedule.Cron), strings.TrimSpace(schedule.TorrentURLs), strings.TrimSpace(schedule.SavePath)
 	if schedule.Hashes == nil {
 		schedule.Hashes = []string{}
+	}
+	if schedule.Statuses == nil {
+		schedule.Statuses = []string{}
+	}
+	if schedule.FilterTags == nil {
+		schedule.FilterTags = []string{}
 	}
 	if schedule.Tags == nil {
 		schedule.Tags = []string{}
@@ -703,8 +714,19 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error 
 		}
 		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/torrents/add", form)
 	}
+	hashes := append([]string{}, schedule.Hashes...)
+	if len(schedule.Statuses) > 0 || len(schedule.FilterTags) > 0 {
+		dynamic, err := matchingScheduledTorrentHashes(context.Background(), baseURL, cookie, schedule)
+		if err != nil {
+			return err
+		}
+		hashes = mergeUniqueStrings(hashes, dynamic)
+	}
+	if len(hashes) == 0 {
+		return errors.New("执行时没有匹配到种子")
+	}
 	endpoint := map[string]string{"start": "/api/v2/torrents/start", "forceStart": "/api/v2/torrents/setForceStart", "stop": "/api/v2/torrents/stop", "delete": "/api/v2/torrents/delete"}[schedule.Action]
-	form := url.Values{"hashes": {strings.Join(schedule.Hashes, "|")}}
+	form := url.Values{"hashes": {strings.Join(hashes, "|")}}
 	if schedule.Action == "forceStart" {
 		form.Set("value", "true")
 	}
@@ -803,6 +825,82 @@ func (s *Server) addScheduledTorrentFiles(ctx context.Context, baseURL, cookie s
 	return nil
 }
 
+func matchingScheduledTorrentHashes(ctx context.Context, baseURL, cookie string, schedule Schedule) ([]string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v2/torrents/info", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("读取 qBittorrent 种子失败: %d", response.StatusCode)
+	}
+	var torrents []torrentTask
+	if err := json.NewDecoder(io.LimitReader(response.Body, maxTorrentListSize)).Decode(&torrents); err != nil {
+		return nil, err
+	}
+	result := []string{}
+	for _, torrent := range torrents {
+		statusOK := len(schedule.Statuses) == 0
+		for _, status := range schedule.Statuses {
+			if scheduledTorrentMatchesStatus(torrent, status) {
+				statusOK = true
+				break
+			}
+		}
+		tagOK := len(schedule.FilterTags) == 0
+		for _, selected := range schedule.FilterTags {
+			for _, tag := range strings.Split(torrent.Tags, ",") {
+				if strings.TrimSpace(tag) == selected {
+					tagOK = true
+					break
+				}
+			}
+		}
+		if statusOK && tagOK {
+			result = append(result, torrent.Hash)
+		}
+	}
+	return result, nil
+}
+
+func scheduledTorrentMatchesStatus(torrent torrentTask, category string) bool {
+	state := strings.ToLower(torrent.State)
+	switch category {
+	case "completed":
+		return torrent.Progress >= 1
+	case "error":
+		return strings.Contains(state, "error") || strings.Contains(state, "missing")
+	case "stopped":
+		return strings.Contains(state, "paused") || strings.Contains(state, "stopped")
+	case "downloading":
+		return (strings.Contains(state, "dl") || strings.Contains(state, "downloading")) && !strings.Contains(state, "paused")
+	case "seeding":
+		return (strings.Contains(state, "up") || strings.Contains(state, "uploading")) && !strings.Contains(state, "paused")
+	case "running":
+		return !strings.Contains(state, "paused") && !strings.Contains(state, "stopped") && !strings.Contains(state, "error") && !strings.Contains(state, "missing")
+	}
+	return false
+}
+
+func mergeUniqueStrings(groups ...[]string) []string {
+	seen := map[string]bool{}
+	result := []string{}
+	for _, group := range groups {
+		for _, value := range group {
+			if value != "" && !seen[value] {
+				seen[value] = true
+				result = append(result, value)
+			}
+		}
+	}
+	return result
+}
+
 func validCron(expression string) bool {
 	parts := strings.Fields(expression)
 	if len(parts) != 5 {
@@ -830,8 +928,39 @@ func cronMatches(expression string, now time.Time) bool {
 	return true
 }
 func validCronField(field string, min, max int) bool {
+	if field == "" {
+		return false
+	}
 	for _, part := range strings.Split(field, ",") {
-		if !cronFieldMatches(part, min, min, max) && !cronFieldMatches(part, max, min, max) && part != "*" && !strings.Contains(part, "-") {
+		base := part
+		if strings.Contains(part, "/") {
+			pair := strings.Split(part, "/")
+			if len(pair) != 2 {
+				return false
+			}
+			step, err := strconv.Atoi(pair[1])
+			if err != nil || step < 1 {
+				return false
+			}
+			base = pair[0]
+		}
+		if base == "*" {
+			continue
+		}
+		if strings.Contains(base, "-") {
+			pair := strings.Split(base, "-")
+			if len(pair) != 2 {
+				return false
+			}
+			start, err1 := strconv.Atoi(pair[0])
+			end, err2 := strconv.Atoi(pair[1])
+			if err1 != nil || err2 != nil || start < min || end > max || start > end {
+				return false
+			}
+			continue
+		}
+		value, err := strconv.Atoi(base)
+		if err != nil || value < min || value > max {
 			return false
 		}
 	}

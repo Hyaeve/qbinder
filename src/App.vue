@@ -1312,15 +1312,15 @@ async function loadSchedules() {
 async function openScheduleEditor(schedule = null) {
   scheduleError.value = '';
   Object.assign(scheduleEditor, { open: true, id: schedule?.id || '', name: schedule?.name || '', qbId: schedule?.qbId || activeQb.value?.id || '', cron: schedule?.cron || '0 2 * * *', action: schedule?.action || 'start', hashes: [...(schedule?.hashes || [])], torrentUrls: schedule?.torrentUrls || '', torrentFiles: [...(schedule?.torrentFiles || [])], savePath: schedule?.savePath || '', tags: [...(schedule?.tags || [])], deleteFiles: Boolean(schedule?.deleteFiles), enabled: schedule?.enabled ?? true, uploading: false, error: '' });
-  scheduleFilter.status = [];
-  scheduleFilter.tags = [];
+  scheduleFilter.status = [...(schedule?.statuses || [])];
+  scheduleFilter.tags = [...(schedule?.filterTags || [])];
   if (requiresScheduleTargets.value && activeQb.value) await loadTasks();
 }
 
 function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; }
 
 async function saveSchedule() {
-  const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron, action: scheduleEditor.action, hashes: scheduleEditor.hashes, torrentUrls: scheduleEditor.torrentUrls, torrentFiles: scheduleEditor.torrentFiles, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
+  const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron.replace(/\s+/g, ' ').trim(), action: scheduleEditor.action, hashes: scheduleEditor.hashes, statuses: scheduleFilter.status, filterTags: scheduleFilter.tags, torrentUrls: scheduleEditor.torrentUrls, torrentFiles: scheduleEditor.torrentFiles, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
   scheduleEditor.error = '';
   try {
     const response = await api(scheduleEditor.id ? `/api/schedules/${scheduleEditor.id}` : '/api/schedules', { method: scheduleEditor.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
@@ -1359,9 +1359,9 @@ async function deleteSchedule(schedule) {
 }
 
 function toggleScheduleFilterValue(target, value) { const index = target.indexOf(value); if (index >= 0) target.splice(index, 1); else target.push(value); }
-function shortScheduleTaskName(value) { const characters = Array.from(String(value || '')); return characters.length > 10 ? `${characters.slice(0, 10).join('')}…` : characters.join(''); }
+function shortScheduleTaskName(value) { return String(value || ''); }
 function scheduleActionLabel(action) { return ({ start: '开始', forceStart: '强制开始', stop: '停止', delete: '删除', toggleAltSpeed: '切换备用速度', addURLs: '添加种子链接' })[action] || action; }
-function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; return `${schedule.hashes?.length || 0} 个指定种子`; }
+function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; const dynamic = [...(schedule.statuses || []), ...(schedule.filterTags || [])].length; return dynamic ? `动态规则 + ${schedule.hashes?.length || 0} 个指定种子` : `${schedule.hashes?.length || 0} 个指定种子`; }
 function formatScheduleDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }); }
 
 async function loadTasks() {
