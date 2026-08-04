@@ -713,10 +713,10 @@ const activeFilterGroup = ref('status');
 const filterValuePage = ref(1);
 const columnMenu = ref(null);
 const accountMenuOpen = ref(false);
-const taskSort = reactive({ key: 'name', direction: 'asc' });
+const taskColumns = reactive(loadTaskColumns());
+const taskSort = reactive(loadTaskSort());
 const taskFilters = reactive({ status: [], path: [], tags: [], tracker: [] });
 const filterDraft = reactive({ status: [], path: [], tags: [], tracker: [] });
-const taskColumns = reactive(loadTaskColumns());
 const trackerMappings = ref([]);
 const taskNameTooltip = reactive({ visible: false, text: '', x: 0, y: 0 });
 const hoveredTaskHash = ref('');
@@ -1294,6 +1294,22 @@ function persistTaskColumns() {
   localStorage.setItem('qbinder-task-columns', JSON.stringify(taskColumns.map(({ key, width, hidden }) => ({ key, width, hidden }))));
 }
 
+function loadTaskSort() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('qbinder-task-sort') || '{}');
+    const validKey = taskColumns.some((column) => column.key === saved.key);
+    const validDirection = ['asc', 'desc'].includes(saved.direction);
+    if (validKey && validDirection) return { key: saved.key, direction: saved.direction };
+  } catch {
+    // Ignore invalid localStorage payloads and fall back to the default sort.
+  }
+  return { key: 'name', direction: 'asc' };
+}
+
+function persistTaskSort() {
+  localStorage.setItem('qbinder-task-sort', JSON.stringify({ key: taskSort.key, direction: taskSort.direction }));
+}
+
 function clampWidth(value, fallback) {
   const width = Number(value);
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
@@ -1461,6 +1477,7 @@ function compareTasks(left, right, key, direction) {
 function sortTasks(key) {
   if (taskSort.key === key) taskSort.direction = taskSort.direction === 'asc' ? 'desc' : 'asc';
   else Object.assign(taskSort, { key, direction: 'asc' });
+  persistTaskSort();
 }
 
 function formatBytes(value) {
