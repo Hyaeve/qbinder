@@ -609,7 +609,7 @@
       <form class="modal schedule-editor" @submit.prevent="saveSchedule">
         <header><div><p class="eyebrow">CRON AUTOMATION</p><h2>{{ scheduleEditor.id ? '编辑定时任务' : '新建定时任务' }}</h2></div><button type="button" class="icon-button" @click="closeScheduleEditor"><X /></button></header>
         <div class="schedule-form-grid"><label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label>执行操作<select v-model="scheduleEditor.action"><option value="start">开始</option><option value="forceStart">强制开始</option><option value="stop">停止</option><option value="delete">删除</option><option value="toggleAltSpeed">切换备用速度</option><option value="addURLs">添加种子链接</option></select></label></div>
-        <div class="schedule-form-grid schedule-form-grid-cron"><label>qBittorrent<select v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label>Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><small>五段格式：分 时 日 月 周，例如 <code>0 2 * * *</code> 表示每日 02:00。</small></label></div>
+        <div class="schedule-form-grid schedule-form-grid-cron"><label>qBittorrent<select class="schedule-qb-select" v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><span class="schedule-cron-preview" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
@@ -766,6 +766,7 @@ const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron:
 const scheduleFileInput = ref(null);
 const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
+const scheduleCronPreview = computed(() => nextCronExecutionPreview(scheduleEditor.cron));
 const operationLogs = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
@@ -1368,6 +1369,44 @@ async function loadOperationLogs() {
 
 function operationLogActionLabel(action) {
   return ({ start: '开始种子', forceStart: '强制开始', stop: '停止种子', delete: '删除种子', rename: '重命名', setLocation: '更改保存路径', setTags: '编辑标签', setUploadLimit: '设置上传限速', toggleAltSpeed: '切换备用速度', addURLs: '添加种子' })[action] || action;
+}
+
+function cronPreviewFieldMatches(field, value, min, max) {
+  return String(field).split(',').some((part) => {
+    const [base, stepText] = part.split('/');
+    const step = stepText === undefined ? 1 : Number(stepText);
+    if (!Number.isInteger(step) || step < 1) return false;
+    let start = min;
+    let end = max;
+    if (base !== '*') {
+      const bounds = base.split('-').map(Number);
+      if (bounds.some((item) => !Number.isInteger(item))) return false;
+      start = bounds[0];
+      end = bounds.length === 1 ? bounds[0] : bounds[1];
+    }
+    return start >= min && end <= max && start <= end && value >= start && value <= end && (value - start) % step === 0;
+  });
+}
+
+function nextCronExecutionPreview(expression) {
+  const fields = String(expression || '').trim().replace(/\s+/g, ' ').split(' ');
+  if (fields.length !== 5) return 'Cron 表达式无效';
+  const result = [];
+  const candidate = new Date();
+  candidate.setSeconds(0, 0);
+  candidate.setMinutes(candidate.getMinutes() + 1);
+  const limit = 366 * 24 * 60 * 2;
+  for (let offset = 0; offset < limit && result.length < 3; offset += 1) {
+    const matches = cronPreviewFieldMatches(fields[0], candidate.getMinutes(), 0, 59)
+      && cronPreviewFieldMatches(fields[1], candidate.getHours(), 0, 23)
+      && cronPreviewFieldMatches(fields[2], candidate.getDate(), 1, 31)
+      && cronPreviewFieldMatches(fields[3], candidate.getMonth() + 1, 1, 12)
+      && cronPreviewFieldMatches(fields[4], candidate.getDay(), 0, 6);
+    if (matches) result.push(new Date(candidate));
+    candidate.setMinutes(candidate.getMinutes() + 1);
+  }
+  if (!result.length) return '未来两年内没有匹配的执行时间';
+  return `接下来三次执行\n${result.map((date, index) => `${index + 1}. ${date.toLocaleString('zh-CN', { hour12: false })}`).join('\n')}`;
 }
 
 async function loadSchedules() {
