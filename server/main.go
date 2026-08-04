@@ -100,6 +100,22 @@ type Schedule struct {
 	CreatedAt    string   `json:"createdAt"`
 }
 
+type OperationLog struct {
+	ID         string `json:"id"`
+	Source     string `json:"source"`
+	Status     string `json:"status"`
+	Action     string `json:"action"`
+	QBID       string `json:"qbId"`
+	QBAlias    string `json:"qbAlias"`
+	ScheduleID string `json:"scheduleId,omitempty"`
+	TaskName   string `json:"taskName,omitempty"`
+	Target     string `json:"target"`
+	Count      int    `json:"count,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	Error      string `json:"error,omitempty"`
+	CreatedAt  string `json:"createdAt"`
+}
+
 type Config struct {
 	Auth            AuthConfig       `json:"auth"`
 	Sessions        []Session        `json:"sessions"`
@@ -167,6 +183,7 @@ var qBHTTPClient = &http.Client{
 type Server struct {
 	mu         sync.Mutex
 	configPath string
+	logsPath   string
 	distDir    string
 }
 
@@ -192,6 +209,7 @@ func main() {
 	dataDir := env("QBINDER_DATA_DIR", "/data")
 	server := &Server{
 		configPath: filepath.Join(dataDir, "config.json"),
+		logsPath:   filepath.Join(dataDir, "operation-logs.json"),
 		distDir:    filepath.Join("dist"),
 	}
 	if err := server.ensureConfig(); err != nil {
@@ -207,6 +225,7 @@ func main() {
 	mux.HandleFunc("/api/config/backup", server.withAuth(server.handleConfigBackup))
 	mux.HandleFunc("/api/config/restore", server.withAuth(server.handleConfigRestore))
 	mux.HandleFunc("/api/tracker-mappings", server.withAuth(server.handleTrackerMappings))
+	mux.HandleFunc("/api/logs", server.withAuth(server.handleOperationLogs))
 	mux.HandleFunc("/api/schedules", server.withAuth(server.handleSchedules))
 	mux.HandleFunc("/api/schedules/", server.withAuth(server.handleScheduleSubroutes))
 	mux.HandleFunc("/api/qb/test", server.withAuth(server.handleQBTest))
@@ -307,6 +326,59 @@ func (s *Server) writeConfigLocked(config Config) error {
 		return err
 	}
 	return os.Rename(temporaryPath, s.configPath)
+}
+
+func (s *Server) readOperationLogsLocked() ([]OperationLog, error) {
+	content, err := os.ReadFile(s.logsPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return []OperationLog{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var logs []OperationLog
+	if err := json.Unmarshal(content, &logs); err != nil {
+		return nil, err
+	}
+	return logs, nil
+}
+
+func (s *Server) appendOperationLog(entry OperationLog) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	logs, err := s.readOperationLogsLocked()
+	if err != nil {
+		log.Printf("operation log read failed: %v", err)
+		logs = []OperationLog{}
+	}
+	entry.ID = randomID()
+	entry.CreatedAt = time.Now().Format(time.RFC3339)
+	logs = append([]OperationLog{entry}, logs...)
+	if len(logs) > 1000 {
+		logs = logs[:1000]
+	}
+	content, err := json.MarshalIndent(logs, "", "  ")
+	if err == nil {
+		err = os.WriteFile(s.logsPath, content, 0600)
+	}
+	if err != nil {
+		log.Printf("operation log save failed: %v", err)
+	}
+}
+
+func (s *Server) handleOperationLogs(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	s.mu.Lock()
+	logs, err := s.readOperationLogsLocked()
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"logs": logs})
 }
 
 func normalizeConfig(config Config) Config {
@@ -675,10 +747,15 @@ func (s *Server) runScheduleLoop() {
 				continue
 			}
 			schedule.LastRunAt, schedule.LastError = now.Format(time.RFC3339), ""
-			if err := s.executeSchedule(*schedule, config.QBittorrents); err != nil {
-				schedule.LastError = err.Error()
-				log.Printf("schedule %q failed: %v", schedule.Name, err)
+			executionError := s.executeSchedule(*schedule, config.QBittorrents)
+			account, _ := findQB(config.QBittorrents, schedule.QBID)
+			entry := OperationLog{Source: "schedule", Status: "success", Action: schedule.Action, QBID: schedule.QBID, QBAlias: account.Alias, ScheduleID: schedule.ID, TaskName: schedule.Name, Target: scheduleLogTarget(*schedule), Count: len(schedule.Hashes)}
+			if executionError != nil {
+				schedule.LastError = executionError.Error()
+				entry.Status, entry.Error = "failed", executionError.Error()
+				log.Printf("schedule %q failed: %v", schedule.Name, executionError)
 			}
+			s.appendOperationLog(entry)
 			changed = true
 		}
 		if changed {
@@ -687,6 +764,26 @@ func (s *Server) runScheduleLoop() {
 			}
 		}
 	}
+}
+
+func scheduleLogTarget(schedule Schedule) string {
+	if schedule.Action == "toggleAltSpeed" {
+		return "全局备用速度"
+	}
+	if schedule.Action == "addURLs" {
+		return fmt.Sprintf("添加种子（文件 %d 个）", len(schedule.TorrentFiles))
+	}
+	parts := []string{}
+	if len(schedule.Statuses) > 0 {
+		parts = append(parts, "状态："+strings.Join(schedule.Statuses, "、"))
+	}
+	if len(schedule.FilterTags) > 0 {
+		parts = append(parts, "标签："+strings.Join(schedule.FilterTags, "、"))
+	}
+	if len(schedule.Hashes) > 0 {
+		parts = append(parts, fmt.Sprintf("指定种子 %d 个", len(schedule.Hashes)))
+	}
+	return strings.Join(parts, "；")
 }
 
 func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error {
@@ -1369,6 +1466,7 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 				return
 			}
 		}
+		s.appendOperationLog(manualOperationLog(account, payload.Action, payload))
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	case "setUploadLimit":
@@ -1406,7 +1504,27 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent action failed: %d", response.StatusCode))
 		return
 	}
+	s.appendOperationLog(manualOperationLog(account, payload.Action, payload))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func manualOperationLog(account QBAccount, action string, payload torrentActionRequest) OperationLog {
+	entry := OperationLog{Source: "manual", Status: "success", Action: action, QBID: account.ID, QBAlias: account.Alias, Target: fmt.Sprintf("已选种子 %d 个", len(payload.Hashes)), Count: len(payload.Hashes)}
+	switch action {
+	case "rename":
+		entry.Detail = "新名称：" + strings.TrimSpace(payload.Name)
+	case "setLocation":
+		entry.Detail = "保存路径：" + strings.TrimSpace(payload.SavePath)
+	case "setTags":
+		entry.Detail = "标签：" + strings.Join(payload.Tags, "、")
+	case "setUploadLimit":
+		entry.Detail = fmt.Sprintf("上传限制：%d B/s", payload.UploadLimit)
+	case "delete":
+		if payload.DeleteFiles {
+			entry.Detail = "同时删除文件"
+		}
+	}
+	return entry
 }
 
 func (s *Server) handleQBTransferToggleSpeedLimits(w http.ResponseWriter, r *http.Request, config Config, id string) {
@@ -1438,6 +1556,7 @@ func (s *Server) handleQBTransferToggleSpeedLimits(w http.ResponseWriter, r *htt
 		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent alternate speed toggle failed: %d", response.StatusCode))
 		return
 	}
+	s.appendOperationLog(OperationLog{Source: "manual", Status: "success", Action: "toggleAltSpeed", QBID: account.ID, QBAlias: account.Alias, Target: "全局备用速度"})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -1867,6 +1986,7 @@ func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Confi
 		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent add torrents failed: %d %s", response.StatusCode, strings.TrimSpace(string(message))))
 		return
 	}
+	s.appendOperationLog(OperationLog{Source: "manual", Status: "success", Action: "addURLs", QBID: account.ID, QBAlias: account.Alias, Target: fmt.Sprintf("通过卡片“%s”添加种子", card.Name), Count: len(files), Detail: "保存路径：" + card.SavePath})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(files)})
 }
 

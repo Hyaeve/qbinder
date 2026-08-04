@@ -31,6 +31,7 @@
         <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
         <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="3" /><path d="M8 8h.01M8 12h.01M8 16h.01M11 8h5M11 12h5M11 16h3" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'logs' }" title="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
         <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
       <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
@@ -160,6 +161,32 @@
         </section>
         <section v-else class="schedule-empty"><Gauge /><h2>还没有定时任务</h2><p>新建任务可定时添加种子、操作已有种子，或切换备用速度。</p><button class="secondary-button" @click="openScheduleEditor()"><Plus />创建第一个任务</button></section>
       </template>
+    </div>
+
+    <div v-else-if="view === 'logs'" class="content operation-log-page">
+      <header class="operation-log-header">
+        <div><p class="eyebrow">ACTIVITY</p><h1>操作日志</h1><p>记录定时任务与手动操作 qBittorrent 种子的执行情况。</p></div>
+        <button class="secondary-button" :disabled="logsLoading" @click="loadOperationLogs"><RefreshCw :class="{ spin: logsLoading }" />刷新</button>
+      </header>
+      <div class="operation-log-toolbar">
+        <div class="operation-log-filters" aria-label="日志来源筛选">
+          <button v-for="option in logSourceOptions" :key="option.key" :class="{ active: logSourceFilter === option.key }" @click="logSourceFilter = option.key">{{ option.label }}<span>{{ logSourceCount(option.key) }}</span></button>
+        </div>
+        <label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或目标" /></label>
+      </div>
+      <p v-if="logsError" class="form-error">{{ logsError }}</p>
+      <section v-if="filteredOperationLogs.length" class="operation-log-list">
+        <article v-for="entry in filteredOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`]">
+          <div class="operation-log-marker"><CheckCircle2 v-if="entry.status === 'success'" /><X v-else /></div>
+          <div class="operation-log-main">
+            <div class="operation-log-title"><span class="operation-log-source">{{ entry.source === 'schedule' ? '任务自动' : '手动操作' }}</span><strong>{{ operationLogActionLabel(entry.action) }}</strong><span class="operation-log-status">{{ entry.status === 'success' ? '成功' : '失败' }}</span></div>
+            <p><b v-if="entry.taskName">{{ entry.taskName }}</b><span>{{ entry.target || '—' }}</span><em v-if="entry.detail">{{ entry.detail }}</em></p>
+            <small><span>{{ entry.qbAlias || '未知 qB 服务' }}</span><time>{{ formatScheduleDate(entry.createdAt) }}</time><span v-if="entry.count">{{ entry.count }} 个种子</span></small>
+            <div v-if="entry.error" class="operation-log-error">{{ entry.error }}</div>
+          </div>
+        </article>
+      </section>
+      <section v-else-if="!logsLoading" class="operation-log-empty"><ScrollText /><h2>暂无操作记录</h2><p>执行手动种子操作或定时任务后，记录会显示在这里。</p></section>
     </div>
 
     <div v-else-if="view === 'torrents'" class="content tasks-page" @click="closeTaskPopovers">
@@ -656,6 +683,7 @@ import {
   Search,
   Filter,
   Gauge,
+  ScrollText,
   RefreshCw,
   Trash2,
   ChevronUp,
@@ -675,7 +703,7 @@ const busy = ref(false);
 const error = ref('');
 const user = ref(null);
 const config = ref(null);
-const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', settings: 'setting' };
+const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', logs: 'logs', settings: 'setting' };
 const routeViews = Object.fromEntries(Object.entries(viewRoutes).map(([viewName, route]) => [route, viewName]));
 const view = ref(viewFromHash());
 const verified = ref(false);
@@ -742,6 +770,20 @@ const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron:
 const scheduleFileInput = ref(null);
 const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
+const operationLogs = ref([]);
+const logsLoading = ref(false);
+const logsError = ref('');
+const logSourceFilter = ref('all');
+const logSearch = ref('');
+const logSourceOptions = [{ key: 'all', label: '全部' }, { key: 'manual', label: '手动' }, { key: 'schedule', label: '任务自动' }];
+const filteredOperationLogs = computed(() => {
+  const keyword = logSearch.value.toLocaleLowerCase();
+  return operationLogs.value.filter((entry) => {
+    if (logSourceFilter.value !== 'all' && entry.source !== logSourceFilter.value) return false;
+    if (!keyword) return true;
+    return [entry.taskName, entry.qbAlias, entry.target, entry.detail, entry.error, operationLogActionLabel(entry.action)].some((value) => String(value || '').toLocaleLowerCase().includes(keyword));
+  });
+});
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
@@ -754,6 +796,7 @@ onMounted(async () => {
     const response = await api('/api/config');
     config.value = response;
     user.value = { username: response.username };
+    if (view.value === 'logs') loadOperationLogs();
   } catch {}
   loading.value = false;
 });
@@ -767,6 +810,7 @@ watch(config, (next) => {
 
 watch(view, (next) => {
   if (next === 'tasks') loadSchedules();
+  if (next === 'logs') loadOperationLogs();
   if (next === 'torrents') {
     loadTasks();
     startTaskRefresh();
@@ -1313,6 +1357,28 @@ function persistTaskSort() {
 function clampWidth(value, fallback) {
   const width = Number(value);
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
+}
+
+async function loadOperationLogs() {
+  if (logsLoading.value) return;
+  logsLoading.value = true;
+  logsError.value = '';
+  try {
+    const response = await api('/api/logs');
+    operationLogs.value = Array.isArray(response.logs) ? response.logs : [];
+  } catch (requestError) {
+    logsError.value = requestError.message || '无法加载操作日志';
+  } finally {
+    logsLoading.value = false;
+  }
+}
+
+function logSourceCount(source) {
+  return source === 'all' ? operationLogs.value.length : operationLogs.value.filter((entry) => entry.source === source).length;
+}
+
+function operationLogActionLabel(action) {
+  return ({ start: '开始种子', forceStart: '强制开始', stop: '停止种子', delete: '删除种子', rename: '重命名', setLocation: '更改保存路径', setTags: '编辑标签', setUploadLimit: '设置上传限速', toggleAltSpeed: '切换备用速度', addURLs: '添加种子' })[action] || action;
 }
 
 async function loadSchedules() {
