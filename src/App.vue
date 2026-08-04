@@ -164,14 +164,11 @@
     </div>
 
     <div v-else-if="view === 'logs'" class="content operation-log-page">
-      <header class="operation-log-header">
+      <header class="schedule-header operation-log-header">
         <div><p class="eyebrow">ACTIVITY</p><h1>操作日志</h1><p>记录定时任务与手动操作 qBittorrent 种子的执行情况。</p></div>
         <button class="secondary-button" :disabled="logsLoading" @click="loadOperationLogs"><RefreshCw :class="{ spin: logsLoading }" />刷新</button>
       </header>
       <div class="operation-log-toolbar">
-        <div class="operation-log-filters" aria-label="日志来源筛选">
-          <button v-for="option in logSourceOptions" :key="option.key" :class="{ active: logSourceFilter === option.key }" @click="logSourceFilter = option.key">{{ option.label }}<span>{{ logSourceCount(option.key) }}</span></button>
-        </div>
         <label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或目标" /></label>
       </div>
       <p v-if="logsError" class="form-error">{{ logsError }}</p>
@@ -611,9 +608,8 @@
     <div v-if="scheduleEditor.open" class="modal-backdrop" @click.self="closeScheduleEditor">
       <form class="modal schedule-editor" @submit.prevent="saveSchedule">
         <header><div><p class="eyebrow">CRON AUTOMATION</p><h2>{{ scheduleEditor.id ? '编辑定时任务' : '新建定时任务' }}</h2></div><button type="button" class="icon-button" @click="closeScheduleEditor"><X /></button></header>
-        <label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label>
-        <div class="schedule-form-grid"><label>qBittorrent<select v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label>执行操作<select v-model="scheduleEditor.action"><option value="start">开始</option><option value="forceStart">强制开始</option><option value="stop">停止</option><option value="delete">删除</option><option value="toggleAltSpeed">切换备用速度</option><option value="addURLs">添加种子链接</option></select></label></div>
-        <label>Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><small>五段格式：分 时 日 月 周，例如 <code>0 2 * * *</code> 表示每日 02:00。</small></label>
+        <div class="schedule-form-grid"><label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label>执行操作<select v-model="scheduleEditor.action"><option value="start">开始</option><option value="forceStart">强制开始</option><option value="stop">停止</option><option value="delete">删除</option><option value="toggleAltSpeed">切换备用速度</option><option value="addURLs">添加种子链接</option></select></label></div>
+        <div class="schedule-form-grid schedule-form-grid-cron"><label>qBittorrent<select v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label>Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><small>五段格式：分 时 日 月 周，例如 <code>0 2 * * *</code> 表示每日 02:00。</small></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
@@ -773,13 +769,10 @@ const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), s
 const operationLogs = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
-const logSourceFilter = ref('all');
 const logSearch = ref('');
-const logSourceOptions = [{ key: 'all', label: '全部' }, { key: 'manual', label: '手动' }, { key: 'schedule', label: '任务自动' }];
 const filteredOperationLogs = computed(() => {
   const keyword = logSearch.value.toLocaleLowerCase();
   return operationLogs.value.filter((entry) => {
-    if (logSourceFilter.value !== 'all' && entry.source !== logSourceFilter.value) return false;
     if (!keyword) return true;
     return [entry.taskName, entry.qbAlias, entry.target, entry.detail, entry.error, operationLogActionLabel(entry.action)].some((value) => String(value || '').toLocaleLowerCase().includes(keyword));
   });
@@ -1371,10 +1364,6 @@ async function loadOperationLogs() {
   } finally {
     logsLoading.value = false;
   }
-}
-
-function logSourceCount(source) {
-  return source === 'all' ? operationLogs.value.length : operationLogs.value.filter((entry) => entry.source === source).length;
 }
 
 function operationLogActionLabel(action) {
