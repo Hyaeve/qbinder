@@ -154,7 +154,7 @@
         <section v-if="schedules.length" class="schedule-list">
           <article v-for="schedule in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled }">
             <div class="schedule-card-accent"></div>
-            <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
+            <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><span class="schedule-qb-badge">{{ scheduleQbAlias(schedule.qbId) }}</span><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
             <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'"><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
             <div class="schedule-card-actions"><button class="icon-button" title="编辑" @click="openScheduleEditor(schedule)"><Settings /></button><button class="icon-button danger-icon" title="删除" @click="deleteSchedule(schedule)"><Trash2 /></button></div>
           </article>
@@ -607,7 +607,7 @@
       <form class="modal schedule-editor" @submit.prevent="saveSchedule">
         <header><div><p class="eyebrow">CRON AUTOMATION</p><h2>{{ scheduleEditor.id ? '编辑定时任务' : '新建定时任务' }}</h2></div><button type="button" class="icon-button" @click="closeScheduleEditor"><X /></button></header>
         <div class="schedule-form-grid"><label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label>执行操作<select v-model="scheduleEditor.action"><option value="start">开始</option><option value="forceStart">强制开始</option><option value="stop">停止</option><option value="delete">删除</option><option value="toggleAltSpeed">切换备用速度</option><option value="addURLs">添加种子链接</option></select></label></div>
-        <div class="schedule-form-grid schedule-form-grid-cron"><label>qBittorrent<select class="schedule-qb-select" v-model="scheduleEditor.qbId"><option v-for="account in config.qbittorrents" :key="account.id" :value="account.id">{{ account.alias }}</option></select></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><span class="schedule-cron-preview" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
+        <div class="schedule-form-grid schedule-form-grid-cron"><label>qBittorrent<div class="schedule-qb-picker"><button type="button" class="schedule-qb-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span>{{ config.qbittorrents.find((account) => account.id === scheduleEditor.qbId)?.alias || '请选择 qBittorrent' }}</span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-qb-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><Check v-if="account.id === scheduleEditor.qbId" /><span>{{ account.alias }}</span></button></div></div></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" /><span class="schedule-cron-preview" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
@@ -762,6 +762,7 @@ const schedules = ref([]);
 const scheduleError = ref('');
 const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron: '0 2 * * *', action: 'start', hashes: [], torrentUrls: '', torrentFiles: [], savePath: '', tags: [], deleteFiles: false, enabled: true, uploading: false, error: '' });
 const scheduleFileInput = ref(null);
+const scheduleQbMenuOpen = ref(false);
 const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
 const scheduleCronPreview = computed(() => nextCronExecutionPreview(scheduleEditor.cron));
@@ -1431,7 +1432,12 @@ async function openScheduleEditor(schedule = null) {
   if (requiresScheduleTargets.value && activeQb.value) await loadTasks();
 }
 
-function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; }
+function selectScheduleQb(id) {
+  scheduleEditor.qbId = id;
+  scheduleQbMenuOpen.value = false;
+}
+
+function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; scheduleQbMenuOpen.value = false; }
 
 async function saveSchedule() {
   const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron.replace(/\s+/g, ' ').trim(), action: scheduleEditor.action, hashes: scheduleEditor.hashes, statuses: scheduleFilter.status, filterTags: scheduleFilter.tags, torrentUrls: scheduleEditor.torrentUrls, torrentFiles: scheduleEditor.torrentFiles, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
@@ -1475,6 +1481,7 @@ async function deleteSchedule(schedule) {
 function toggleScheduleFilterValue(target, value) { const index = target.indexOf(value); if (index >= 0) target.splice(index, 1); else target.push(value); }
 function shortScheduleTaskName(value) { return String(value || ''); }
 function scheduleActionLabel(action) { return ({ start: '开始', forceStart: '强制开始', stop: '停止', delete: '删除', toggleAltSpeed: '切换备用速度', addURLs: '添加种子链接' })[action] || action; }
+function scheduleQbAlias(qbId) { return config.value?.qbittorrents?.find((account) => account.id === qbId)?.alias || '未知 qB 服务'; }
 function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; const dynamic = [...(schedule.statuses || []), ...(schedule.filterTags || [])].length; return dynamic ? `动态规则 + ${schedule.hashes?.length || 0} 个指定种子` : `${schedule.hashes?.length || 0} 个指定种子`; }
 function formatScheduleDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }); }
 
