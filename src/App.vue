@@ -166,20 +166,18 @@
     <div v-else-if="view === 'logs'" class="content operation-log-page">
       <header class="schedule-header operation-log-header">
         <div><p class="eyebrow">ACTIVITY</p><h1>操作日志</h1><p>记录定时任务与手动操作 qBittorrent 种子的执行情况。</p></div>
-        <button class="secondary-button" :disabled="logsLoading" @click="loadOperationLogs"><RefreshCw :class="{ spin: logsLoading }" />刷新</button>
+        <div class="operation-log-header-actions"><label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或种子名称" /></label><button class="secondary-button" :disabled="logsLoading" @click="loadOperationLogs"><RefreshCw :class="{ spin: logsLoading }" />刷新</button></div>
       </header>
-      <div class="operation-log-toolbar">
-        <label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或目标" /></label>
-      </div>
       <p v-if="logsError" class="form-error">{{ logsError }}</p>
       <section v-if="filteredOperationLogs.length" class="operation-log-list">
-        <article v-for="entry in filteredOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`]">
+        <article v-for="entry in filteredOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`, { expanded: expandedLogIds.includes(entry.id), expandable: entry.torrentNames?.length }]" :tabindex="entry.torrentNames?.length ? 0 : undefined" @click="toggleOperationLog(entry)" @keydown.enter.prevent="toggleOperationLog(entry)" @keydown.space.prevent="toggleOperationLog(entry)">
           <div class="operation-log-marker"><CheckCircle2 v-if="entry.status === 'success'" /><X v-else /></div>
           <div class="operation-log-main">
             <div class="operation-log-title"><span class="operation-log-source">{{ entry.source === 'schedule' ? '任务自动' : '手动操作' }}</span><strong>{{ operationLogActionLabel(entry.action) }}</strong><span class="operation-log-status">{{ entry.status === 'success' ? '成功' : '失败' }}</span></div>
             <p><b v-if="entry.taskName">{{ entry.taskName }}</b><span>{{ entry.target || '—' }}</span><em v-if="entry.detail">{{ entry.detail }}</em></p>
-            <small><span>{{ entry.qbAlias || '未知 qB 服务' }}</span><time>{{ formatScheduleDate(entry.createdAt) }}</time><span v-if="entry.count">{{ entry.count }} 个种子</span></small>
+            <small><span>{{ entry.qbAlias || '未知 qB 服务' }}</span><time>{{ formatScheduleDate(entry.createdAt) }}</time><span v-if="entry.count">{{ entry.count }} 个种子</span><span v-if="entry.torrentNames?.length" class="operation-log-expand-hint">{{ expandedLogIds.includes(entry.id) ? '收起明细' : '展开种子明细' }}<ChevronDown /></span></small>
             <div v-if="entry.error" class="operation-log-error">{{ entry.error }}</div>
+            <div v-if="entry.torrentNames?.length && expandedLogIds.includes(entry.id)" class="operation-log-details"><strong>操作种子</strong><ol><li v-for="(name, index) in entry.torrentNames" :key="`${entry.id}-${index}`"><span>{{ name }}</span></li></ol></div>
           </div>
         </article>
       </section>
@@ -768,6 +766,7 @@ const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
 const scheduleCronPreview = computed(() => nextCronExecutionPreview(scheduleEditor.cron));
 const operationLogs = ref([]);
+const expandedLogIds = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
 const logSearch = ref('');
@@ -775,7 +774,7 @@ const filteredOperationLogs = computed(() => {
   const keyword = logSearch.value.toLocaleLowerCase();
   return operationLogs.value.filter((entry) => {
     if (!keyword) return true;
-    return [entry.taskName, entry.qbAlias, entry.target, entry.detail, entry.error, operationLogActionLabel(entry.action)].some((value) => String(value || '').toLocaleLowerCase().includes(keyword));
+    return [entry.taskName, entry.qbAlias, entry.target, entry.detail, entry.error, ...(entry.torrentNames || []), operationLogActionLabel(entry.action)].some((value) => String(value || '').toLocaleLowerCase().includes(keyword));
   });
 });
 
@@ -1365,6 +1364,11 @@ async function loadOperationLogs() {
   } finally {
     logsLoading.value = false;
   }
+}
+
+function toggleOperationLog(entry) {
+  if (!entry.torrentNames?.length) return;
+  expandedLogIds.value = expandedLogIds.value.includes(entry.id) ? expandedLogIds.value.filter((id) => id !== entry.id) : [...expandedLogIds.value, entry.id];
 }
 
 function operationLogActionLabel(action) {

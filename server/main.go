@@ -101,19 +101,20 @@ type Schedule struct {
 }
 
 type OperationLog struct {
-	ID         string `json:"id"`
-	Source     string `json:"source"`
-	Status     string `json:"status"`
-	Action     string `json:"action"`
-	QBID       string `json:"qbId"`
-	QBAlias    string `json:"qbAlias"`
-	ScheduleID string `json:"scheduleId,omitempty"`
-	TaskName   string `json:"taskName,omitempty"`
-	Target     string `json:"target"`
-	Count      int    `json:"count,omitempty"`
-	Detail     string `json:"detail,omitempty"`
-	Error      string `json:"error,omitempty"`
-	CreatedAt  string `json:"createdAt"`
+	ID           string   `json:"id"`
+	Source       string   `json:"source"`
+	Status       string   `json:"status"`
+	Action       string   `json:"action"`
+	QBID         string   `json:"qbId"`
+	QBAlias      string   `json:"qbAlias"`
+	ScheduleID   string   `json:"scheduleId,omitempty"`
+	TaskName     string   `json:"taskName,omitempty"`
+	Target       string   `json:"target"`
+	Count        int      `json:"count,omitempty"`
+	TorrentNames []string `json:"torrentNames,omitempty"`
+	Detail       string   `json:"detail,omitempty"`
+	Error        string   `json:"error,omitempty"`
+	CreatedAt    string   `json:"createdAt"`
 }
 
 type Config struct {
@@ -747,9 +748,9 @@ func (s *Server) runScheduleLoop() {
 				continue
 			}
 			schedule.LastRunAt, schedule.LastError = now.Format(time.RFC3339), ""
-			executionError := s.executeSchedule(*schedule, config.QBittorrents)
+			torrentNames, executionError := s.executeSchedule(*schedule, config.QBittorrents)
 			account, _ := findQB(config.QBittorrents, schedule.QBID)
-			entry := OperationLog{Source: "schedule", Status: "success", Action: schedule.Action, QBID: schedule.QBID, QBAlias: account.Alias, ScheduleID: schedule.ID, TaskName: schedule.Name, Target: scheduleLogTarget(*schedule), Count: len(schedule.Hashes)}
+			entry := OperationLog{Source: "schedule", Status: "success", Action: schedule.Action, QBID: schedule.QBID, QBAlias: account.Alias, ScheduleID: schedule.ID, TaskName: schedule.Name, Target: scheduleLogTarget(*schedule), Count: len(torrentNames), TorrentNames: torrentNames}
 			if executionError != nil {
 				schedule.LastError = executionError.Error()
 				entry.Status, entry.Error = "failed", executionError.Error()
@@ -786,21 +787,21 @@ func scheduleLogTarget(schedule Schedule) string {
 	return strings.Join(parts, "；")
 }
 
-func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error {
+func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) ([]string, error) {
 	account, ok := findQB(accounts, schedule.QBID)
 	if !ok {
-		return errors.New("qBittorrent 账户不存在")
+		return nil, errors.New("qBittorrent 账户不存在")
 	}
 	baseURL, cookie, err := loginQB(account)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if schedule.Action == "toggleAltSpeed" {
-		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
+		return nil, postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
 	}
 	if schedule.Action == "addURLs" {
 		if len(schedule.TorrentFiles) > 0 {
-			return s.addScheduledTorrentFiles(context.Background(), baseURL, cookie, schedule)
+			return nil, s.addScheduledTorrentFiles(context.Background(), baseURL, cookie, schedule)
 		}
 		form := url.Values{"urls": {schedule.TorrentURLs}}
 		if schedule.SavePath != "" {
@@ -809,19 +810,20 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error 
 		if len(schedule.Tags) > 0 {
 			form.Set("tags", strings.Join(schedule.Tags, ","))
 		}
-		return postQBForm(context.Background(), baseURL, cookie, "/api/v2/torrents/add", form)
+		return nil, postQBForm(context.Background(), baseURL, cookie, "/api/v2/torrents/add", form)
 	}
 	hashes := append([]string{}, schedule.Hashes...)
 	if len(schedule.Statuses) > 0 || len(schedule.FilterTags) > 0 {
 		dynamic, err := matchingScheduledTorrentHashes(context.Background(), baseURL, cookie, schedule)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		hashes = mergeUniqueStrings(hashes, dynamic)
 	}
 	if len(hashes) == 0 {
-		return errors.New("执行时没有匹配到种子")
+		return nil, errors.New("执行时没有匹配到种子")
 	}
+	torrentNames, _ := torrentNamesByHashes(context.Background(), baseURL, cookie, hashes)
 	endpoint := map[string]string{"start": "/api/v2/torrents/start", "forceStart": "/api/v2/torrents/setForceStart", "stop": "/api/v2/torrents/stop", "delete": "/api/v2/torrents/delete"}[schedule.Action]
 	form := url.Values{"hashes": {strings.Join(hashes, "|")}}
 	if schedule.Action == "forceStart" {
@@ -830,7 +832,7 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) error 
 	if schedule.Action == "delete" {
 		form.Set("deleteFiles", strconv.FormatBool(schedule.DeleteFiles))
 	}
-	return postQBForm(context.Background(), baseURL, cookie, endpoint, form)
+	return torrentNames, postQBForm(context.Background(), baseURL, cookie, endpoint, form)
 }
 
 func (s *Server) uploadScheduleFiles(w http.ResponseWriter, r *http.Request) {
@@ -920,6 +922,43 @@ func (s *Server) addScheduledTorrentFiles(ctx context.Context, baseURL, cookie s
 		return fmt.Errorf("qBittorrent 添加种子失败: %d", response.StatusCode)
 	}
 	return nil
+}
+
+func torrentNamesByHashes(ctx context.Context, baseURL, cookie string, hashes []string) ([]string, error) {
+	if len(hashes) == 0 {
+		return []string{}, nil
+	}
+	query := url.Values{"hashes": {strings.Join(hashes, "|")}}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v2/torrents/info?"+query.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("读取 qBittorrent 种子名称失败: %d", response.StatusCode)
+	}
+	var torrents []torrentTask
+	if err := json.NewDecoder(io.LimitReader(response.Body, maxTorrentListSize)).Decode(&torrents); err != nil {
+		return nil, err
+	}
+	byHash := make(map[string]string, len(torrents))
+	for _, torrent := range torrents {
+		byHash[strings.ToLower(torrent.Hash)] = torrent.Name
+	}
+	names := make([]string, 0, len(hashes))
+	for _, hash := range hashes {
+		if name := strings.TrimSpace(byHash[strings.ToLower(hash)]); name != "" {
+			names = append(names, name)
+		} else {
+			names = append(names, hash)
+		}
+	}
+	return names, nil
 }
 
 func matchingScheduledTorrentHashes(ctx context.Context, baseURL, cookie string, schedule Schedule) ([]string, error) {
@@ -1452,6 +1491,7 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 			writeError(w, http.StatusBadGateway, err)
 			return
 		}
+		torrentNames, _ := torrentNamesByHashes(r.Context(), baseURL, cookie, payload.Hashes)
 		if len(payload.ExistingTags) > 0 {
 			form.Set("tags", strings.Join(payload.ExistingTags, ","))
 			if err := postQBForm(r.Context(), baseURL, cookie, "/api/v2/torrents/removeTags", form); err != nil {
@@ -1466,7 +1506,9 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 				return
 			}
 		}
-		s.appendOperationLog(manualOperationLog(account, payload.Action, payload))
+		entry := manualOperationLog(account, payload.Action, payload)
+		entry.TorrentNames = torrentNames
+		s.appendOperationLog(entry)
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	case "setUploadLimit":
@@ -1486,6 +1528,7 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
+	torrentNames, _ := torrentNamesByHashes(r.Context(), baseURL, cookie, payload.Hashes)
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -1504,7 +1547,9 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent torrent action failed: %d", response.StatusCode))
 		return
 	}
-	s.appendOperationLog(manualOperationLog(account, payload.Action, payload))
+	entry := manualOperationLog(account, payload.Action, payload)
+	entry.TorrentNames = torrentNames
+	s.appendOperationLog(entry)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -1986,7 +2031,11 @@ func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Confi
 		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent add torrents failed: %d %s", response.StatusCode, strings.TrimSpace(string(message))))
 		return
 	}
-	s.appendOperationLog(OperationLog{Source: "manual", Status: "success", Action: "addURLs", QBID: account.ID, QBAlias: account.Alias, Target: fmt.Sprintf("通过卡片“%s”添加种子", card.Name), Count: len(files), Detail: "保存路径：" + card.SavePath})
+	fileNames := make([]string, 0, len(files))
+	for _, file := range files {
+		fileNames = append(fileNames, strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
+	}
+	s.appendOperationLog(OperationLog{Source: "manual", Status: "success", Action: "addURLs", QBID: account.ID, QBAlias: account.Alias, Target: fmt.Sprintf("通过卡片“%s”添加种子", card.Name), Count: len(files), TorrentNames: fileNames, Detail: "保存路径：" + card.SavePath})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(files)})
 }
 
