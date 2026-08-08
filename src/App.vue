@@ -152,7 +152,7 @@
         </header>
         <p v-if="scheduleError" class="form-error">{{ scheduleError }}</p>
         <section v-if="schedules.length" class="schedule-list">
-          <article v-for="schedule in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled }">
+          <article v-for="(schedule, scheduleIndex) in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled, dragging: draggingScheduleId === schedule.id, 'drag-over': scheduleDropIndex === scheduleIndex && draggingScheduleId !== schedule.id }" draggable="true" @dragstart="startScheduleDrag(schedule.id, $event)" @dragover.prevent="scheduleDropIndex = scheduleIndex" @dragleave="clearScheduleDrop(scheduleIndex)" @drop.prevent="dropSchedule(scheduleIndex)" @dragend="endScheduleDrag">
             <div class="schedule-card-accent"></div>
             <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><span class="schedule-qb-badge">{{ scheduleQbAlias(schedule.qbId) }}</span><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
             <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'"><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
@@ -397,7 +397,7 @@
             <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
           </div>
           <div class="card-row">
-            <article v-for="card in cardsForLane(lane.id)" :key="card.id" class="binder-card" :style="coverStyle(card)" @contextmenu.prevent="editingCard = cloneCard(card)">
+            <article v-for="(card, cardIndex) in cardsForLane(lane.id)" :key="card.id" class="binder-card" :class="{ dragging: draggingCardId === card.id, 'drag-over': cardDropTargetId === card.id && draggingCardId !== card.id }" :style="coverStyle(card)" draggable="true" @dragstart="startCardDrag(card, $event)" @dragover.prevent.stop="cardDropTargetId = card.id" @dragleave.stop="clearCardDrop(card.id)" @drop.prevent.stop="dropCard(lane.id, cardIndex)" @dragend="endCardDrag" @contextmenu.prevent="editingCard = cloneCard(card)">
               <input :ref="setFileInput(card.id)" type="file" multiple accept=".torrent,application/x-bittorrent" hidden @change="uploadFiles(card, $event)" />
               <div class="card-content">
                 <FolderDown />
@@ -718,6 +718,9 @@ const editingLaneId = ref('');
 const editingLaneName = ref('');
 const committingLaneEdit = ref(false);
 const draggingLaneId = ref('');
+const draggingCardId = ref('');
+const draggingCardLaneId = ref('');
+const cardDropTargetId = ref('');
 const laneInputs = reactive({});
 const backupFileInput = ref(null);
 const backupBusy = ref(false);
@@ -760,6 +763,8 @@ let taskRefreshTimer = null;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const schedules = ref([]);
 const scheduleError = ref('');
+const draggingScheduleId = ref('');
+const scheduleDropIndex = ref(-1);
 const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron: '0 2 * * *', action: 'start', hashes: [], torrentUrls: '', torrentFiles: [], savePath: '', tags: [], deleteFiles: false, enabled: true, uploading: false, error: '' });
 const scheduleFileInput = ref(null);
 const scheduleQbMenuOpen = ref(false);
@@ -1176,6 +1181,46 @@ async function dropLane(targetIndex) {
   config.value = await api(`/api/lanes/${sourceId}`, { method: 'PUT', body: JSON.stringify({ targetIndex }) });
 }
 
+function startCardDrag(card, event) {
+  draggingCardId.value = card.id;
+  draggingCardLaneId.value = card.laneId;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', card.id);
+}
+
+function clearCardDrop(id) {
+  if (cardDropTargetId.value === id) cardDropTargetId.value = '';
+}
+
+function endCardDrag() {
+  draggingCardId.value = '';
+  draggingCardLaneId.value = '';
+  cardDropTargetId.value = '';
+}
+
+async function dropCard(laneId, targetIndex) {
+  const sourceId = draggingCardId.value;
+  const sourceLaneId = draggingCardLaneId.value;
+  if (!sourceId || sourceLaneId !== laneId) {
+    endCardDrag();
+    return;
+  }
+  const laneCards = cardsForLane(laneId);
+  const sourceIndex = laneCards.findIndex((card) => card.id === sourceId);
+  endCardDrag();
+  if (sourceIndex < 0 || sourceIndex === targetIndex) return;
+  const reorderedLaneCards = [...laneCards];
+  const [moved] = reorderedLaneCards.splice(sourceIndex, 1);
+  reorderedLaneCards.splice(targetIndex, 0, moved);
+  let lanePosition = 0;
+  const reorderedCards = config.value.cards.map((card) => card.laneId === laneId ? reorderedLaneCards[lanePosition++] : card);
+  try {
+    config.value = await api('/api/cards/reorder', { method: 'PUT', body: JSON.stringify({ ids: reorderedCards.map((card) => card.id) }) });
+  } catch (requestError) {
+    showUploadNotice(requestError.message || '卡片排序保存失败', 'error');
+  }
+}
+
 async function createCard(laneId) {
   const next = await api('/api/cards', { method: 'POST', body: JSON.stringify({ qbId: activeQb.value.id, laneId, name: '新卡片', tags: [], cover: { type: 'monet', value: '' } }) });
   config.value = next;
@@ -1412,6 +1457,39 @@ function nextCronExecutionPreview(expression) {
   }
   if (!result.length) return '未来两年内没有匹配的执行时间';
   return `接下来三次执行\n${result.map((date, index) => `${index + 1}. ${date.toLocaleString('zh-CN', { hour12: false })}`).join('\n')}`;
+}
+
+function startScheduleDrag(id, event) {
+  draggingScheduleId.value = id;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', id);
+}
+
+function clearScheduleDrop(index) {
+  if (scheduleDropIndex.value === index) scheduleDropIndex.value = -1;
+}
+
+function endScheduleDrag() {
+  draggingScheduleId.value = '';
+  scheduleDropIndex.value = -1;
+}
+
+async function dropSchedule(targetIndex) {
+  const sourceId = draggingScheduleId.value;
+  const sourceIndex = schedules.value.findIndex((schedule) => schedule.id === sourceId);
+  endScheduleDrag();
+  if (sourceIndex < 0 || sourceIndex === targetIndex) return;
+  const reordered = [...schedules.value];
+  const [moved] = reordered.splice(sourceIndex, 1);
+  reordered.splice(targetIndex, 0, moved);
+  schedules.value = reordered;
+  try {
+    const response = await api('/api/schedules/reorder', { method: 'PUT', body: JSON.stringify({ ids: reordered.map((schedule) => schedule.id) }) });
+    schedules.value = response.schedules || [];
+  } catch (requestError) {
+    scheduleError.value = requestError.message || '任务排序保存失败';
+    await loadSchedules();
+  }
 }
 
 async function loadSchedules() {

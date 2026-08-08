@@ -664,6 +664,8 @@ select:focus {
 
 .binder-card {
   position: relative;
+  cursor: grab;
+  transition: opacity .18s ease, transform .18s ease, box-shadow .18s ease;
   aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: 22px;
@@ -3798,6 +3800,18 @@ select:focus {
 .operation-log-empty svg { width: 42px; height: 42px; color: #98aaa6; }
 .operation-log-empty h2 { margin: 14px 0 4px; color: #627675; }
 .operation-log-empty p { margin: 0; }
+
+.schedule-card,
+.binder-card {
+  cursor: grab;
+  transition: opacity .18s ease, transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.schedule-card:active,
+.binder-card:active { cursor: grabbing; }
+.schedule-card.dragging,
+.binder-card.dragging { opacity: .48; transform: scale(.985); box-shadow: 0 5px 14px rgba(60, 91, 92, .08); }
+.schedule-card.drag-over,
+.binder-card.drag-over { border-color: #83afa5; box-shadow: 0 0 0 3px rgba(126, 169, 157, .2), 0 14px 30px rgba(60, 91, 92, .1); transform: translateY(-2px); }
 @media (max-width: 720px) {
   .operation-log-page { padding: 20px 36px 56px; }
   .operation-log-header { min-height: 0; }

@@ -630,6 +630,26 @@ func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request, config 
 
 func (s *Server) handleScheduleSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
 	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/schedules/"), "/")
+	if id == "reorder" && r.Method == http.MethodPut {
+		var payload struct {
+			IDs []string `json:"ids"`
+		}
+		if !decodeJSON(w, r, &payload) {
+			return
+		}
+		ordered, err := reorderSchedules(config.Schedules, payload.IDs)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		config.Schedules = ordered
+		if err := s.writeConfig(config); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"schedules": config.Schedules})
+		return
+	}
 	if id == "upload" && r.Method == http.MethodPost {
 		s.uploadScheduleFiles(w, r)
 		return
@@ -751,6 +771,9 @@ func (s *Server) runScheduleLoop() {
 			torrentNames, executionError := s.executeSchedule(*schedule, config.QBittorrents)
 			account, _ := findQB(config.QBittorrents, schedule.QBID)
 			entry := OperationLog{Source: "schedule", Status: "success", Action: schedule.Action, QBID: schedule.QBID, QBAlias: account.Alias, ScheduleID: schedule.ID, TaskName: schedule.Name, Target: scheduleLogTarget(*schedule), Count: len(torrentNames), TorrentNames: torrentNames}
+			if executionError == nil && requiresScheduleTorrentMatch(*schedule) && len(torrentNames) == 0 {
+				entry.Detail = "执行时无匹配种子，本次未执行操作"
+			}
 			if executionError != nil {
 				schedule.LastError = executionError.Error()
 				entry.Status, entry.Error = "failed", executionError.Error()
@@ -821,7 +844,7 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) ([]str
 		hashes = mergeUniqueStrings(hashes, dynamic)
 	}
 	if len(hashes) == 0 {
-		return nil, errors.New("执行时没有匹配到种子")
+		return []string{}, nil
 	}
 	torrentNames, _ := torrentNamesByHashes(context.Background(), baseURL, cookie, hashes)
 	endpoint := map[string]string{"start": "/api/v2/torrents/start", "forceStart": "/api/v2/torrents/setForceStart", "stop": "/api/v2/torrents/stop", "delete": "/api/v2/torrents/delete"}[schedule.Action]
@@ -1863,6 +1886,26 @@ func (s *Server) handleCards(w http.ResponseWriter, r *http.Request, config Conf
 
 func (s *Server) handleCardSubroutes(w http.ResponseWriter, r *http.Request, config Config, session Session) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/cards/"), "/")
+	if len(parts) == 1 && parts[0] == "reorder" && r.Method == http.MethodPut {
+		var payload struct {
+			IDs []string `json:"ids"`
+		}
+		if !decodeJSON(w, r, &payload) {
+			return
+		}
+		ordered, err := reorderCards(config.Cards, payload.IDs)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		config.Cards = ordered
+		if err := s.writeConfig(config); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, publicConfig(config))
+		return
+	}
 	if len(parts) == 1 && r.Method == http.MethodPut {
 		s.updateCard(w, r, config, parts[0])
 		return
@@ -1879,13 +1922,26 @@ func (s *Server) handleCardSubroutes(w http.ResponseWriter, r *http.Request, con
 }
 
 func (s *Server) updateCard(w http.ResponseWriter, r *http.Request, config Config, id string) {
-	var payload Card
+	var payload struct {
+		Card
+		TargetIndex *int `json:"targetIndex"`
+	}
 	if !decodeJSON(w, r, &payload) {
 		return
 	}
 	for index := range config.Cards {
 		if config.Cards[index].ID == id {
 			config.Cards[index].Name = fallback(payload.Name, config.Cards[index].Name)
+			if payload.TargetIndex != nil {
+				laneID := config.Cards[index].LaneID
+				laneCards := cardsInLane(config.Cards, laneID)
+				cardIndex := indexInCardIDs(laneCards, id)
+				if cardIndex < 0 || *payload.TargetIndex < 0 || *payload.TargetIndex >= len(laneCards) {
+					writeErrorText(w, http.StatusBadRequest, "Invalid card target index")
+					return
+				}
+				config.Cards = moveCardInLane(config.Cards, index, laneID, *payload.TargetIndex)
+			}
 			config.Cards[index].SavePath = payload.SavePath
 			if payload.Tags != nil {
 				config.Cards[index].Tags = payload.Tags
@@ -2422,6 +2478,91 @@ func findLaneIndex(lanes []Lane, id string) int {
 		}
 	}
 	return -1
+}
+
+func reorderSchedules(items []Schedule, ids []string) ([]Schedule, error) {
+	if len(items) != len(ids) {
+		return nil, errors.New("任务排序数据不完整")
+	}
+	byID := make(map[string]Schedule, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	result := make([]Schedule, 0, len(items))
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		item, ok := byID[id]
+		if !ok || seen[id] {
+			return nil, errors.New("任务排序数据无效")
+		}
+		seen[id] = true
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func reorderCards(items []Card, ids []string) ([]Card, error) {
+	if len(items) != len(ids) {
+		return nil, errors.New("卡片排序数据不完整")
+	}
+	byID := make(map[string]Card, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	result := make([]Card, 0, len(items))
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		item, ok := byID[id]
+		if !ok || seen[id] {
+			return nil, errors.New("卡片排序数据无效")
+		}
+		seen[id] = true
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func requiresScheduleTorrentMatch(schedule Schedule) bool {
+	return schedule.Action == "start" || schedule.Action == "forceStart" || schedule.Action == "stop" || schedule.Action == "delete"
+}
+
+func cardsInLane(cards []Card, laneID string) []Card {
+	result := make([]Card, 0)
+	for _, card := range cards {
+		if card.LaneID == laneID {
+			result = append(result, card)
+		}
+	}
+	return result
+}
+
+func indexInCardIDs(cards []Card, id string) int {
+	for index, card := range cards {
+		if card.ID == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func moveCardInLane(cards []Card, sourceIndex int, laneID string, targetIndex int) []Card {
+	ordered := cardsInLane(cards, laneID)
+	item := ordered[indexInCardIDs(ordered, cards[sourceIndex].ID)]
+	ordered = append(ordered[:indexInCardIDs(ordered, item.ID)], ordered[indexInCardIDs(ordered, item.ID)+1:]...)
+	ordered = append(ordered, Card{})
+	copy(ordered[targetIndex+1:], ordered[targetIndex:])
+	ordered[targetIndex] = item
+	result := make([]Card, 0, len(cards))
+	lanePosition := 0
+	for _, card := range cards {
+		if card.LaneID == laneID {
+			result = append(result, ordered[lanePosition])
+			lanePosition++
+		} else {
+			result = append(result, card)
+		}
+	}
+	return result
 }
 
 func moveLaneByDirection(lanes []Lane, laneIndex int, step int) []Lane {
