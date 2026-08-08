@@ -24,7 +24,7 @@
       <div class="sidebar-top">
         <div class="brand-lockup">
           <img src="/reference.png" alt="qBinder" />
-          <div><strong>qBinder</strong><span>v1.0</span></div>
+          <div><strong>qBinder</strong></div>
         </div>
       </div>
       <nav>
@@ -153,7 +153,7 @@
         <p v-if="scheduleError" class="form-error">{{ scheduleError }}</p>
         <section v-if="schedules.length" class="schedule-list">
           <article v-for="(schedule, scheduleIndex) in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled, dragging: draggingScheduleId === schedule.id, 'drag-over': scheduleDropIndex === scheduleIndex && draggingScheduleId !== schedule.id }" draggable="true" @dragstart="startScheduleDrag(schedule.id, $event)" @dragover.prevent="scheduleDropIndex = scheduleIndex" @dragleave="clearScheduleDrop(scheduleIndex)" @drop.prevent="dropSchedule(scheduleIndex)" @dragend="endScheduleDrag">
-            <div class="schedule-card-accent"></div>
+            <div class="schedule-card-accent" :style="{ backgroundColor: scheduleAccentColor(schedule.id) }"></div>
             <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><span class="schedule-qb-badge">{{ scheduleQbAlias(schedule.qbId) }}</span><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
             <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'"><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
             <div class="schedule-card-actions"><button class="secondary-button schedule-run-button" :disabled="executingScheduleId === schedule.id" title="立即执行" @click.stop="runScheduleNow(schedule)"><Loader2 v-if="executingScheduleId === schedule.id" class="spin" /><Play v-else />{{ executingScheduleId === schedule.id ? '执行中' : '立即执行' }}</button><button class="icon-button" title="编辑" @click.stop="openScheduleEditor(schedule)"><Settings /></button><button class="icon-button danger-icon" title="删除" @click.stop="deleteSchedule(schedule)"><Trash2 /></button></div>
@@ -692,6 +692,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
 const accentColors = ['#7d8fd7', '#8eb7a4', '#d0a49b', '#bfa6d9', '#d7bc76', '#8fb7c8', '#c6b4a4'];
+const scheduleAccentColors = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
 
 const loading = ref(true);
 const busy = ref(false);
@@ -1577,6 +1578,7 @@ function toggleScheduleFilterValue(target, value) { const index = target.indexOf
 function shortScheduleTaskName(value) { return String(value || ''); }
 function scheduleActionLabel(action) { return ({ start: '开始', forceStart: '强制开始', stop: '停止', delete: '删除', toggleAltSpeed: '切换备用速度', addURLs: '添加种子链接' })[action] || action; }
 function scheduleQbAlias(qbId) { return config.value?.qbittorrents?.find((account) => account.id === qbId)?.alias || '未知 qB 服务'; }
+function scheduleAccentColor(id) { return pickColor(id, scheduleAccentColors); }
 function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; const dynamic = [...(schedule.statuses || []), ...(schedule.filterTags || [])].length; return dynamic ? `动态规则 + ${schedule.hashes?.length || 0} 个指定种子` : `${schedule.hashes?.length || 0} 个指定种子`; }
 function formatScheduleDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }); }
 
