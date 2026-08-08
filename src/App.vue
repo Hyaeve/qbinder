@@ -156,7 +156,7 @@
             <div class="schedule-card-accent"></div>
             <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><span class="schedule-qb-badge">{{ scheduleQbAlias(schedule.qbId) }}</span><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
             <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'"><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
-            <div class="schedule-card-actions"><button class="icon-button" title="编辑" @click="openScheduleEditor(schedule)"><Settings /></button><button class="icon-button danger-icon" title="删除" @click="deleteSchedule(schedule)"><Trash2 /></button></div>
+            <div class="schedule-card-actions"><button class="secondary-button schedule-run-button" :disabled="executingScheduleId === schedule.id" title="立即执行" @click.stop="runScheduleNow(schedule)"><Loader2 v-if="executingScheduleId === schedule.id" class="spin" /><Play v-else />{{ executingScheduleId === schedule.id ? '执行中' : '立即执行' }}</button><button class="icon-button" title="编辑" @click.stop="openScheduleEditor(schedule)"><Settings /></button><button class="icon-button danger-icon" title="删除" @click.stop="deleteSchedule(schedule)"><Trash2 /></button></div>
           </article>
         </section>
         <section v-else class="schedule-empty"><Gauge /><h2>还没有定时任务</h2><p>新建任务可定时添加种子、操作已有种子，或切换备用速度。</p><button class="secondary-button" @click="openScheduleEditor()"><Plus />创建第一个任务</button></section>
@@ -669,6 +669,7 @@ import {
   Layers,
   Loader2,
   LogOut,
+  Play,
   Plus,
   Check,
   Save,
@@ -765,6 +766,7 @@ const schedules = ref([]);
 const scheduleError = ref('');
 const draggingScheduleId = ref('');
 const scheduleDropIndex = ref(-1);
+const executingScheduleId = ref('');
 const scheduleEditor = reactive({ open: false, id: '', name: '', qbId: '', cron: '0 2 * * *', action: 'start', hashes: [], torrentUrls: '', torrentFiles: [], savePath: '', tags: [], deleteFiles: false, enabled: true, uploading: false, error: '' });
 const scheduleFileInput = ref(null);
 const scheduleQbMenuOpen = ref(false);
@@ -1546,6 +1548,21 @@ async function toggleSchedule(schedule) {
     const response = await api(`/api/schedules/${schedule.id}`, { method: 'PUT', body: JSON.stringify({ ...schedule, enabled: !schedule.enabled }) });
     schedules.value = Array.isArray(response.schedules) ? response.schedules : schedules.value;
   } catch (requestError) { scheduleError.value = requestError.message || '更新任务状态失败'; }
+}
+
+async function runScheduleNow(schedule) {
+  if (executingScheduleId.value) return;
+  executingScheduleId.value = schedule.id;
+  scheduleError.value = '';
+  try {
+    const response = await api(`/api/schedules/${schedule.id}/run`, { method: 'POST' });
+    if (Array.isArray(response.schedules)) schedules.value = response.schedules;
+    scheduleError.value = response.ok ? '' : (response.error || '任务执行失败');
+  } catch (requestError) {
+    scheduleError.value = requestError.message || '立即执行任务失败';
+  } finally {
+    executingScheduleId.value = '';
+  }
 }
 
 async function deleteSchedule(schedule) {

@@ -3801,6 +3801,18 @@ select:focus {
 .operation-log-empty h2 { margin: 14px 0 4px; color: #627675; }
 .operation-log-empty p { margin: 0; }
 
+.schedule-run-button {
+  box-sizing: border-box;
+  min-width: 96px;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-color: #bfd3ce;
+  color: #58756f;
+  background: linear-gradient(135deg, #eef6f3, #f3eee6);
+  font-size: 12px;
+}
+.schedule-run-button svg { width: 15px; height: 15px; }
+
 .schedule-card,
 .binder-card {
   cursor: grab;

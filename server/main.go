@@ -654,6 +654,10 @@ func (s *Server) handleScheduleSubroutes(w http.ResponseWriter, r *http.Request,
 		s.uploadScheduleFiles(w, r)
 		return
 	}
+	if strings.HasSuffix(id, "/run") && r.Method == http.MethodPost {
+		s.runScheduleNow(w, config, strings.TrimSuffix(id, "/run"))
+		return
+	}
 	if id == "" || strings.Contains(id, "/") {
 		writeErrorText(w, http.StatusNotFound, "Not found")
 		return
@@ -693,6 +697,40 @@ func (s *Server) handleScheduleSubroutes(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"schedules": config.Schedules})
+}
+
+func (s *Server) runScheduleNow(w http.ResponseWriter, config Config, id string) {
+	index := -1
+	for i := range config.Schedules {
+		if config.Schedules[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		writeErrorText(w, http.StatusNotFound, "定时任务不存在")
+		return
+	}
+
+	now := time.Now()
+	schedule := &config.Schedules[index]
+	schedule.LastRunAt, schedule.LastError = now.Format(time.RFC3339), ""
+	torrentNames, executionError := s.executeSchedule(*schedule, config.QBittorrents)
+	account, _ := findQB(config.QBittorrents, schedule.QBID)
+	entry := OperationLog{Source: "schedule", Status: "success", Action: schedule.Action, QBID: schedule.QBID, QBAlias: account.Alias, ScheduleID: schedule.ID, TaskName: schedule.Name, Target: scheduleLogTarget(*schedule), Count: len(torrentNames), TorrentNames: torrentNames, Detail: "手动立即执行"}
+	if executionError == nil && requiresScheduleTorrentMatch(*schedule) && len(torrentNames) == 0 {
+		entry.Detail = "手动立即执行；执行时无匹配种子，本次未执行操作"
+	}
+	if executionError != nil {
+		schedule.LastError = executionError.Error()
+		entry.Status, entry.Error = "failed", executionError.Error()
+	}
+	s.appendOperationLog(entry)
+	if err := s.writeConfig(config); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": executionError == nil, "error": schedule.LastError, "count": len(torrentNames), "schedules": config.Schedules})
 }
 
 func validateSchedule(schedule Schedule, accounts []QBAccount) error {
