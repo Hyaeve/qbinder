@@ -185,16 +185,18 @@
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div><strong>{{ formatBytes(chart.total) }}</strong></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
-            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}分类图`">
-              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color">
-                <title>{{ item.name }} · {{ formatBytes(item.bytes) }} · {{ item.percent }}%</title>
-              </path>
+            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}分类图`" @pointerleave="hideTrafficTooltip">
+              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event)" @pointermove="moveTrafficTooltip($event)" />
             </svg>
             <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span><b>{{ formatBytes(item.bytes) }}</b><small>{{ item.percent }}%</small></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
       </section>
+      <div v-if="trafficTooltip.visible" class="traffic-pie-tooltip" :style="{ left: `${trafficTooltip.x}px`, top: `${trafficTooltip.y}px` }" role="status">
+        <span class="traffic-pie-tooltip-swatch" :style="{ backgroundColor: trafficTooltip.color }"></span>
+        <div><strong>{{ trafficTooltip.name }}</strong><small>{{ formatBytes(trafficTooltip.bytes) }} · {{ trafficTooltip.percent }}%</small></div>
+      </div>
     </div>
 
     <div v-else-if="view === 'logs'" class="content operation-log-page">
@@ -817,6 +819,7 @@ const trafficRange = ref('1d');
 const trafficStats = ref({ range: '1d', summary: { uploaded: 0, downloaded: 0, seedingCount: 0, seedingSize: 0 }, uploadByTracker: [], downloadByTracker: [], hasHistory: false });
 const trafficLoading = ref(false);
 const trafficError = ref('');
+const trafficTooltip = reactive({ visible: false, name: '', bytes: 0, percent: '0.0', color: '', x: 0, y: 0 });
 const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '3d', label: '近 3 天' }, { value: '7d', label: '近 1 周' }];
 const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
 const trafficColorSeed = Math.random().toString(36).slice(2);
@@ -1468,6 +1471,22 @@ async function loadTrafficStats(showNotice = false) {
   } finally {
     trafficLoading.value = false;
   }
+}
+
+function moveTrafficTooltip(event) {
+  const width = 190;
+  const height = 66;
+  trafficTooltip.x = Math.min(event.clientX + 14, window.innerWidth - width - 10);
+  trafficTooltip.y = Math.min(event.clientY + 14, window.innerHeight - height - 10);
+}
+
+function showTrafficTooltip(item, event) {
+  Object.assign(trafficTooltip, { visible: true, name: item.name, bytes: item.bytes, percent: item.percent, color: item.color });
+  moveTrafficTooltip(event);
+}
+
+function hideTrafficTooltip() {
+  trafficTooltip.visible = false;
 }
 
 function trafficWeekKey() {

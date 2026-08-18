@@ -3858,6 +3858,12 @@ select:focus {
 .traffic-pie { display: block; width: min(230px, 100%); aspect-ratio: 1; margin: 0 auto; overflow: visible; border-radius: 50%; filter: drop-shadow(0 10px 12px rgba(73,98,96,.1)); }
 .traffic-pie-segment { cursor: pointer; stroke: rgba(255,255,255,.86); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transition: opacity .16s, filter .16s, transform .16s; }
 .traffic-pie-segment:hover { filter: brightness(1.06) drop-shadow(0 3px 5px rgba(73,98,96,.18)); transform: scale(1.018); }
+.traffic-pie-tooltip { position: fixed; z-index: 1200; display: flex; align-items: center; gap: 10px; min-width: 150px; max-width: min(260px, calc(100vw - 20px)); padding: 10px 12px; pointer-events: none; border: 1px solid rgba(169,193,187,.78); border-radius: 10px; color: #58716e; background: rgba(251,253,252,.96); box-shadow: 0 10px 26px rgba(65,91,87,.16); backdrop-filter: blur(10px); animation: traffic-tooltip-in .08s ease-out; }
+.traffic-pie-tooltip-swatch { flex: 0 0 auto; width: 11px; height: 28px; border-radius: 4px; }
+.traffic-pie-tooltip div { display: grid; gap: 3px; min-width: 0; }
+.traffic-pie-tooltip strong { overflow: hidden; font-size: 13px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.traffic-pie-tooltip small { color: #879a96; font-size: 11px; white-space: nowrap; }
+@keyframes traffic-tooltip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 .traffic-legend { display: grid; gap: 10px; min-width: 0; }.traffic-legend-item { display: grid; grid-template-columns: 11px minmax(0,1fr) auto auto; align-items: center; gap: 7px; min-width: 0; color: #6e8581; font-size: 12px; }.traffic-legend-swatch { width: 10px; height: 10px; border-radius: 3px; }.traffic-legend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.traffic-legend-item b { color: #58716e; font-size: 11px; font-weight: 700; }.traffic-legend-item small { min-width: 38px; color: #97a5a0; text-align: right; }.traffic-empty { display: grid; min-height: 240px; place-items: center; align-content: center; gap: 10px; color: #8b9d99; }.traffic-empty svg { width: 36px; height: 36px; color: #a2b7b0; }
 .sidebar-task-icon { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 1050px) { .traffic-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
