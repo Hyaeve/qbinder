@@ -1,8 +1,10 @@
-# qBinder
+<p align="center">
+  <img src="public/readme-logo.png" width="128" height="128" alt="qBinder 软件图标" />
+</p>
+
+<h1 align="center">qBinder</h1>
 
 qBinder 是 qBittorrent Docker 的种子快捷分类添加助手。它用卡片把 qBittorrent 账户、横栏、保存路径、标签和封面绑定起来，上传 `.torrent` 时自动套用对应预设。
-
-当前版本：v1.0
 
 ## 功能
 

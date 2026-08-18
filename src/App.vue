@@ -257,7 +257,7 @@
         </header>
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
-        <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenuOnOutsideClick" @click.stop @scroll="syncTaskScrollbar">
+        <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenusOnOutsidePointer" @click.stop @scroll="syncTaskScrollbar">
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
@@ -793,6 +793,7 @@ const qbForm = reactive({ alias: '', protocol: 'http', host: '', port: '8080', u
 
 onMounted(async () => {
   window.addEventListener('hashchange', syncViewFromHash);
+  window.addEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   syncViewFromHash();
   try {
     const response = await api('/api/config');
@@ -1795,8 +1796,9 @@ function closeTaskPopovers() {
   accountMenuOpen.value = false;
 }
 
-function closeTaskMenuOnOutsideClick(event) {
+function closeTaskMenusOnOutsidePointer(event) {
   if (taskMenu.value && !event.target.closest('.task-menu')) taskMenu.value = null;
+  if (columnMenu.value && !event.target.closest('.column-menu')) columnMenu.value = null;
 }
 
 function selectTask(task, event) {
@@ -2134,6 +2136,7 @@ function startColumnResize(column, event) {
 
 onUnmounted(() => {
   window.removeEventListener('hashchange', syncViewFromHash);
+  window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   window.clearTimeout(uploadNoticeTimer);
   stopTaskRefresh();
 });
