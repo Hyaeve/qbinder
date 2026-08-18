@@ -183,12 +183,12 @@
       </section>
       <section class="traffic-chart-grid">
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
-          <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div><strong>{{ formatBytes(chart.total) }}</strong></div>
+          <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
             <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}分类图`" @pointerleave="hideTrafficTooltip">
               <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event)" @pointermove="moveTrafficTooltip($event)" />
             </svg>
-            <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span><b>{{ formatBytes(item.bytes) }}</b><small>{{ item.percent }}%</small></div></div>
+            <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
@@ -1458,6 +1458,7 @@ function clampWidth(value, fallback) {
 
 async function loadTrafficStats(showNotice = false) {
   if (trafficLoading.value) return;
+  const startedAt = performance.now();
   trafficLoading.value = true;
   trafficError.value = '';
   try {
@@ -1469,6 +1470,9 @@ async function loadTrafficStats(showNotice = false) {
   } catch (requestError) {
     trafficError.value = requestError.message || '无法加载流量统计';
   } finally {
+    const minimumDuration = showNotice ? 820 : 0;
+    const elapsed = performance.now() - startedAt;
+    await new Promise((resolve) => window.setTimeout(resolve, Math.max(0, minimumDuration - elapsed)));
     trafficLoading.value = false;
   }
 }
