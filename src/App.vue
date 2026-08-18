@@ -168,6 +168,14 @@
       <header class="schedule-header traffic-header">
         <div><p class="eyebrow">TRANSFER HISTORY</p><h1>流量统计</h1><p>按 Tracker 映射查看上传与下载流量的历史变化。</p></div>
         <div class="traffic-header-actions">
+          <div class="account-switcher traffic-account-switcher">
+            <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
+              <span>{{ activeQb?.alias || '请选择 qB 服务' }}</span>
+            </button>
+            <div v-if="accountMenuOpen" class="account-switcher-menu" role="listbox">
+              <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
+            </div>
+          </div>
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
@@ -822,7 +830,7 @@ const trafficError = ref('');
 const trafficTooltip = reactive({ visible: false, name: '', bytes: 0, percent: '0.0', color: '', x: 0, y: 0 });
 const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '3d', label: '近 3 天' }, { value: '7d', label: '近 1 周' }];
 const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
-const trafficColorSeed = Math.random().toString(36).slice(2);
+const trafficColorSeed = ref('');
 const trafficCharts = computed(() => [
   makeTrafficChart('upload', '上传流量', trafficStats.value.uploadByTracker || []),
   makeTrafficChart('download', '下载流量', trafficStats.value.downloadByTracker || [])
@@ -878,6 +886,7 @@ watch(trafficRange, () => {
 });
 
 watch(activeQbId, () => {
+  if (view.value === 'traffic') loadTrafficStats();
   if (view.value === 'torrents') loadTasks();
 });
 
@@ -1462,7 +1471,9 @@ async function loadTrafficStats(showNotice = false) {
   trafficLoading.value = true;
   trafficError.value = '';
   try {
-    trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}`);
+    const qbQuery = activeQb.value?.id ? `&qbId=${encodeURIComponent(activeQb.value.id)}` : '';
+    trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}${qbQuery}`);
+    trafficColorSeed.value = trafficStats.value.colorSeed || '';
     const summary = trafficStats.value.summary || {};
     if (showNotice && !Number(summary.uploaded || 0) && !Number(summary.downloaded || 0)) {
       showUploadNotice('当前时间范围内暂无统计流量', 'error');
@@ -1478,8 +1489,8 @@ async function loadTrafficStats(showNotice = false) {
 }
 
 function moveTrafficTooltip(event) {
-  const width = 190;
-  const height = 66;
+  const width = 176;
+  const height = 38;
   trafficTooltip.x = Math.min(event.clientX + 14, window.innerWidth - width - 10);
   trafficTooltip.y = Math.min(event.clientY + 14, window.innerHeight - height - 10);
 }
@@ -1529,11 +1540,12 @@ function makeTrafficChart(key, title, values) {
   const total = values.reduce((sum, item) => sum + Number(item.bytes || 0), 0);
   const normalized = values.filter((item) => Number(item.bytes || 0) > 0).map((item) => ({ name: item.name || '其他', bytes: Number(item.bytes || 0) }));
   const week = trafficWeekKey();
-  const ordered = [...normalized].sort((left, right) => trafficColorHash(`${trafficColorSeed}:${week}:${key}:${left.name}`) - trafficColorHash(`${trafficColorSeed}:${week}:${key}:${right.name}`));
+  const colorSeed = trafficColorSeed.value || 'traffic';
+  const ordered = [...normalized].sort((left, right) => trafficColorHash(`${colorSeed}:${week}:${key}:${left.name}`) - trafficColorHash(`${colorSeed}:${week}:${key}:${right.name}`));
   const usedColors = new Set();
   const colorByName = new Map();
   ordered.forEach((item) => {
-    let colorIndex = trafficColorHash(`${trafficColorSeed}:${week}:${key}:${item.name}`) % trafficPalette.length;
+    let colorIndex = trafficColorHash(`${colorSeed}:${week}:${key}:${item.name}`) % trafficPalette.length;
     while (usedColors.has(colorIndex) && usedColors.size < trafficPalette.length) colorIndex = (colorIndex + 1) % trafficPalette.length;
     usedColors.add(colorIndex);
     colorByName.set(item.name, trafficPalette[colorIndex]);

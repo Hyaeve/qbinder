@@ -185,11 +185,12 @@ var qBHTTPClient = &http.Client{
 }
 
 type Server struct {
-	mu          sync.Mutex
-	configPath  string
-	logsPath    string
-	trafficPath string
-	distDir     string
+	mu               sync.Mutex
+	configPath       string
+	logsPath         string
+	trafficPath      string
+	distDir          string
+	trafficColorSeed string
 }
 
 type qBLoginError struct {
@@ -213,10 +214,11 @@ func main() {
 	port := env("PORT", "18086")
 	dataDir := env("QBINDER_DATA_DIR", "/data")
 	server := &Server{
-		configPath:  filepath.Join(dataDir, "config.json"),
-		logsPath:    filepath.Join(dataDir, "operation-logs.json"),
-		trafficPath: filepath.Join(dataDir, "traffic-history.json"),
-		distDir:     filepath.Join("dist"),
+		configPath:       filepath.Join(dataDir, "config.json"),
+		logsPath:         filepath.Join(dataDir, "operation-logs.json"),
+		trafficPath:      filepath.Join(dataDir, "traffic-history.json"),
+		distDir:          filepath.Join("dist"),
+		trafficColorSeed: randomID(),
 	}
 	if err := server.ensureConfig(); err != nil {
 		panic(err)
@@ -1329,6 +1331,8 @@ type trafficSummary struct {
 
 type trafficStatsResponse struct {
 	Range             string            `json:"range"`
+	QBID              string            `json:"qbId,omitempty"`
+	ColorSeed         string            `json:"colorSeed"`
 	From              time.Time         `json:"from"`
 	To                time.Time         `json:"to"`
 	Summary           trafficSummary    `json:"summary"`
@@ -1488,6 +1492,13 @@ func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, conf
 		return
 	}
 	rangeName := strings.TrimSpace(r.URL.Query().Get("range"))
+	qbID := strings.TrimSpace(r.URL.Query().Get("qbId"))
+	if qbID != "" {
+		if _, ok := findQB(config.QBittorrents, qbID); !ok {
+			writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
+			return
+		}
+	}
 	durations := map[string]time.Duration{"1d": 24 * time.Hour, "3d": 3 * 24 * time.Hour, "7d": 7 * 24 * time.Hour}
 	duration, ok := durations[rangeName]
 	if !ok {
@@ -1506,13 +1517,13 @@ func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, conf
 	}
 	now := time.Now().UTC()
 	from := now.Add(-duration)
-	result := aggregateTrafficStats(history, config.TrackerMappings, rangeName, from, now)
+	result := aggregateTrafficStats(history, config.TrackerMappings, rangeName, qbID, s.trafficColorSeed, from, now)
 	writeJSON(w, http.StatusOK, result)
 }
 
-func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping, rangeName string, from, to time.Time) trafficStatsResponse {
+func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping, rangeName, qbID, colorSeed string, from, to time.Time) trafficStatsResponse {
 	result := trafficStatsResponse{
-		Range: rangeName, From: from, To: to,
+		Range: rangeName, QBID: qbID, ColorSeed: colorSeed, From: from, To: to,
 		UploadByTracker: []trafficCategory{}, DownloadByTracker: []trafficCategory{},
 	}
 	if len(history) == 0 {
@@ -1538,6 +1549,9 @@ func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping,
 	for index, snapshot := range selected {
 		current := make(map[string]trafficTorrent, len(snapshot.Torrents))
 		for _, torrent := range snapshot.Torrents {
+			if qbID != "" && torrent.QBID != qbID {
+				continue
+			}
 			current[torrent.QBID+":"+torrent.Hash] = torrent
 		}
 		if index > 0 {
