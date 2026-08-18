@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -160,12 +161,14 @@ type BackupConfig struct {
 }
 
 const (
-	maxJSONBodySize    = 1 << 20
-	maxUploadBodySize  = 32 << 20
-	maxUploadFiles     = 50
-	maxQBResponseSize  = 64 << 10
-	maxTorrentListSize = 16 << 20
-	sessionLifetime    = 14 * 24 * time.Hour
+	maxJSONBodySize       = 1 << 20
+	maxUploadBodySize     = 32 << 20
+	maxUploadFiles        = 50
+	maxQBResponseSize     = 64 << 10
+	maxTorrentListSize    = 16 << 20
+	sessionLifetime       = 14 * 24 * time.Hour
+	trafficSampleInterval = 10 * time.Minute
+	trafficRetention      = 8 * 24 * time.Hour
 )
 
 var qBHTTPClient = &http.Client{
@@ -182,10 +185,11 @@ var qBHTTPClient = &http.Client{
 }
 
 type Server struct {
-	mu         sync.Mutex
-	configPath string
-	logsPath   string
-	distDir    string
+	mu          sync.Mutex
+	configPath  string
+	logsPath    string
+	trafficPath string
+	distDir     string
 }
 
 type qBLoginError struct {
@@ -209,14 +213,16 @@ func main() {
 	port := env("PORT", "18086")
 	dataDir := env("QBINDER_DATA_DIR", "/data")
 	server := &Server{
-		configPath: filepath.Join(dataDir, "config.json"),
-		logsPath:   filepath.Join(dataDir, "operation-logs.json"),
-		distDir:    filepath.Join("dist"),
+		configPath:  filepath.Join(dataDir, "config.json"),
+		logsPath:    filepath.Join(dataDir, "operation-logs.json"),
+		trafficPath: filepath.Join(dataDir, "traffic-history.json"),
+		distDir:     filepath.Join("dist"),
 	}
 	if err := server.ensureConfig(); err != nil {
 		panic(err)
 	}
 	go server.runScheduleLoop()
+	go server.runTrafficSampleLoop()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/login", server.handleLogin)
@@ -226,6 +232,7 @@ func main() {
 	mux.HandleFunc("/api/config/backup", server.withAuth(server.handleConfigBackup))
 	mux.HandleFunc("/api/config/restore", server.withAuth(server.handleConfigRestore))
 	mux.HandleFunc("/api/tracker-mappings", server.withAuth(server.handleTrackerMappings))
+	mux.HandleFunc("/api/traffic", server.withAuth(server.handleTrafficStats))
 	mux.HandleFunc("/api/logs", server.withAuth(server.handleOperationLogs))
 	mux.HandleFunc("/api/schedules", server.withAuth(server.handleSchedules))
 	mux.HandleFunc("/api/schedules/", server.withAuth(server.handleScheduleSubroutes))
@@ -1268,19 +1275,324 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 }
 
 type torrentTask struct {
-	Hash      string  `json:"hash"`
-	Name      string  `json:"name"`
-	Size      int64   `json:"size"`
-	Progress  float64 `json:"progress"`
-	Seeders   int     `json:"num_seeds"`
-	Leechers  int     `json:"num_leechs"`
-	DownSpeed int64   `json:"dlspeed"`
-	UpSpeed   int64   `json:"upspeed"`
-	Tags      string  `json:"tags"`
-	AddedOn   int64   `json:"added_on"`
-	Tracker   string  `json:"tracker"`
-	SavePath  string  `json:"save_path"`
-	State     string  `json:"state"`
+	Hash       string  `json:"hash"`
+	Name       string  `json:"name"`
+	Size       int64   `json:"size"`
+	Progress   float64 `json:"progress"`
+	Seeders    int     `json:"num_seeds"`
+	Leechers   int     `json:"num_leechs"`
+	DownSpeed  int64   `json:"dlspeed"`
+	UpSpeed    int64   `json:"upspeed"`
+	Uploaded   int64   `json:"uploaded"`
+	Downloaded int64   `json:"downloaded"`
+	Tags       string  `json:"tags"`
+	AddedOn    int64   `json:"added_on"`
+	Tracker    string  `json:"tracker"`
+	SavePath   string  `json:"save_path"`
+	State      string  `json:"state"`
+}
+
+type trafficTorrent struct {
+	QBID       string `json:"qbId"`
+	Hash       string `json:"hash"`
+	Name       string `json:"name"`
+	Tracker    string `json:"tracker"`
+	Uploaded   int64  `json:"uploaded"`
+	Downloaded int64  `json:"downloaded"`
+	Size       int64  `json:"size"`
+}
+
+type trafficSnapshot struct {
+	CapturedAt time.Time        `json:"capturedAt"`
+	Torrents   []trafficTorrent `json:"torrents"`
+}
+
+type trafficCategory struct {
+	Name  string `json:"name"`
+	Bytes int64  `json:"bytes"`
+}
+
+type trafficSummary struct {
+	Uploaded     int64 `json:"uploaded"`
+	Downloaded   int64 `json:"downloaded"`
+	SeedingCount int   `json:"seedingCount"`
+	SeedingSize  int64 `json:"seedingSize"`
+}
+
+type trafficStatsResponse struct {
+	Range             string            `json:"range"`
+	From              time.Time         `json:"from"`
+	To                time.Time         `json:"to"`
+	Summary           trafficSummary    `json:"summary"`
+	UploadByTracker   []trafficCategory `json:"uploadByTracker"`
+	DownloadByTracker []trafficCategory `json:"downloadByTracker"`
+	HasHistory        bool              `json:"hasHistory"`
+	SampledAt         time.Time         `json:"sampledAt,omitempty"`
+}
+
+func (s *Server) runTrafficSampleLoop() {
+	if err := s.captureTrafficSnapshot(context.Background(), true); err != nil {
+		log.Printf("traffic initial sample failed: %v", err)
+	}
+	ticker := time.NewTicker(trafficSampleInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := s.captureTrafficSnapshot(context.Background(), false); err != nil {
+			log.Printf("traffic sample failed: %v", err)
+		}
+	}
+}
+
+func (s *Server) captureTrafficSnapshot(ctx context.Context, force bool) error {
+	config, err := s.readConfig()
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	history, err := s.readTrafficHistoryLocked()
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	if !force && len(history) > 0 && time.Since(history[len(history)-1].CapturedAt) < trafficSampleInterval/2 {
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	now := time.Now().UTC()
+	snapshot := trafficSnapshot{CapturedAt: now, Torrents: []trafficTorrent{}}
+	for _, account := range config.QBittorrents {
+		tasks, fetchErr := fetchQBTorrentTasks(ctx, account)
+		if fetchErr != nil {
+			logQBFailure("traffic_sample", account, fetchErr)
+			continue
+		}
+		for _, task := range tasks {
+			snapshot.Torrents = append(snapshot.Torrents, trafficTorrent{
+				QBID: account.ID, Hash: task.Hash, Name: task.Name, Tracker: task.Tracker,
+				Uploaded: task.Uploaded, Downloaded: task.Downloaded, Size: task.Size,
+			})
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	history, err = s.readTrafficHistoryLocked()
+	if err != nil {
+		return err
+	}
+	if len(history) > 0 && now.Sub(history[len(history)-1].CapturedAt) < trafficSampleInterval/2 {
+		return nil
+	}
+	cutoff := now.Add(-trafficRetention)
+	kept := make([]trafficSnapshot, 0, len(history)+1)
+	for _, item := range history {
+		if !item.CapturedAt.Before(cutoff) {
+			kept = append(kept, item)
+		}
+	}
+	kept = append(kept, snapshot)
+	return s.writeTrafficHistoryLocked(kept)
+}
+
+func fetchQBTorrentTasks(ctx context.Context, account QBAccount) ([]torrentTask, error) {
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v2/torrents/info", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("qBittorrent torrent list failed: %d", response.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxTorrentListSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxTorrentListSize {
+		return nil, errors.New("qBittorrent torrent list is too large")
+	}
+	var tasks []torrentTask
+	if err := json.Unmarshal(body, &tasks); err != nil {
+		return nil, errors.New("invalid qBittorrent torrent list response")
+	}
+	return tasks, nil
+}
+
+func (s *Server) readTrafficHistoryLocked() ([]trafficSnapshot, error) {
+	content, err := os.ReadFile(s.trafficPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return []trafficSnapshot{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var history []trafficSnapshot
+	if err := json.Unmarshal(content, &history); err != nil {
+		return nil, err
+	}
+	sort.Slice(history, func(i, j int) bool { return history[i].CapturedAt.Before(history[j].CapturedAt) })
+	return history, nil
+}
+
+func (s *Server) writeTrafficHistoryLocked(history []trafficSnapshot) error {
+	content, err := json.Marshal(history)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(s.trafficPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(dir, ".traffic-*")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.Write(content); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, s.trafficPath)
+}
+
+func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, config Config, session Session) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	rangeName := strings.TrimSpace(r.URL.Query().Get("range"))
+	durations := map[string]time.Duration{"1d": 24 * time.Hour, "3d": 3 * 24 * time.Hour, "7d": 7 * 24 * time.Hour}
+	duration, ok := durations[rangeName]
+	if !ok {
+		rangeName, duration = "1d", 24*time.Hour
+	}
+	if err := s.captureTrafficSnapshot(r.Context(), false); err != nil {
+		log.Printf("traffic request sample failed: %v", err)
+	}
+
+	s.mu.Lock()
+	history, err := s.readTrafficHistoryLocked()
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	now := time.Now().UTC()
+	from := now.Add(-duration)
+	result := aggregateTrafficStats(history, config.TrackerMappings, rangeName, from, now)
+	writeJSON(w, http.StatusOK, result)
+}
+
+func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping, rangeName string, from, to time.Time) trafficStatsResponse {
+	result := trafficStatsResponse{
+		Range: rangeName, From: from, To: to,
+		UploadByTracker: []trafficCategory{}, DownloadByTracker: []trafficCategory{},
+	}
+	if len(history) == 0 {
+		return result
+	}
+	start := 0
+	for index, snapshot := range history {
+		if snapshot.CapturedAt.After(from) {
+			break
+		}
+		start = index
+		result.HasHistory = true
+	}
+	selected := history[start:]
+	if len(selected) == 0 {
+		return result
+	}
+	result.SampledAt = selected[len(selected)-1].CapturedAt
+	uploadTotals := map[string]int64{}
+	downloadTotals := map[string]int64{}
+	seeded := map[string]int64{}
+	previous := map[string]trafficTorrent{}
+	for index, snapshot := range selected {
+		current := make(map[string]trafficTorrent, len(snapshot.Torrents))
+		for _, torrent := range snapshot.Torrents {
+			current[torrent.QBID+":"+torrent.Hash] = torrent
+		}
+		if index > 0 {
+			for key, torrent := range current {
+				before, exists := previous[key]
+				if !exists {
+					continue
+				}
+				uploaded := torrent.Uploaded - before.Uploaded
+				downloaded := torrent.Downloaded - before.Downloaded
+				if uploaded < 0 {
+					uploaded = 0
+				}
+				if downloaded < 0 {
+					downloaded = 0
+				}
+				category := mappedTrackerName(torrent.Tracker, mappings)
+				uploadTotals[category] += uploaded
+				downloadTotals[category] += downloaded
+				result.Summary.Uploaded += uploaded
+				result.Summary.Downloaded += downloaded
+				if uploaded > 0 {
+					seeded[key] = torrent.Size
+				}
+			}
+		}
+		previous = current
+	}
+	result.Summary.SeedingCount = len(seeded)
+	for _, size := range seeded {
+		result.Summary.SeedingSize += size
+	}
+	result.UploadByTracker = trafficCategories(uploadTotals)
+	result.DownloadByTracker = trafficCategories(downloadTotals)
+	return result
+}
+
+func mappedTrackerName(tracker string, mappings []TrackerMapping) string {
+	normalized := strings.ToLower(strings.TrimSpace(tracker))
+	for _, mapping := range mappings {
+		keyword := strings.ToLower(strings.TrimSpace(mapping.Keyword))
+		name := strings.TrimSpace(mapping.Name)
+		if keyword != "" && name != "" && strings.Contains(normalized, keyword) {
+			return name
+		}
+	}
+	return "其他"
+}
+
+func trafficCategories(values map[string]int64) []trafficCategory {
+	categories := make([]trafficCategory, 0, len(values))
+	for name, bytes := range values {
+		if bytes > 0 {
+			categories = append(categories, trafficCategory{Name: name, Bytes: bytes})
+		}
+	}
+	sort.Slice(categories, func(i, j int) bool {
+		if categories[i].Bytes == categories[j].Bytes {
+			return categories[i].Name < categories[j].Name
+		}
+		return categories[i].Bytes > categories[j].Bytes
+	})
+	return categories
 }
 
 type transferInfo struct {

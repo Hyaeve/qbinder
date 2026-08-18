@@ -30,7 +30,8 @@
       <nav>
         <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="3" /><path d="M8 8h.01M8 12h.01M8 16h.01M11 8h5M11 12h5M11 16h3" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="3.5" /><path d="M7 7h.01M7 12h.01M7 17h.01M10 7h8M10 12h8M10 17h5" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'traffic' }" title="流量统计" @click="navigateToView('traffic')"><Gauge /><span>流量统计</span></button>
         <button :class="{ active: view === 'logs' }" title="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
         <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
@@ -161,6 +162,36 @@
         </section>
         <section v-else class="schedule-empty"><Gauge /><h2>还没有定时任务</h2><p>新建任务可定时添加种子、操作已有种子，或切换备用速度。</p><button class="secondary-button" @click="openScheduleEditor()"><Plus />创建第一个任务</button></section>
       </template>
+    </div>
+
+    <div v-else-if="view === 'traffic'" class="content traffic-page">
+      <header class="schedule-header traffic-header">
+        <div><p class="eyebrow">TRANSFER HISTORY</p><h1>流量统计</h1><p>按 Tracker 映射查看上传与下载流量的历史变化。</p></div>
+        <div class="traffic-header-actions">
+          <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
+            <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
+          </div>
+          <button class="secondary-button" :disabled="trafficLoading" @click="loadTrafficStats"><RefreshCw :class="{ spin: trafficLoading }" />刷新</button>
+        </div>
+      </header>
+      <p v-if="trafficError" class="form-error">{{ trafficError }}</p>
+      <section class="traffic-summary-grid">
+        <article class="traffic-summary-card traffic-summary-upload"><Upload /><div><span>总上传</span><strong>{{ formatBytes(trafficStats.summary.uploaded) }}</strong></div></article>
+        <article class="traffic-summary-card traffic-summary-download"><Download /><div><span>总下载</span><strong>{{ formatBytes(trafficStats.summary.downloaded) }}</strong></div></article>
+        <article class="traffic-summary-card traffic-summary-seeding"><Gauge /><div><span>总做种数</span><strong>{{ trafficStats.summary.seedingCount }} 个</strong></div></article>
+        <article class="traffic-summary-card traffic-summary-size"><Layers /><div><span>总做种体积</span><strong>{{ formatBytes(trafficStats.summary.seedingSize) }}</strong></div></article>
+      </section>
+      <p v-if="!trafficStats.hasHistory" class="traffic-history-note">统计历史正在建立。首次采样后才能计算时间范围内的真实增量。</p>
+      <section class="traffic-chart-grid">
+        <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
+          <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div><strong>{{ formatBytes(chart.total) }}</strong></div>
+          <div v-if="chart.items.length" class="traffic-chart-content">
+            <div class="traffic-pie" :style="{ background: chart.gradient }" role="img" :aria-label="`${chart.title}分类图`"></div>
+            <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span><b>{{ formatBytes(item.bytes) }}</b><small>{{ item.percent }}%</small></div></div>
+          </div>
+          <div v-else class="traffic-empty"><UploadCloud /><span>暂无 {{ chart.title }} 数据</span></div>
+        </article>
+      </section>
     </div>
 
     <div v-else-if="view === 'logs'" class="content operation-log-page">
@@ -699,7 +730,7 @@ const busy = ref(false);
 const error = ref('');
 const user = ref(null);
 const config = ref(null);
-const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', logs: 'logs', settings: 'setting' };
+const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', traffic: 'traffic', logs: 'logs', settings: 'setting' };
 const routeViews = Object.fromEntries(Object.entries(viewRoutes).map(([viewName, route]) => [route, viewName]));
 const view = ref(viewFromHash());
 const verified = ref(false);
@@ -779,6 +810,16 @@ const expandedLogIds = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
 const logSearch = ref('');
+const trafficRange = ref('1d');
+const trafficStats = ref({ range: '1d', summary: { uploaded: 0, downloaded: 0, seedingCount: 0, seedingSize: 0 }, uploadByTracker: [], downloadByTracker: [], hasHistory: false });
+const trafficLoading = ref(false);
+const trafficError = ref('');
+const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '3d', label: '近 3 天' }, { value: '7d', label: '近 1 周' }];
+const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
+const trafficCharts = computed(() => [
+  makeTrafficChart('upload', '上传流量', trafficStats.value.uploadByTracker || []),
+  makeTrafficChart('download', '下载流量', trafficStats.value.downloadByTracker || [])
+]);
 const filteredOperationLogs = computed(() => {
   const keyword = logSearch.value.toLocaleLowerCase();
   return operationLogs.value.filter((entry) => {
@@ -800,6 +841,7 @@ onMounted(async () => {
     config.value = response;
     user.value = { username: response.username };
     if (view.value === 'logs') loadOperationLogs();
+    if (view.value === 'traffic') loadTrafficStats();
   } catch {}
   loading.value = false;
 });
@@ -814,6 +856,7 @@ watch(config, (next) => {
 watch(view, (next) => {
   if (next === 'tasks') loadSchedules();
   if (next === 'logs') loadOperationLogs();
+  if (next === 'traffic') loadTrafficStats();
   if (next === 'torrents') {
     loadTasks();
     startTaskRefresh();
@@ -821,6 +864,10 @@ watch(view, (next) => {
     stopTaskRefresh();
     closeTaskPopovers();
   }
+});
+
+watch(trafficRange, () => {
+  if (view.value === 'traffic') loadTrafficStats();
 });
 
 watch(activeQbId, () => {
@@ -1400,6 +1447,33 @@ function persistTaskSort() {
 function clampWidth(value, fallback) {
   const width = Number(value);
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
+}
+
+async function loadTrafficStats() {
+  if (trafficLoading.value) return;
+  trafficLoading.value = true;
+  trafficError.value = '';
+  try {
+    trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}`);
+  } catch (requestError) {
+    trafficError.value = requestError.message || '无法加载流量统计';
+  } finally {
+    trafficLoading.value = false;
+  }
+}
+
+function makeTrafficChart(key, title, values) {
+  const total = values.reduce((sum, item) => sum + Number(item.bytes || 0), 0);
+  const items = values.filter((item) => Number(item.bytes || 0) > 0).map((item, index) => ({
+    name: item.name || '其他', bytes: Number(item.bytes || 0), color: trafficPalette[index % trafficPalette.length], percent: total ? (Number(item.bytes || 0) / total * 100).toFixed(1) : '0.0'
+  }));
+  let cursor = 0;
+  const stops = items.map((item) => {
+    const start = cursor;
+    cursor += item.bytes / total * 100;
+    return `${item.color} ${start.toFixed(3)}% ${cursor.toFixed(3)}%`;
+  });
+  return { key, title, total, items, gradient: total ? `conic-gradient(${stops.join(', ')})` : 'conic-gradient(#dce8e4 0 100%)' };
 }
 
 async function loadOperationLogs() {
