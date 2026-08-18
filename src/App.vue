@@ -185,7 +185,11 @@
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div><strong>{{ formatBytes(chart.total) }}</strong></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
-            <div class="traffic-pie" :style="{ background: chart.gradient }" role="img" :aria-label="`${chart.title}分类图`"></div>
+            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}分类图`">
+              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color">
+                <title>{{ item.name }} · {{ formatBytes(item.bytes) }} · {{ item.percent }}%</title>
+              </path>
+            </svg>
             <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span><b>{{ formatBytes(item.bytes) }}</b><small>{{ item.percent }}%</small></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
@@ -815,6 +819,7 @@ const trafficLoading = ref(false);
 const trafficError = ref('');
 const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '3d', label: '近 3 天' }, { value: '7d', label: '近 1 周' }];
 const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
+const trafficColorSeed = Math.random().toString(36).slice(2);
 const trafficCharts = computed(() => [
   makeTrafficChart('upload', '上传流量', trafficStats.value.uploadByTracker || []),
   makeTrafficChart('download', '下载流量', trafficStats.value.downloadByTracker || [])
@@ -1465,18 +1470,59 @@ async function loadTrafficStats(showNotice = false) {
   }
 }
 
+function trafficWeekKey() {
+  const date = new Date();
+  const day = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - day);
+  return date.toISOString().slice(0, 10);
+}
+
+function trafficColorHash(value) {
+  let hash = 0;
+  for (const character of value) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
+  return Math.abs(hash);
+}
+
+function polarToCartesian(cx, cy, radius, angle) {
+  const radians = (angle - 90) * Math.PI / 180;
+  return { x: cx + radius * Math.cos(radians), y: cy + radius * Math.sin(radians) };
+}
+
+function trafficPiePath(startAngle, endAngle) {
+  const center = 100;
+  const radius = 86;
+  if (endAngle - startAngle >= 359.99) {
+    const top = polarToCartesian(center, center, radius, 0);
+    const bottom = polarToCartesian(center, center, radius, 180);
+    return `M ${top.x} ${top.y} A ${radius} ${radius} 0 1 1 ${bottom.x} ${bottom.y} A ${radius} ${radius} 0 1 1 ${top.x} ${top.y} Z`;
+  }
+  const start = polarToCartesian(center, center, radius, endAngle);
+  const end = polarToCartesian(center, center, radius, startAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+}
+
 function makeTrafficChart(key, title, values) {
   const total = values.reduce((sum, item) => sum + Number(item.bytes || 0), 0);
-  const items = values.filter((item) => Number(item.bytes || 0) > 0).map((item, index) => ({
-    name: item.name || '其他', bytes: Number(item.bytes || 0), color: trafficPalette[index % trafficPalette.length], percent: total ? (Number(item.bytes || 0) / total * 100).toFixed(1) : '0.0'
-  }));
-  let cursor = 0;
-  const stops = items.map((item) => {
-    const start = cursor;
-    cursor += item.bytes / total * 100;
-    return `${item.color} ${start.toFixed(3)}% ${cursor.toFixed(3)}%`;
+  const normalized = values.filter((item) => Number(item.bytes || 0) > 0).map((item) => ({ name: item.name || '其他', bytes: Number(item.bytes || 0) }));
+  const week = trafficWeekKey();
+  const ordered = [...normalized].sort((left, right) => trafficColorHash(`${trafficColorSeed}:${week}:${key}:${left.name}`) - trafficColorHash(`${trafficColorSeed}:${week}:${key}:${right.name}`));
+  const usedColors = new Set();
+  const colorByName = new Map();
+  ordered.forEach((item) => {
+    let colorIndex = trafficColorHash(`${trafficColorSeed}:${week}:${key}:${item.name}`) % trafficPalette.length;
+    while (usedColors.has(colorIndex) && usedColors.size < trafficPalette.length) colorIndex = (colorIndex + 1) % trafficPalette.length;
+    usedColors.add(colorIndex);
+    colorByName.set(item.name, trafficPalette[colorIndex]);
   });
-  return { key, title, total, items, gradient: total ? `conic-gradient(${stops.join(', ')})` : 'conic-gradient(#dce8e4 0 100%)' };
+  let cursor = 0;
+  const items = normalized.map((item) => {
+    const startAngle = cursor;
+    const endAngle = total ? cursor + item.bytes / total * 360 : cursor;
+    cursor = endAngle;
+    return { ...item, color: colorByName.get(item.name), percent: total ? (item.bytes / total * 100).toFixed(1) : '0.0', path: trafficPiePath(startAngle, endAngle) };
+  });
+  return { key, title, total, items };
 }
 
 async function loadOperationLogs() {

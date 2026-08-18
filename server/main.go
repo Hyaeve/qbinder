@@ -277,7 +277,15 @@ func (s *Server) ensureConfig() error {
 		return err
 	}
 	if _, err := os.Stat(s.configPath); err == nil {
-		return nil
+		config, err := s.readConfigLocked()
+		if err != nil {
+			return err
+		}
+		if len(config.Sessions) == 0 {
+			return nil
+		}
+		config.Sessions = []Session{}
+		return s.writeConfigLocked(config)
 	}
 	config := Config{
 		Auth:     AuthConfig{Username: "qBinder", PasswordHash: hashPassword("qBinder")},
