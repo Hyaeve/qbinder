@@ -171,7 +171,7 @@
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
-          <button class="secondary-button" :disabled="trafficLoading" @click="loadTrafficStats"><RefreshCw :class="{ spin: trafficLoading }" />刷新</button>
+          <button class="secondary-button" :disabled="trafficLoading" @click="loadTrafficStats(true)"><RefreshCw :class="{ spin: trafficLoading }" />刷新</button>
         </div>
       </header>
       <p v-if="trafficError" class="form-error">{{ trafficError }}</p>
@@ -181,7 +181,6 @@
         <article class="traffic-summary-card traffic-summary-seeding"><Gauge /><div><span>总做种数</span><strong>{{ trafficStats.summary.seedingCount }} 个</strong></div></article>
         <article class="traffic-summary-card traffic-summary-size"><Layers /><div><span>总做种体积</span><strong>{{ formatBytes(trafficStats.summary.seedingSize) }}</strong></div></article>
       </section>
-      <p v-if="!trafficStats.hasHistory" class="traffic-history-note">统计历史正在建立。首次采样后才能计算时间范围内的真实增量。</p>
       <section class="traffic-chart-grid">
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div><strong>{{ formatBytes(chart.total) }}</strong></div>
@@ -189,7 +188,7 @@
             <div class="traffic-pie" :style="{ background: chart.gradient }" role="img" :aria-label="`${chart.title}分类图`"></div>
             <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span><b>{{ formatBytes(item.bytes) }}</b><small>{{ item.percent }}%</small></div></div>
           </div>
-          <div v-else class="traffic-empty"><UploadCloud /><span>暂无 {{ chart.title }} 数据</span></div>
+          <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
       </section>
     </div>
@@ -1449,12 +1448,16 @@ function clampWidth(value, fallback) {
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
 }
 
-async function loadTrafficStats() {
+async function loadTrafficStats(showNotice = false) {
   if (trafficLoading.value) return;
   trafficLoading.value = true;
   trafficError.value = '';
   try {
     trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}`);
+    const summary = trafficStats.value.summary || {};
+    if (showNotice && !Number(summary.uploaded || 0) && !Number(summary.downloaded || 0)) {
+      showUploadNotice('当前时间范围内暂无统计流量', 'error');
+    }
   } catch (requestError) {
     trafficError.value = requestError.message || '无法加载流量统计';
   } finally {
