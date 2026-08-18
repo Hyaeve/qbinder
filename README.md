@@ -106,4 +106,4 @@ go test ./...
 - 推送到 `main` 分支会构建并推送 `ghcr.io/hyaeve/qbinder:latest`。
 - 推送 `v*.*` 或 `v*.*.*` 标签会额外生成版本标签，例如 `v1.0`、`1.0`、`v1.0.0`、`1.0.0`。
 - Pull Request 只构建验证，不推送镜像。
-- 镜像支持 `linux/amd64` 和 `linux/arm64`。
+- 镜像仅构建 `linux/amd64`（x86_64）架构。
