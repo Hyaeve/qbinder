@@ -1820,7 +1820,7 @@ select:focus {
   place-items: center;
   border: 0;
   border-radius: 9px;
-  color: #2f7ce7;
+  color: #7d9f9a;
   background: transparent;
   transition: background .18s ease, transform .18s ease;
 }
@@ -1847,17 +1847,23 @@ select:focus {
   stroke-linejoin: round;
 }
 
-.transfer-alt-speed-icon.transfer-alt-speed-gauge path {
+.transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-ring,
+.transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-ticks {
   fill: none;
-  stroke: #87b5ad;
-  stroke-width: 2.1;
+  stroke: #7faaa2;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.transfer-alt-speed-icon.transfer-alt-speed-gauge circle { fill: #87b5ad; }
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge path { stroke: #638f87; }
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge circle { fill: #638f87; }
+.transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-needle {
+  fill: #7faaa2;
+  stroke: none;
+}
+
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ring,
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #587f78; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #587f78; }
 
 .transfer-alt-speed-icon .alt-speed-blue,
 .transfer-alt-speed-icon .alt-speed-blue-arrow { fill: #078cf0; }

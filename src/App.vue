@@ -338,9 +338,9 @@
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             @click="toggleAlternativeSpeedLimits"
           ><svg class="transfer-alt-speed-icon transfer-alt-speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4.5 16.7a7.8 7.8 0 1 1 15 0" />
-            <path d="m12 12 3.15-3.1" />
-            <circle cx="12" cy="12" r="1.05" />
+            <circle class="alt-speed-gauge-ring" cx="12" cy="12" r="8.6" />
+            <path class="alt-speed-gauge-ticks" d="M8.3 6.4 7.5 5M12 5.3V3.8M15.7 6.4l.8-1.4" />
+            <path class="alt-speed-gauge-needle" d="m8.1 16.2 7.5-7.4-3.9 8.6Z" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
