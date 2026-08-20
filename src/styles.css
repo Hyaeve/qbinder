@@ -1793,9 +1793,9 @@ select:focus {
   z-index: 20;
   display: flex;
   align-items: center;
-  min-height: 58px;
+  min-height: 44px;
   gap: 0;
-  padding: 16px 36px 0;
+  padding: 10px 36px 0;
   border: 0;
   border-top: 1px solid #dcdfea;
   border-radius: 0;
@@ -2105,11 +2105,11 @@ select:focus {
 /* Compact horizontal control embedded at the top edge of the transfer footer. */
 .task-horizontal-scrollbar {
   position: absolute;
-  top: 4px;
+  top: 2px;
   right: 20px;
   left: 20px;
   z-index: 1;
-  height: 10px;
+  height: 6px;
   overflow-x: auto;
   overflow-y: hidden;
   background: transparent;
@@ -2122,17 +2122,15 @@ select:focus {
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar {
-  height: 7px;
+  height: 3px;
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar-track {
-  border-radius: 999px;
-  background: #edf0f3;
+  background: transparent;
 }
 
 .task-horizontal-scrollbar::-webkit-scrollbar-thumb {
   min-width: 44px;
-  border: 1px solid #edf0f3;
   border-radius: 999px;
   background: #aab1bd;
 }

@@ -325,7 +325,7 @@
           <div v-else-if="!filteredTasks.length" class="task-table-empty">{{ tasks.length ? '没有符合当前筛选条件的任务。' : '此 qBittorrent 账户暂时没有种子任务。' }}</div>
         </section>
         <div v-if="taskNameTooltip.visible" class="task-name-tooltip" :style="{ left: `${taskNameTooltip.x}px`, top: `${taskNameTooltip.y}px` }">{{ taskNameTooltip.text }}</div>
-        <footer class="task-summary" aria-label="qBittorrent 传输状态">
+        <footer class="task-summary" aria-label="qBittorrent 传输状态" @wheel="scrollTaskTableHorizontally">
           <div ref="taskHorizontalScrollbar" class="task-horizontal-scrollbar" aria-label="任务列表横向滚动" @scroll="syncTaskTableScroll">
             <div :style="taskScrollbarContentStyle"></div>
           </div>
@@ -936,6 +936,13 @@ function syncTaskScrollbar(event) {
 
 function syncTaskTableScroll(event) {
   if (taskTableShell.value) taskTableShell.value.scrollLeft = event.currentTarget.scrollLeft;
+}
+
+function scrollTaskTableHorizontally(event) {
+  const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!horizontalDelta || !taskHorizontalScrollbar.value) return;
+  event.preventDefault();
+  taskHorizontalScrollbar.value.scrollLeft += horizontalDelta;
 }
 
 const statusOptions = [
