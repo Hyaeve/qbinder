@@ -250,6 +250,10 @@ select:focus {
   animation: spin .8s linear infinite;
 }
 
+.refresh-spin {
+  animation: spin .68s cubic-bezier(.4, 0, .2, 1);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -2215,6 +2219,7 @@ select:focus {
 .progress-value > div > span {
   display: block;
   height: 100%;
+  transition: width .45s ease;
   min-width: 0;
   background: linear-gradient(105deg, #6fabc3 0%, #99c2bd 30%, #b3c5a4 50%, #9ebcd1 72%, #c5a9bd 100%);
   background-size: 240% 100%;

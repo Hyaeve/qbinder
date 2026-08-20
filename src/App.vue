@@ -179,7 +179,7 @@
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
-          <button class="secondary-button" :disabled="trafficLoading" @click="loadTrafficStats(true)"><RefreshCw :class="{ spin: trafficLoading }" />刷新</button>
+          <button class="secondary-button" :disabled="trafficLoading" @click="refreshTraffic"><RefreshCw :key="refreshPulse.traffic" :class="{ 'refresh-spin': refreshPulse.traffic }" />刷新</button>
         </div>
       </header>
       <p v-if="trafficError" class="form-error">{{ trafficError }}</p>
@@ -211,7 +211,7 @@
     <div v-else-if="view === 'logs'" class="content operation-log-page">
       <header class="schedule-header operation-log-header">
         <div><p class="eyebrow">ACTIVITY</p><h1>操作日志</h1><p>记录定时任务与手动操作 qBittorrent 种子的执行情况。</p></div>
-        <div class="operation-log-header-actions"><label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或种子名称" /></label><button class="secondary-button" :disabled="logsLoading" @click="loadOperationLogs"><RefreshCw :class="{ spin: logsLoading }" />刷新</button></div>
+        <div class="operation-log-header-actions"><label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或种子名称" /></label><button class="secondary-button" :disabled="logsLoading" @click="refreshLogs"><RefreshCw :key="refreshPulse.logs" :class="{ 'refresh-spin': refreshPulse.logs }" />刷新</button></div>
       </header>
       <p v-if="logsError" class="form-error">{{ logsError }}</p>
       <section v-if="filteredOperationLogs.length" class="operation-log-list">
@@ -249,7 +249,7 @@
           <div class="task-toolbar-actions">
             <label class="task-search"><Search /><input v-model="taskSearch" placeholder="搜索种子名称、标签或路径" /></label>
             <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="toggleTaskFilter"><Filter /></button>
-            <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="loadTasks"><RefreshCw :class="{ spin: tasksLoading }" /></button>
+            <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="refreshTasks"><RefreshCw :key="refreshPulse.tasks" :class="{ 'refresh-spin': refreshPulse.tasks }" /></button>
           </div>
           <section v-if="filterOpen" class="task-filter-popover" aria-label="任务筛选">
             <section class="filter-candidates" aria-label="筛选候选区域">
@@ -741,6 +741,8 @@ const scheduleAccentColors = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9
 
 const loading = ref(true);
 const busy = ref(false);
+const refreshPulse = reactive({ traffic: 0, logs: 0, tasks: 0 });
+const columnResizeActive = ref(false);
 const error = ref('');
 const user = ref(null);
 const config = ref(null);
@@ -1745,6 +1747,21 @@ function scheduleAccentColor(id) { return pickColor(id, scheduleAccentColors); }
 function scheduleTargetLabel(schedule) { if (schedule.action === 'toggleAltSpeed') return '全局备用速度'; if (schedule.action === 'addURLs') return '添加新的种子链接'; const dynamic = [...(schedule.statuses || []), ...(schedule.filterTags || [])].length; return dynamic ? `动态规则 + ${schedule.hashes?.length || 0} 个指定种子` : `${schedule.hashes?.length || 0} 个指定种子`; }
 function formatScheduleDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }); }
 
+async function refreshTraffic() {
+  refreshPulse.traffic += 1;
+  await loadTrafficStats(true);
+}
+
+async function refreshLogs() {
+  refreshPulse.logs += 1;
+  await loadOperationLogs();
+}
+
+async function refreshTasks() {
+  refreshPulse.tasks += 1;
+  await loadTasks();
+}
+
 async function loadTasks() {
   if (!activeQb.value || tasksLoading.value) return;
   tasksLoading.value = true;
@@ -1840,6 +1857,7 @@ function compareTasks(left, right, key, direction) {
 }
 
 function sortTasks(key) {
+  if (columnResizeActive.value) return;
   if (taskSort.key === key) taskSort.direction = taskSort.direction === 'asc' ? 'desc' : 'asc';
   else Object.assign(taskSort, { key, direction: 'asc' });
   persistTaskSort();
@@ -2275,6 +2293,7 @@ function moveTaskColumn(key, direction) {
 function startColumnResize(column, event) {
   event.preventDefault();
   event.stopPropagation();
+  columnResizeActive.value = true;
   const handle = event.currentTarget;
   const startX = event.clientX;
   const startWidth = column.width;
@@ -2290,6 +2309,7 @@ function startColumnResize(column, event) {
     window.removeEventListener('pointerup', finish);
     window.removeEventListener('pointercancel', finish);
     persistTaskColumns();
+    window.setTimeout(() => { columnResizeActive.value = false; }, 0);
   };
   window.addEventListener('pointermove', resize);
   window.addEventListener('pointerup', finish);
