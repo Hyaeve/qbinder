@@ -31,7 +31,7 @@
         <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
         <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="3.5" /><path d="M7 7h.01M7 12h.01M7 17h.01M10 7h8M10 12h8M10 17h5" /></svg><span>任务</span></button>
-        <button :class="{ active: view === 'traffic' }" title="流量统计" @click="navigateToView('traffic')"><Gauge /><span>流量统计</span></button>
+        <button :class="{ active: view === 'traffic' }" title="域流" @click="navigateToView('traffic')"><Gauge /><span>域流</span></button>
         <button :class="{ active: view === 'logs' }" title="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
         <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
@@ -166,7 +166,7 @@
 
     <div v-else-if="view === 'traffic'" class="content traffic-page">
       <header class="schedule-header traffic-header">
-        <div><p class="eyebrow">TRANSFER HISTORY</p><h1>流量统计</h1><p>按 Tracker 映射查看上传与下载流量的历史变化。</p></div>
+        <div><p class="eyebrow">DOMAIN FLOW</p><h1>域流</h1><p>按 Tracker 域查看上传与下载流量的历史变化。</p></div>
         <div class="traffic-header-actions">
           <div class="account-switcher traffic-account-switcher">
             <button class="account-switcher-trigger" :aria-expanded="accountMenuOpen" aria-haspopup="listbox" @click="accountMenuOpen = !accountMenuOpen">
@@ -193,10 +193,11 @@
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
-            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}分类图`" @pointerleave="hideTrafficTooltip">
+            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
+            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}域分类图`" @pointerleave="hideTrafficTooltip">
               <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event)" @pointermove="moveTrafficTooltip($event)" />
             </svg>
-            <div class="traffic-legend"><div v-for="item in chart.items" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
+            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
@@ -743,8 +744,8 @@ const busy = ref(false);
 const error = ref('');
 const user = ref(null);
 const config = ref(null);
-const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', traffic: 'traffic', logs: 'logs', settings: 'setting' };
-const routeViews = Object.fromEntries(Object.entries(viewRoutes).map(([viewName, route]) => [route, viewName]));
+const viewRoutes = { cards: 'cards', torrents: 'view', tasks: 'tasks', traffic: 'flow', logs: 'logs', settings: 'setting' };
+const routeViews = { ...Object.fromEntries(Object.entries(viewRoutes).map(([viewName, route]) => [route, viewName])), traffic: 'traffic' };
 const view = ref(viewFromHash());
 const verified = ref(false);
 const message = ref('');
@@ -823,12 +824,13 @@ const expandedLogIds = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
 const logSearch = ref('');
-const trafficRange = ref('1d');
-const trafficStats = ref({ range: '1d', summary: { uploaded: 0, downloaded: 0, seedingCount: 0, seedingSize: 0 }, uploadByTracker: [], downloadByTracker: [], hasHistory: false });
+const savedTrafficRange = sessionStorage.getItem('qbinder-flow-range');
+const trafficRange = ref(['1d', '7d', '30d'].includes(savedTrafficRange) ? savedTrafficRange : '1d');
+const trafficStats = ref({ range: trafficRange.value, summary: { uploaded: 0, downloaded: 0, seedingCount: 0, seedingSize: 0 }, uploadByTracker: [], downloadByTracker: [], hasHistory: false });
 const trafficLoading = ref(false);
 const trafficError = ref('');
 const trafficTooltip = reactive({ visible: false, name: '', bytes: 0, percent: '0.0', color: '', x: 0, y: 0 });
-const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '3d', label: '近 3 天' }, { value: '7d', label: '近 1 周' }];
+const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '7d', label: '近 1 周' }, { value: '30d', label: '近月内' }];
 const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
 const trafficColorSeed = ref('');
 const trafficCharts = computed(() => [
@@ -881,7 +883,8 @@ watch(view, (next) => {
   }
 });
 
-watch(trafficRange, () => {
+watch(trafficRange, (nextRange) => {
+  sessionStorage.setItem('qbinder-flow-range', nextRange);
   if (view.value === 'traffic') loadTrafficStats();
 });
 
@@ -1557,7 +1560,8 @@ function makeTrafficChart(key, title, values) {
     cursor = endAngle;
     return { ...item, color: colorByName.get(item.name), percent: total ? (item.bytes / total * 100).toFixed(1) : '0.0', path: trafficPiePath(startAngle, endAngle) };
   });
-  return { key, title, total, items };
+  const midpoint = Math.ceil(items.length / 2);
+  return { key, title, total, items, legendLeft: items.slice(0, midpoint), legendRight: items.slice(midpoint) };
 }
 
 async function loadOperationLogs() {

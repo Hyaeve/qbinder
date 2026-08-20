@@ -168,7 +168,7 @@ const (
 	maxTorrentListSize    = 16 << 20
 	sessionLifetime       = 14 * 24 * time.Hour
 	trafficSampleInterval = 10 * time.Minute
-	trafficRetention      = 8 * 24 * time.Hour
+	trafficRetention      = 31 * 24 * time.Hour
 )
 
 var qBHTTPClient = &http.Client{
@@ -1499,7 +1499,7 @@ func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, conf
 			return
 		}
 	}
-	durations := map[string]time.Duration{"1d": 24 * time.Hour, "3d": 3 * 24 * time.Hour, "7d": 7 * 24 * time.Hour}
+	durations := map[string]time.Duration{"1d": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour}
 	duration, ok := durations[rangeName]
 	if !ok {
 		rangeName, duration = "1d", 24*time.Hour
@@ -1568,7 +1568,7 @@ func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping,
 				if downloaded < 0 {
 					downloaded = 0
 				}
-				category := mappedTrackerName(torrent.Tracker, mappings)
+				category := trackerDomainName(torrent.Tracker, mappings)
 				uploadTotals[category] += uploaded
 				downloadTotals[category] += downloaded
 				result.Summary.Uploaded += uploaded
@@ -1589,7 +1589,7 @@ func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping,
 	return result
 }
 
-func mappedTrackerName(tracker string, mappings []TrackerMapping) string {
+func trackerDomainName(tracker string, mappings []TrackerMapping) string {
 	normalized := strings.ToLower(strings.TrimSpace(tracker))
 	for _, mapping := range mappings {
 		keyword := strings.ToLower(strings.TrimSpace(mapping.Keyword))
@@ -1598,7 +1598,14 @@ func mappedTrackerName(tracker string, mappings []TrackerMapping) string {
 			return name
 		}
 	}
-	return "其他"
+	parsed, err := url.Parse(normalized)
+	if err == nil {
+		hostname := strings.TrimPrefix(parsed.Hostname(), "www.")
+		if hostname != "" {
+			return hostname
+		}
+	}
+	return "其他域"
 }
 
 func trafficCategories(values map[string]int64) []trafficCategory {
