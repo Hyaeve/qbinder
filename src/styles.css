@@ -1822,20 +1822,24 @@ select:focus {
   height: 34px;
   margin: 0 12px 0 4px;
   place-items: center;
-  border: 0;
-  border-radius: 9px;
-  color: #7d9f9a;
-  background: transparent;
-  transition: background .18s ease, transform .18s ease;
+  border: 1px solid #d7dbe0;
+  border-radius: 10px;
+  color: #8d9299;
+  background: #eef0f2;
+  transition: color .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 
 .transfer-alt-speed-button:hover:not(:disabled) {
-  background: #f0f5fb;
+  border-color: #c3cbd0;
+  background: #e5e8eb;
   transform: translateY(-1px);
 }
 
 .transfer-alt-speed-button.active {
-  background: transparent;
+  border-color: #8ebcb2;
+  color: #316f65;
+  background: linear-gradient(135deg, #d9eee8, #e8efe1);
+  box-shadow: 0 5px 13px rgba(70, 125, 113, .18);
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
@@ -1854,20 +1858,20 @@ select:focus {
 .transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-ring,
 .transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-ticks {
   fill: none;
-  stroke: #7faaa2;
+  stroke: #8d9299;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-needle {
-  fill: #7faaa2;
+  fill: #8d9299;
   stroke: none;
 }
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ring,
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #587f78; }
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #587f78; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #367c70; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #367c70; }
 
 .transfer-alt-speed-icon .alt-speed-blue,
 .transfer-alt-speed-icon .alt-speed-blue-arrow { fill: #078cf0; }
@@ -2021,7 +2025,7 @@ select:focus {
   max-width: min(520px, calc(100vw - 32px));
   padding: 9px 12px;
   border: 1px solid #d8d6e2;
-  border-radius: 9px;
+  border-radius: 12px;
   color: #423e4c;
   background: rgba(255, 255, 255, .98);
   box-shadow: 0 12px 28px rgba(55, 52, 67, .18);
@@ -3867,7 +3871,7 @@ select:focus {
 .traffic-pie { display: block; width: min(230px, 100%); aspect-ratio: 1; margin: 0 auto; overflow: visible; border-radius: 50%; filter: drop-shadow(0 10px 12px rgba(73,98,96,.1)); }
 .traffic-pie-segment { cursor: pointer; stroke: rgba(255,255,255,.86); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transition: opacity .16s, filter .16s, transform .16s; }
 .traffic-pie-segment:hover { filter: brightness(1.06) drop-shadow(0 3px 5px rgba(73,98,96,.18)); transform: scale(1.018); }
-.traffic-pie-tooltip { position: fixed; z-index: 1200; display: flex; align-items: center; gap: 7px; width: max-content; min-width: 0; max-width: min(240px, calc(100vw - 20px)); padding: 6px 9px; pointer-events: none; border: 1px solid rgba(169,193,187,.78); border-radius: 8px; color: #58716e; background: rgba(251,253,252,.96); box-shadow: 0 7px 18px rgba(65,91,87,.14); backdrop-filter: blur(10px); animation: traffic-tooltip-in .08s ease-out; }
+.traffic-pie-tooltip { position: fixed; z-index: 1200; display: flex; align-items: center; gap: 7px; width: max-content; min-width: 0; max-width: min(240px, calc(100vw - 20px)); padding: 7px 10px; pointer-events: none; border: 1px solid rgba(169,193,187,.78); border-radius: 12px; color: #58716e; background: rgba(251,253,252,.96); box-shadow: 0 7px 18px rgba(65,91,87,.14); backdrop-filter: blur(10px); animation: traffic-tooltip-in .08s ease-out; }
 .traffic-pie-tooltip-swatch { flex: 0 0 auto; width: 7px; height: 18px; border-radius: 3px; }
 .traffic-pie-tooltip div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 .traffic-pie-tooltip strong { max-width: 120px; overflow: hidden; font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
@@ -3878,3 +3882,34 @@ select:focus {
 @media (max-width: 1050px) { .traffic-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .traffic-page { padding: 20px 18px 56px; }.traffic-header { align-items: flex-start; flex-direction: column; }.traffic-header-actions { width: 100%; justify-content: space-between; }.traffic-range-button { padding-inline: 9px; }.traffic-chart-grid { grid-template-columns: 1fr; }.traffic-chart-content { grid-template-columns: minmax(80px, 1fr) minmax(150px, 200px) minmax(80px, 1fr); gap: 10px; }.traffic-chart-panel { padding: 17px; }.traffic-summary-card { padding: 14px; }.traffic-summary-card strong { font-size: 17px; } }
 @media (max-width: 480px) { .traffic-summary-grid { grid-template-columns: 1fr; }.traffic-header-actions { align-items: stretch; flex-direction: column; }.traffic-range-switcher { justify-content: space-between; }.traffic-range-button { flex: 1; }.traffic-chart-content { grid-template-columns: minmax(62px, 1fr) minmax(130px, 160px) minmax(62px, 1fr); gap: 6px; }.traffic-pie { width: 160px; }.traffic-legend { gap: 7px; }.traffic-legend-item { gap: 5px; font-size: 10px; } }
+
+.card-delete-backdrop { z-index: 30; }
+.card-delete-modal { width: min(440px, calc(100vw - 32px)); border: 1px solid #eadde0; background: linear-gradient(145deg, #fff, #fffbfa); }
+.card-delete-modal > p { margin: -2px 0 2px; color: #6f6266; font-size: 14px; line-height: 1.6; }
+.card-delete-modal .danger-button { border: 1px solid #e5b9bf; color: #9e3f4c; background: #f9e7e8; }
+.card-delete-modal .danger-button:hover:not(:disabled) { border-color: #d996a0; color: #842e3a; background: #f5dce0; }
+
+.ui-tooltip {
+  position: fixed;
+  z-index: 1400;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 20px));
+  padding: 8px 11px;
+  pointer-events: none;
+  border: 1px solid rgba(185, 198, 199, .82);
+  border-radius: 12px;
+  color: #526568;
+  background: rgba(250, 252, 251, .98);
+  box-shadow: 0 10px 26px rgba(54, 75, 78, .16);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  animation: ui-tooltip-in .12s ease-out;
+}
+
+@keyframes ui-tooltip-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}

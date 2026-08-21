@@ -695,11 +695,28 @@
           </div>
         </div>
         <div class="modal-actions split">
-          <button class="danger-button" @click="deleteCard"><X />删除卡片</button>
+          <button class="danger-button" @click="openCardDeleteDialog"><X />删除卡片</button>
           <button class="primary-button" @click="saveCard"><Save />保存卡片</button>
         </div>
       </section>
     </div>
+
+    <div v-if="cardDeleteDialog.open" class="modal-backdrop card-delete-backdrop" @click.self="closeCardDeleteDialog">
+      <section class="modal card-delete-modal">
+        <header>
+          <h2>删除卡片</h2>
+          <button type="button" class="icon-button" title="关闭" aria-label="关闭" :disabled="cardDeleteDialog.submitting" @click="closeCardDeleteDialog"><X /></button>
+        </header>
+        <p>确认删除卡片“{{ cardDeleteDialog.name }}”？卡片中的配置也会一并移除。</p>
+        <p v-if="cardDeleteDialog.error" class="form-error">{{ cardDeleteDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" :disabled="cardDeleteDialog.submitting" @click="closeCardDeleteDialog">取消</button>
+          <button type="button" class="danger-button" :disabled="cardDeleteDialog.submitting" @click="confirmCardDelete"><Loader2 v-if="cardDeleteDialog.submitting" class="spin" /><Trash2 v-else />确认删除</button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="titleTooltip.visible" class="ui-tooltip" :style="{ left: `${titleTooltip.x}px`, top: `${titleTooltip.y}px` }" role="tooltip">{{ titleTooltip.text }}</div>
   </div>
 </template>
 
@@ -803,12 +820,15 @@ const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input
 const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
 const taskDeleteDialog = reactive({ open: false, deleteFiles: false, submitting: false, error: '' });
+const cardDeleteDialog = reactive({ open: false, name: '', id: '', submitting: false, error: '' });
+const titleTooltip = reactive({ visible: false, text: '', x: 0, y: 0, target: null });
 const torrentExportDialog = reactive({ open: false, submitting: false, completed: false, error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
 let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
+let taskRequestInFlight = false;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const schedules = ref([]);
 const scheduleError = ref('');
@@ -854,6 +874,8 @@ const qbForm = reactive({ alias: '', protocol: 'http', host: '', port: '8080', u
 onMounted(async () => {
   window.addEventListener('hashchange', syncViewFromHash);
   window.addEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
+  window.addEventListener('pointerover', showTitleTooltip, true);
+  window.addEventListener('pointerout', hideTitleTooltip, true);
   syncViewFromHash();
   try {
     const response = await api('/api/config');
@@ -861,6 +883,10 @@ onMounted(async () => {
     user.value = { username: response.username };
     if (view.value === 'logs') loadOperationLogs();
     if (view.value === 'traffic') loadTrafficStats();
+    if (view.value === 'torrents') {
+      loadTasks();
+      startTaskRefresh();
+    }
   } catch {}
   loading.value = false;
 });
@@ -1413,10 +1439,28 @@ async function saveCard() {
   editingCard.value = null;
 }
 
-async function deleteCard() {
-  if (!window.confirm(`确认删除卡片“${editingCard.value.name}”？`)) return;
-  config.value = await api(`/api/cards/${editingCard.value.id}`, { method: 'DELETE' });
-  editingCard.value = null;
+function openCardDeleteDialog() {
+  if (!editingCard.value) return;
+  Object.assign(cardDeleteDialog, { open: true, name: editingCard.value.name, id: editingCard.value.id, submitting: false, error: '' });
+}
+
+function closeCardDeleteDialog() {
+  if (cardDeleteDialog.submitting) return;
+  Object.assign(cardDeleteDialog, { open: false, name: '', id: '', submitting: false, error: '' });
+}
+
+async function confirmCardDelete() {
+  if (!cardDeleteDialog.id || cardDeleteDialog.submitting) return;
+  cardDeleteDialog.submitting = true;
+  cardDeleteDialog.error = '';
+  try {
+    config.value = await api(`/api/cards/${cardDeleteDialog.id}`, { method: 'DELETE' });
+    editingCard.value = null;
+    Object.assign(cardDeleteDialog, { open: false, name: '', id: '', submitting: false, error: '' });
+  } catch (requestError) {
+    cardDeleteDialog.error = requestError.message || '删除卡片失败，请稍后重试。';
+    cardDeleteDialog.submitting = false;
+  }
 }
 
 function loadTaskColumns() {
@@ -1769,19 +1813,23 @@ async function refreshTasks() {
   await loadTasks();
 }
 
-async function loadTasks() {
-  if (!activeQb.value || tasksLoading.value) return;
-  tasksLoading.value = true;
+async function loadTasks({ silent = false } = {}) {
+  if (!activeQb.value || taskRequestInFlight) return;
+  const requestedQbId = activeQb.value.id;
+  taskRequestInFlight = true;
+  if (!silent) tasksLoading.value = true;
   tasksError.value = '';
   try {
-    const result = await api(`/api/qb/${activeQb.value.id}/torrents`);
+    const result = await api(`/api/qb/${requestedQbId}/torrents`);
+    if (activeQb.value?.id !== requestedQbId) return;
     tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
     selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => tasks.value.some((task) => task.hash === hash));
     Object.assign(transferInfo, result.transfer || {});
   } catch (requestError) {
-    tasksError.value = requestError.message;
+    if (activeQb.value?.id === requestedQbId) tasksError.value = requestError.message;
   } finally {
-    tasksLoading.value = false;
+    taskRequestInFlight = false;
+    if (!silent) tasksLoading.value = false;
   }
 }
 
@@ -1806,8 +1854,8 @@ function hideTaskNameTooltip() {
 function startTaskRefresh() {
   stopTaskRefresh();
   taskRefreshTimer = window.setInterval(() => {
-    if (view.value === 'tasks' && document.visibilityState === 'visible') loadTasks();
-  }, 2000);
+    if (view.value === 'torrents' && document.visibilityState === 'visible') loadTasks({ silent: true });
+  }, 1000);
 }
 
 function stopTaskRefresh() {
@@ -2323,9 +2371,37 @@ function startColumnResize(column, event) {
   window.addEventListener('pointercancel', finish);
 }
 
+function showTitleTooltip(event) {
+  const target = event.target instanceof Element ? event.target.closest('[title]') : null;
+  if (!target || !target.title || titleTooltip.target === target) return;
+  const bounds = target.getBoundingClientRect();
+  titleTooltip.target = target;
+  titleTooltip.text = target.title;
+  titleTooltip.x = Math.min(Math.max(10, bounds.left), window.innerWidth - Math.min(360, window.innerWidth - 20));
+  titleTooltip.y = Math.min(bounds.bottom + 8, window.innerHeight - 52);
+  target.dataset.uiTooltip = target.title;
+  target.removeAttribute('title');
+  titleTooltip.visible = true;
+}
+
+function hideTitleTooltip(event) {
+  const target = event.target instanceof Element ? event.target.closest('[data-ui-tooltip]') : null;
+  if (!target || titleTooltip.target !== target || (event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) return;
+  target.title = target.dataset.uiTooltip;
+  delete target.dataset.uiTooltip;
+  titleTooltip.target = null;
+  titleTooltip.visible = false;
+}
+
 onUnmounted(() => {
   window.removeEventListener('hashchange', syncViewFromHash);
   window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
+  window.removeEventListener('pointerover', showTitleTooltip, true);
+  window.removeEventListener('pointerout', hideTitleTooltip, true);
+  if (titleTooltip.target?.dataset.uiTooltip) {
+    titleTooltip.target.title = titleTooltip.target.dataset.uiTooltip;
+    delete titleTooltip.target.dataset.uiTooltip;
+  }
   window.clearTimeout(uploadNoticeTimer);
   stopTaskRefresh();
 });
