@@ -153,10 +153,10 @@
         </header>
         <p v-if="scheduleError" class="form-error">{{ scheduleError }}</p>
         <section v-if="schedules.length" class="schedule-list">
-          <article v-for="(schedule, scheduleIndex) in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled, dragging: draggingScheduleId === schedule.id, 'drag-over': scheduleDropIndex === scheduleIndex && draggingScheduleId !== schedule.id }" draggable="true" @dragstart="startScheduleDrag(schedule.id, $event)" @dragover.prevent="scheduleDropIndex = scheduleIndex" @dragleave="clearScheduleDrop(scheduleIndex)" @drop.prevent="dropSchedule(scheduleIndex)" @dragend="endScheduleDrag">
+          <article v-for="(schedule, scheduleIndex) in schedules" :key="schedule.id" class="schedule-card" :class="{ disabled: !schedule.enabled, dragging: draggingScheduleId === schedule.id, 'drag-over': scheduleDropIndex === scheduleIndex && draggingScheduleId !== schedule.id }" draggable="true" @click="openScheduleEditor(schedule)" @dragstart="startScheduleDrag(schedule.id, $event)" @dragover.prevent="scheduleDropIndex = scheduleIndex" @dragleave="clearScheduleDrop(scheduleIndex)" @drop.prevent="dropSchedule(scheduleIndex)" @dragend="endScheduleDrag">
             <div class="schedule-card-accent" :style="{ backgroundColor: scheduleAccentColor(schedule.id) }"></div>
             <div class="schedule-card-main"><div class="schedule-title"><h2>{{ schedule.name }}</h2><span class="schedule-action">{{ scheduleActionLabel(schedule.action) }}</span></div><p><span class="schedule-qb-badge">{{ scheduleQbAlias(schedule.qbId) }}</span><code>{{ schedule.cron }}</code><span>{{ scheduleTargetLabel(schedule) }}</span></p><small>{{ schedule.lastRunAt ? `上次执行：${formatScheduleDate(schedule.lastRunAt)}` : '尚未执行' }}<em v-if="schedule.lastError"> · {{ schedule.lastError }}</em></small></div>
-            <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'"><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
+            <label class="schedule-switch" :title="schedule.enabled ? '停用任务' : '启用任务'" @click.stop><input type="checkbox" :checked="schedule.enabled" @change="toggleSchedule(schedule)" /><span></span></label>
             <div class="schedule-card-actions"><button class="secondary-button schedule-run-button" :disabled="executingScheduleId === schedule.id" title="立即执行" @click.stop="runScheduleNow(schedule)"><Loader2 v-if="executingScheduleId === schedule.id" class="spin" /><Play v-else />{{ executingScheduleId === schedule.id ? '执行中' : '立即执行' }}</button><button class="icon-button" title="编辑" @click.stop="openScheduleEditor(schedule)"><Settings /></button><button class="icon-button danger-icon" title="删除" @click.stop="deleteSchedule(schedule)"><Trash2 /></button></div>
           </article>
         </section>
@@ -828,6 +828,7 @@ const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
 let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
+let trafficRefreshTimer = null;
 let taskRequestInFlight = false;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const schedules = ref([]);
@@ -846,7 +847,7 @@ const expandedLogIds = ref([]);
 const logsLoading = ref(false);
 const logsError = ref('');
 const logSearch = ref('');
-const savedTrafficRange = sessionStorage.getItem('qbinder-flow-range');
+const savedTrafficRange = localStorage.getItem('qbinder-flow-range') || sessionStorage.getItem('qbinder-flow-range');
 const trafficRange = ref(['1d', '7d', '30d'].includes(savedTrafficRange) ? savedTrafficRange : '1d');
 const trafficStats = ref({ range: trafficRange.value, summary: { uploaded: 0, downloaded: 0, seedingCount: 0, seedingSize: 0 }, uploadByTracker: [], downloadByTracker: [], hasHistory: false });
 const trafficLoading = ref(false);
@@ -882,7 +883,10 @@ onMounted(async () => {
     config.value = response;
     user.value = { username: response.username };
     if (view.value === 'logs') loadOperationLogs();
-    if (view.value === 'traffic') loadTrafficStats();
+    if (view.value === 'traffic') {
+      loadTrafficStats();
+      startTrafficRefresh();
+    }
     if (view.value === 'torrents') {
       loadTasks();
       startTaskRefresh();
@@ -901,7 +905,12 @@ watch(config, (next) => {
 watch(view, (next) => {
   if (next === 'tasks') loadSchedules();
   if (next === 'logs') loadOperationLogs();
-  if (next === 'traffic') loadTrafficStats();
+  if (next === 'traffic') {
+    loadTrafficStats();
+    startTrafficRefresh();
+  } else {
+    stopTrafficRefresh();
+  }
   if (next === 'torrents') {
     loadTasks();
     startTaskRefresh();
@@ -912,7 +921,7 @@ watch(view, (next) => {
 });
 
 watch(trafficRange, (nextRange) => {
-  sessionStorage.setItem('qbinder-flow-range', nextRange);
+  localStorage.setItem('qbinder-flow-range', nextRange);
   if (view.value === 'traffic') loadTrafficStats();
 });
 
@@ -1474,6 +1483,7 @@ function loadTaskColumns() {
     { key: 'dlspeed', label: '下载', width: 118 },
     { key: 'upspeed', label: '上传', width: 118 },
     { key: 'tags', label: '标签', width: 150 },
+    { key: 'eta', label: '剩余时间', width: 130 },
     { key: 'added_on', label: '添加时间', width: 166 },
     { key: 'tracker', label: 'Tracker', width: 210 },
     { key: 'save_path', label: '保存路径', width: 230 }
@@ -1484,6 +1494,14 @@ function loadTaskColumns() {
     const byKey = new Map(saved.map((column) => [column.key, column]));
     const ordered = saved.map((column) => defaults.find((item) => item.key === column.key)).filter(Boolean).map((base) => ({ ...base, width: clampWidth(byKey.get(base.key)?.width, base.width), hidden: base.locked ? false : Boolean(byKey.get(base.key)?.hidden) }));
     defaults.filter((column) => !byKey.has(column.key)).forEach((column) => ordered.push({ ...column }));
+    if (!byKey.has('eta')) {
+      const etaIndex = ordered.findIndex((column) => column.key === 'eta');
+      const addedOnIndex = ordered.findIndex((column) => column.key === 'added_on');
+      if (etaIndex >= 0 && addedOnIndex >= 0 && etaIndex > addedOnIndex) {
+        const [eta] = ordered.splice(etaIndex, 1);
+        ordered.splice(addedOnIndex, 0, eta);
+      }
+    }
     const pinned = defaults.slice(0, 2).map((column) => ordered.find((item) => item.key === column.key));
     const movable = ordered.filter((column) => !column.locked);
     const statusIndex = movable.findIndex((column) => column.key === 'status');
@@ -1521,7 +1539,8 @@ function clampWidth(value, fallback) {
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
 }
 
-async function loadTrafficStats(showNotice = false) {
+async function loadTrafficStats(options = false) {
+  const showNotice = typeof options === 'boolean' ? options : Boolean(options?.showNotice);
   if (trafficLoading.value) return;
   const startedAt = performance.now();
   trafficLoading.value = true;
@@ -1863,6 +1882,18 @@ function stopTaskRefresh() {
   taskRefreshTimer = null;
 }
 
+function startTrafficRefresh() {
+  stopTrafficRefresh();
+  trafficRefreshTimer = window.setInterval(() => {
+    if (view.value === 'traffic' && document.visibilityState === 'visible') loadTrafficStats({ silent: true });
+  }, 60 * 60 * 1000);
+}
+
+function stopTrafficRefresh() {
+  if (trafficRefreshTimer) window.clearInterval(trafficRefreshTimer);
+  trafficRefreshTimer = null;
+}
+
 function uniqueTaskValues(getter) {
   return [...new Set(tasks.value.map(getter).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'zh-CN'));
 }
@@ -1960,11 +1991,27 @@ function formatTaskValue(task, key) {
     case 'leechers': return task.num_leechs ?? 0;
     case 'dlspeed': return formatSpeed(task.dlspeed);
     case 'upspeed': return formatSpeed(task.upspeed);
+    case 'eta': return formatRemainingTime(task.eta);
     case 'added_on': return task.added_on ? new Date(task.added_on * 1000).toLocaleString('zh-CN', { hour12: false }) : '—';
     case 'tracker': return trackerDisplayName(task.tracker);
     case 'save_path': return task.save_path || '—';
     default: return task[key] || '—';
   }
+}
+
+function formatRemainingTime(value) {
+  const eta = Number(value);
+  if (!Number.isFinite(eta) || eta < 0 || eta >= 8640000) return '—';
+  if (eta === 0) return '已完成';
+  const seconds = Math.floor(eta);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  if (days) return `${days}天 ${hours}小时`;
+  if (hours) return `${hours}小时 ${minutes}分`;
+  if (minutes) return `${minutes}分 ${remainingSeconds}秒`;
+  return `${remainingSeconds}秒`;
 }
 
 function taskCellTitle(task, key) {
@@ -2404,6 +2451,7 @@ onUnmounted(() => {
   }
   window.clearTimeout(uploadNoticeTimer);
   stopTaskRefresh();
+  stopTrafficRefresh();
 });
 
 function viewFromHash() {
