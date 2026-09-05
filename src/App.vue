@@ -1912,18 +1912,20 @@ function taskTagTone(tag) {
 
 function taskMatchesStatus(task, category) {
   const state = String(task.state || '').toLowerCase();
+  const isError = state.includes('error') || state.includes('missing');
+  const isStopped = state.includes('paused') || state.includes('stopped');
   if (category === 'completed') return task.progress >= 1;
-  if (category === 'error') return state.includes('error') || state.includes('missing');
-  if (category === 'stopped') return state.includes('paused');
-  if (category === 'downloading') return /dl|downloading/.test(state) && !state.includes('paused');
-  if (category === 'seeding') return /up|uploading/.test(state) && !state.includes('paused');
-  return !state.includes('paused') && !state.includes('error') && !state.includes('missing');
+  if (category === 'error') return isError;
+  if (category === 'stopped') return isStopped;
+  if (category === 'downloading') return /dl|downloading/.test(state) && !isStopped && !isError;
+  if (category === 'seeding') return /up|uploading/.test(state) && !isStopped && !isError;
+  return !isStopped && !isError;
 }
 
 function taskStatusLabel(task) {
-  if (task.progress >= 1) return taskMatchesStatus(task, 'seeding') ? '做种中' : '已完成';
   if (taskMatchesStatus(task, 'error')) return '错误';
   if (taskMatchesStatus(task, 'stopped')) return '已停止';
+  if (task.progress >= 1) return taskMatchesStatus(task, 'seeding') ? '做种中' : '已完成';
   if (taskMatchesStatus(task, 'downloading')) return '下载中';
   if (taskMatchesStatus(task, 'seeding')) return '做种中';
   return '运行中';

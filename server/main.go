@@ -1084,19 +1084,21 @@ func matchingScheduledTorrentHashes(ctx context.Context, baseURL, cookie string,
 
 func scheduledTorrentMatchesStatus(torrent torrentTask, category string) bool {
 	state := strings.ToLower(torrent.State)
+	isError := strings.Contains(state, "error") || strings.Contains(state, "missing")
+	isStopped := strings.Contains(state, "paused") || strings.Contains(state, "stopped")
 	switch category {
 	case "completed":
 		return torrent.Progress >= 1
 	case "error":
-		return strings.Contains(state, "error") || strings.Contains(state, "missing")
+		return isError
 	case "stopped":
-		return strings.Contains(state, "paused") || strings.Contains(state, "stopped")
+		return isStopped
 	case "downloading":
-		return (strings.Contains(state, "dl") || strings.Contains(state, "downloading")) && !strings.Contains(state, "paused")
+		return (strings.Contains(state, "dl") || strings.Contains(state, "downloading")) && !isStopped && !isError
 	case "seeding":
-		return (strings.Contains(state, "up") || strings.Contains(state, "uploading")) && !strings.Contains(state, "paused")
+		return (strings.Contains(state, "up") || strings.Contains(state, "uploading")) && !isStopped && !isError
 	case "running":
-		return !strings.Contains(state, "paused") && !strings.Contains(state, "stopped") && !strings.Contains(state, "error") && !strings.Contains(state, "missing")
+		return !isStopped && !isError
 	}
 	return false
 }
