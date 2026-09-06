@@ -193,11 +193,11 @@
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
-            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
+            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
             <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}域分类图`" @pointerleave="hideTrafficTooltip">
-              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event)" @pointermove="moveTrafficTooltip($event)" />
+              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :class="trafficSegmentClass(chart.key, item.name)" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight" />
             </svg>
-            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name" :title="item.name">{{ item.name }}</span></div></div>
+            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
@@ -861,6 +861,7 @@ const trafficStats = ref({ range: trafficRange.value, summary: { uploaded: 0, do
 const trafficLoading = ref(false);
 const trafficError = ref('');
 const trafficTooltip = reactive({ visible: false, name: '', bytes: 0, percent: '0.0', color: '', x: 0, y: 0 });
+const trafficHighlight = reactive({ key: '', name: '' });
 const trafficRangeOptions = [{ value: '1d', label: '近 1 天' }, { value: '7d', label: '近 1 周' }, { value: '30d', label: '近月内' }];
 const trafficPalette = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
 const trafficColorSeed = ref('');
@@ -1587,6 +1588,11 @@ function showTrafficTooltip(item, event) {
 function hideTrafficTooltip() {
   trafficTooltip.visible = false;
 }
+
+function highlightTrafficItem(key, name) { trafficHighlight.key = key; trafficHighlight.name = name; }
+function clearTrafficHighlight() { trafficHighlight.key = ''; trafficHighlight.name = ''; }
+function trafficLegendClass(key, name) { return { active: trafficHighlight.key === key && trafficHighlight.name === name, dimmed: trafficHighlight.key === key && trafficHighlight.name !== name }; }
+function trafficSegmentClass(key, name) { return trafficLegendClass(key, name); }
 
 function trafficWeekKey() {
   const date = new Date();

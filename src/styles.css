@@ -3898,6 +3898,8 @@ select:focus {
 .traffic-pie { display: block; width: min(230px, 100%); aspect-ratio: 1; margin: 0 auto; overflow: visible; border-radius: 50%; filter: drop-shadow(0 10px 12px rgba(73,98,96,.1)); }
 .traffic-pie-segment { cursor: pointer; stroke: rgba(255,255,255,.86); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transition: opacity .16s, filter .16s, transform .16s; }
 .traffic-pie-segment:hover { filter: brightness(1.06) drop-shadow(0 3px 5px rgba(73,98,96,.18)); transform: scale(1.018); }
+.traffic-pie-segment.active { filter: brightness(1.08) drop-shadow(0 4px 7px rgba(73,98,96,.22)); transform: scale(1.025); }
+.traffic-pie-segment.dimmed { opacity: .38; }
 .traffic-pie-tooltip { position: fixed; z-index: 1200; display: flex; align-items: center; gap: 7px; width: max-content; min-width: 0; max-width: min(240px, calc(100vw - 20px)); padding: 7px 10px; pointer-events: none; border: 1px solid rgba(169,193,187,.78); border-radius: 12px; color: #58716e; background: rgba(251,253,252,.96); box-shadow: 0 7px 18px rgba(65,91,87,.14); backdrop-filter: blur(10px); animation: traffic-tooltip-in .08s ease-out; }
 .traffic-pie-tooltip-swatch { flex: 0 0 auto; width: 7px; height: 18px; border-radius: 3px; }
 .traffic-pie-tooltip div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
@@ -3909,6 +3911,12 @@ select:focus {
 @media (max-width: 1050px) { .traffic-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .traffic-page { padding: 20px 18px 56px; }.traffic-header { align-items: flex-start; flex-direction: column; }.traffic-header-actions { width: 100%; justify-content: space-between; }.traffic-range-button { padding-inline: 9px; }.traffic-chart-grid { grid-template-columns: 1fr; }.traffic-chart-content { grid-template-columns: minmax(80px, 1fr) minmax(150px, 200px) minmax(80px, 1fr); gap: 10px; }.traffic-chart-panel { padding: 17px; }.traffic-summary-card { padding: 14px; }.traffic-summary-card strong { font-size: 17px; } }
 @media (max-width: 480px) { .traffic-summary-grid { grid-template-columns: 1fr; }.traffic-header-actions { align-items: stretch; flex-direction: column; }.traffic-range-switcher { justify-content: space-between; }.traffic-range-button { flex: 1; }.traffic-chart-content { grid-template-columns: minmax(62px, 1fr) minmax(130px, 160px) minmax(62px, 1fr); gap: 6px; }.traffic-pie { width: 160px; }.traffic-legend { gap: 7px; }.traffic-legend-item { gap: 5px; font-size: 10px; } }
+
+.traffic-legend-item { cursor: pointer; transition: opacity .16s ease, transform .16s ease; }
+.traffic-legend-item.active { color: #456e69; font-weight: 800; transform: translateY(-1px); }
+.traffic-legend-item.dimmed { opacity: .42; }
+.traffic-pie-segment.active { filter: brightness(1.08) drop-shadow(0 4px 7px rgba(73,98,96,.22)); transform: scale(1.025); }
+.traffic-pie-segment.dimmed { opacity: .38; }
 
 .card-delete-backdrop { z-index: 30; }
 .card-delete-modal { width: min(440px, calc(100vw - 32px)); border: 1px solid #eadde0; background: linear-gradient(145deg, #fff, #fffbfa); }

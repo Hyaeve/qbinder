@@ -1313,6 +1313,8 @@ type trafficTorrent struct {
 	Uploaded   int64  `json:"uploaded"`
 	Downloaded int64  `json:"downloaded"`
 	Size       int64  `json:"size"`
+	Progress   float64 `json:"progress"`
+	State      string  `json:"state"`
 }
 
 type trafficSnapshot struct {
@@ -1388,6 +1390,7 @@ func (s *Server) captureTrafficSnapshot(ctx context.Context, force bool) error {
 			snapshot.Torrents = append(snapshot.Torrents, trafficTorrent{
 				QBID: account.ID, Hash: task.Hash, Name: task.Name, Tracker: task.Tracker,
 				Uploaded: task.Uploaded, Downloaded: task.Downloaded, Size: task.Size,
+				Progress: task.Progress, State: task.State,
 			})
 		}
 	}
@@ -1583,9 +1586,14 @@ func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping,
 		}
 		previous = current
 	}
-	result.Summary.SeedingCount = len(seeded)
-	for _, size := range seeded {
-		result.Summary.SeedingSize += size
+	latest := selected[len(selected)-1]
+	for _, torrent := range latest.Torrents {
+		if qbID != "" && torrent.QBID != qbID { continue }
+		state := strings.ToLower(torrent.State)
+		if torrent.Progress >= 1 && (strings.Contains(state, "up") || strings.Contains(state, "uploading")) && !strings.Contains(state, "paused") && !strings.Contains(state, "stopped") && !strings.Contains(state, "error") && !strings.Contains(state, "missing") {
+			result.Summary.SeedingCount++
+			result.Summary.SeedingSize += torrent.Size
+		}
 	}
 	result.UploadByTracker = trafficCategories(uploadTotals)
 	result.DownloadByTracker = trafficCategories(downloadTotals)
