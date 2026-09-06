@@ -2417,14 +2417,34 @@ select:focus {
 }
 
 .task-path-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  max-height: 132px;
+  gap: 5px;
   margin: 2px 0 4px;
+  padding: 5px;
+  overflow-y: auto;
+  border: 1px solid #e0ebe7;
+  border-radius: 10px;
+  background: #fbfdfc;
+  scrollbar-width: thin;
+  scrollbar-color: #adc2bc transparent;
+}
+
+.task-path-presets::-webkit-scrollbar { width: 5px; }
+.task-path-presets::-webkit-scrollbar-thumb { border-radius: 999px; background: #adc2bc; }
+.task-path-presets::-webkit-scrollbar-track { background: transparent; }
+
+.task-path-presets::before {
+  padding: 1px 4px 3px;
+  color: #8b9c99;
+  content: '卡片路径预设';
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .task-path-preset {
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   overflow: hidden;
   padding: 6px 9px;
   border: 1px solid #d5e4e1;
@@ -2432,6 +2452,7 @@ select:focus {
   color: #5d7775;
   background: #f1f7f4;
   font-size: 11px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
