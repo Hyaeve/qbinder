@@ -193,18 +193,18 @@
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div></div>
           <div v-if="chart.items.length" class="traffic-chart-content">
-            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
-            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}域分类图`" @pointerleave="hideTrafficTooltip">
-              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :class="trafficSegmentClass(chart.key, item.name)" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight" />
+            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
+            <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}域分类图`" @pointerleave="resetTrafficHover">
+              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :class="trafficSegmentClass(chart.key, item.name)" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover" />
             </svg>
-            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="highlightTrafficItem(chart.key, item.name)" @pointerleave="clearTrafficHighlight"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
+            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
       </section>
-      <div v-if="trafficTooltip.visible" class="traffic-pie-tooltip" :style="{ left: `${trafficTooltip.x}px`, top: `${trafficTooltip.y}px` }" role="status">
-        <span class="traffic-pie-tooltip-swatch" :style="{ backgroundColor: trafficTooltip.color }"></span>
-        <div><strong>{{ trafficTooltip.name }}</strong><small>{{ formatBytes(trafficTooltip.bytes) }} · {{ trafficTooltip.percent }}%</small></div>
+      <div v-if="trafficTooltip.visible" class="traffic-pie-tooltip" :style="{ left: `${trafficTooltip.x}px`, top: `${trafficTooltip.y}px` }" role="status" aria-live="polite">
+        <div class="traffic-pie-tooltip-heading"><span class="traffic-pie-tooltip-swatch" :style="{ backgroundColor: trafficTooltip.color }"></span><strong>{{ trafficTooltip.name }}</strong></div>
+        <div class="traffic-pie-tooltip-data"><span>流量</span><b>{{ formatBytes(trafficTooltip.bytes) }}</b><em>{{ trafficTooltip.percent }}%</em></div>
       </div>
     </div>
 
@@ -1581,10 +1581,10 @@ async function loadTrafficStats(options = false) {
 }
 
 function moveTrafficTooltip(event) {
-  const width = 176;
-  const height = 38;
-  trafficTooltip.x = Math.min(event.clientX + 14, window.innerWidth - width - 10);
-  trafficTooltip.y = Math.min(event.clientY + 14, window.innerHeight - height - 10);
+  const width = 220;
+  const height = 58;
+  trafficTooltip.x = Math.max(10, Math.min(event.clientX + 14, window.innerWidth - width - 10));
+  trafficTooltip.y = Math.max(10, Math.min(event.clientY + 14, window.innerHeight - height - 10));
 }
 
 function showTrafficTooltip(item, event) {
@@ -1594,6 +1594,11 @@ function showTrafficTooltip(item, event) {
 
 function hideTrafficTooltip() {
   trafficTooltip.visible = false;
+}
+
+function resetTrafficHover() {
+  clearTrafficHighlight();
+  hideTrafficTooltip();
 }
 
 function highlightTrafficItem(key, name) { trafficHighlight.key = key; trafficHighlight.name = name; }
