@@ -524,11 +524,11 @@
         <label>保存路径
           <input v-model.trim="taskPathDialog.savePath" list="task-path-presets" autofocus placeholder="/downloads/movies" />
           <datalist id="task-path-presets">
-            <option v-for="path in taskPathOptions" :key="path" :value="path" />
+            <option v-for="option in taskPathOptions" :key="option.path" :value="option.path" :label="option.name" />
           </datalist>
         </label>
         <div v-if="taskPathOptions.length" class="task-path-presets" aria-label="卡片保存路径预设">
-          <button v-for="path in taskPathOptions" :key="path" type="button" class="task-path-preset" :class="{ active: taskPathDialog.savePath === path }" :title="path" @click="taskPathDialog.savePath = path">{{ path }}</button>
+          <button v-for="option in taskPathOptions" :key="option.path" type="button" class="task-path-preset" :class="{ active: taskPathDialog.savePath === option.path }" :title="option.path" @click="taskPathDialog.savePath = option.path"><strong>{{ option.name }}</strong><span>{{ option.path }}</span></button>
         </div>
         <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
         <div class="modal-actions">
@@ -999,7 +999,14 @@ const taskFilterGroups = computed(() => [
   { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
   { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
 ]);
-const taskPathOptions = computed(() => [...new Set((config.value?.cards || []).filter((card) => card.qbId === activeQb.value?.id && String(card.savePath || '').trim()).map((card) => String(card.savePath).trim()))]);
+const taskPathOptions = computed(() => {
+  const seen = new Set();
+  return (config.value?.cards || []).filter((card) => card.qbId === activeQb.value?.id && String(card.savePath || '').trim()).map((card) => ({ name: String(card.name || '未命名卡片').trim(), path: String(card.savePath).trim() })).filter((option) => {
+    if (seen.has(option.path)) return false;
+    seen.add(option.path);
+    return true;
+  });
+});
 const activeTaskFilterGroup = computed(() => taskFilterGroups.value.find((group) => group.key === activeFilterGroup.value) || taskFilterGroups.value[0]);
 const filterPageCount = computed(() => Math.max(1, Math.ceil(activeTaskFilterGroup.value.values.length / 10)));
 const pagedFilterValues = computed(() => activeTaskFilterGroup.value.values.slice((filterValuePage.value - 1) * 10, filterValuePage.value * 10));
@@ -2227,7 +2234,7 @@ async function saveSelectedTaskTags() {
 function changeSelectedTaskPath() {
   taskMenu.value = null;
   const selected = tasks.value.find((task) => selectedTaskHashes.value.includes(task.hash));
-  taskPathDialog.savePath = taskPathOptions.value.includes(selected?.save_path) ? selected.save_path : (taskPathOptions.value[0] || selected?.save_path || '');
+  taskPathDialog.savePath = taskPathOptions.value.some((option) => option.path === selected?.save_path) ? selected.save_path : (taskPathOptions.value[0]?.path || selected?.save_path || '');
   taskPathDialog.error = '';
   taskPathDialog.submitting = false;
   taskPathDialog.open = true;

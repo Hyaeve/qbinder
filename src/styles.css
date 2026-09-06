@@ -2418,7 +2418,7 @@ select:focus {
 
 .task-path-presets {
   display: grid;
-  max-height: 132px;
+  max-height: 190px;
   gap: 5px;
   margin: 2px 0 4px;
   padding: 5px;
@@ -2446,15 +2446,34 @@ select:focus {
   width: 100%;
   max-width: none;
   overflow: hidden;
-  padding: 6px 9px;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
   border: 1px solid #d5e4e1;
   border-radius: 9px;
   color: #5d7775;
   background: #f1f7f4;
-  font-size: 11px;
+  font-size: 12px;
   text-align: left;
+  white-space: normal;
+}
+
+.task-path-preset strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-path-preset span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #78908b;
+  font-size: 11px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .task-path-preset:hover,
