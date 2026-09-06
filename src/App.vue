@@ -521,11 +521,19 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskPathDialog"><X /></button>
         </header>
         <p>将把已选 {{ selectedTaskHashes.length }} 个种子移动到以下保存路径。</p>
-        <label>保存路径<input v-model.trim="taskPathDialog.savePath" autofocus placeholder="/downloads/movies" /></label>
+        <label>保存路径
+          <input v-model.trim="taskPathDialog.savePath" list="task-path-presets" autofocus placeholder="/downloads/movies" />
+          <datalist id="task-path-presets">
+            <option v-for="path in taskPathOptions" :key="path" :value="path" />
+          </datalist>
+        </label>
+        <div v-if="taskPathOptions.length" class="task-path-presets" aria-label="卡片保存路径预设">
+          <button v-for="path in taskPathOptions" :key="path" type="button" class="task-path-preset" :class="{ active: taskPathDialog.savePath === path }" :title="path" @click="taskPathDialog.savePath = path">{{ path }}</button>
+        </div>
         <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary-button" @click="closeTaskPathDialog">取消</button>
-          <button class="primary-button" :disabled="!taskPathDialog.savePath">确认更改</button>
+          <button class="primary-button" :disabled="!taskPathDialog.savePath || taskPathDialog.submitting"><Loader2 v-if="taskPathDialog.submitting" class="spin" /><Save v-else />{{ taskPathDialog.submitting ? '更改中…' : '确认更改' }}</button>
         </div>
       </form>
     </div>
@@ -815,7 +823,7 @@ const selectedTaskHashes = ref([]);
 const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
 const taskRenameDialog = reactive({ open: false, name: '', error: '' });
-const taskPathDialog = reactive({ open: false, savePath: '', error: '' });
+const taskPathDialog = reactive({ open: false, savePath: '', error: '', submitting: false });
 const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input: '', error: '' });
 const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
@@ -990,6 +998,7 @@ const taskFilterGroups = computed(() => [
   { key: 'tags', label: '标签', values: [...new Set(tasks.value.flatMap(taskTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')) },
   { key: 'tracker', label: 'Tracker', values: uniqueTaskValues((task) => trackerDisplayName(task.tracker)) }
 ]);
+const taskPathOptions = computed(() => [...new Set((config.value?.cards || []).filter((card) => card.qbId === activeQb.value?.id && String(card.savePath || '').trim()).map((card) => String(card.savePath).trim()))]);
 const activeTaskFilterGroup = computed(() => taskFilterGroups.value.find((group) => group.key === activeFilterGroup.value) || taskFilterGroups.value[0]);
 const filterPageCount = computed(() => Math.max(1, Math.ceil(activeTaskFilterGroup.value.values.length / 10)));
 const pagedFilterValues = computed(() => activeTaskFilterGroup.value.values.slice((filterValuePage.value - 1) * 10, filterValuePage.value * 10));
@@ -2211,8 +2220,10 @@ async function saveSelectedTaskTags() {
 
 function changeSelectedTaskPath() {
   taskMenu.value = null;
-  taskPathDialog.savePath = '';
+  const selected = tasks.value.find((task) => selectedTaskHashes.value.includes(task.hash));
+  taskPathDialog.savePath = taskPathOptions.value.includes(selected?.save_path) ? selected.save_path : (taskPathOptions.value[0] || selected?.save_path || '');
   taskPathDialog.error = '';
+  taskPathDialog.submitting = false;
   taskPathDialog.open = true;
 }
 
@@ -2220,6 +2231,7 @@ function closeTaskPathDialog() {
   taskPathDialog.open = false;
   taskPathDialog.savePath = '';
   taskPathDialog.error = '';
+  taskPathDialog.submitting = false;
 }
 
 async function saveSelectedTaskPath() {
@@ -2228,7 +2240,8 @@ async function saveSelectedTaskPath() {
     taskPathDialog.error = '请输入保存路径。';
     return;
   }
-  if (!activeQb.value || !selectedTaskHashes.value.length) return;
+  if (!activeQb.value || !selectedTaskHashes.value.length || taskPathDialog.submitting) return;
+  taskPathDialog.submitting = true;
   try {
     await api(`/api/qb/${activeQb.value.id}/torrents/action`, {
       method: 'POST',
@@ -2238,6 +2251,7 @@ async function saveSelectedTaskPath() {
     await loadTasks();
   } catch (requestError) {
     taskPathDialog.error = requestError.message;
+    taskPathDialog.submitting = false;
   }
 }
 

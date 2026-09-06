@@ -1883,6 +1883,7 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		}
 		endpoint = "/api/v2/torrents/setLocation"
 		form.Set("location", strings.TrimSpace(payload.SavePath))
+		form.Set("moveFiles", "true")
 	case "setTags":
 		for _, tag := range append(payload.Tags, payload.ExistingTags...) {
 			if strings.TrimSpace(tag) == "" || strings.Contains(tag, ",") {
