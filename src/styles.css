@@ -1835,7 +1835,7 @@ select:focus {
 }
 
 .transfer-alt-speed-button.active {
-  color: #2f8f7f;
+  color: #159b82;
 }
 
 .transfer-alt-speed-button:disabled { opacity: .6; }
@@ -1866,12 +1866,12 @@ select:focus {
 }
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge {
-  filter: drop-shadow(0 0 3px rgba(47, 143, 127, .38));
+  filter: drop-shadow(0 0 4px rgba(21, 155, 130, .55));
 }
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ring,
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #2f8f7f; }
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #2f8f7f; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #159b82; stroke-width: 2.1; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #159b82; }
 
 .transfer-alt-speed-icon .alt-speed-blue,
 .transfer-alt-speed-icon .alt-speed-blue-arrow { fill: #078cf0; }

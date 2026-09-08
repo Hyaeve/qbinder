@@ -335,7 +335,6 @@
             class="transfer-alt-speed-button"
             :class="{ active: transferInfo.altSpeedLimitsOn }"
             :disabled="transferInfo.togglingAltSpeedLimits"
-            :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-pressed="transferInfo.altSpeedLimitsOn"
             @click="toggleAlternativeSpeedLimits"
@@ -2159,10 +2158,12 @@ async function toggleAlternativeSpeedLimits() {
   if (!activeQb.value || transferInfo.togglingAltSpeedLimits) return;
   transferInfo.togglingAltSpeedLimits = true;
   tasksError.value = '';
+  const nextState = !transferInfo.altSpeedLimitsOn;
   try {
     await api(`/api/qb/${activeQb.value.id}/transfer/toggle-speed-limits`, { method: 'POST' });
-    transferInfo.altSpeedLimitsOn = !transferInfo.altSpeedLimitsOn;
+    transferInfo.altSpeedLimitsOn = nextState;
     await loadTasks();
+    transferInfo.altSpeedLimitsOn = nextState;
   } catch (requestError) {
     tasksError.value = requestError.message || '备用速度切换失败';
   } finally {
