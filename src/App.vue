@@ -337,6 +337,7 @@
             :disabled="transferInfo.togglingAltSpeedLimits"
             :title="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
             :aria-label="transferInfo.altSpeedLimitsOn ? '关闭备用速度' : '开启备用速度'"
+            :aria-pressed="transferInfo.altSpeedLimitsOn"
             @click="toggleAlternativeSpeedLimits"
           ><svg class="transfer-alt-speed-icon transfer-alt-speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="alt-speed-gauge-ring" cx="12" cy="12" r="8.6" />
