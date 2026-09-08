@@ -1863,6 +1863,9 @@ select:focus {
 .transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-needle {
   fill: #8d9299;
   stroke: none;
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: transform .24s ease, fill .18s ease;
 }
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge {
@@ -1871,7 +1874,10 @@ select:focus {
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ring,
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #159b82; stroke-width: 2.1; }
-.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle { fill: #159b82; }
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle {
+  fill: #159b82;
+  transform: rotate(-120deg);
+}
 
 .transfer-alt-speed-icon .alt-speed-blue,
 .transfer-alt-speed-icon .alt-speed-blue-arrow { fill: #078cf0; }
