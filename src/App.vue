@@ -832,6 +832,7 @@ const cardDeleteDialog = reactive({ open: false, name: '', id: '', submitting: f
 const titleTooltip = reactive({ visible: false, text: '', x: 0, y: 0, target: null });
 const torrentExportDialog = reactive({ open: false, submitting: false, completed: false, error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
+const altSpeedStateOverride = ref(null);
 const taskTableShell = ref(null);
 const taskHorizontalScrollbar = ref(null);
 let taskNameTooltipTimer = null;
@@ -1871,6 +1872,7 @@ async function loadTasks({ silent = false } = {}) {
     tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
     selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => tasks.value.some((task) => task.hash === hash));
     Object.assign(transferInfo, result.transfer || {});
+    if (altSpeedStateOverride.value !== null) transferInfo.altSpeedLimitsOn = altSpeedStateOverride.value;
   } catch (requestError) {
     if (activeQb.value?.id === requestedQbId) tasksError.value = requestError.message;
   } finally {
@@ -2162,6 +2164,7 @@ async function toggleAlternativeSpeedLimits() {
   try {
     await api(`/api/qb/${activeQb.value.id}/transfer/toggle-speed-limits`, { method: 'POST' });
     transferInfo.altSpeedLimitsOn = nextState;
+    altSpeedStateOverride.value = nextState;
     await loadTasks();
     transferInfo.altSpeedLimitsOn = nextState;
   } catch (requestError) {
@@ -2398,6 +2401,8 @@ async function confirmTorrentExport() {
 }
 
 function selectQbAccount(id) {
+  altSpeedStateOverride.value = null;
+  transferInfo.altSpeedLimitsOn = false;
   activeQbId.value = id;
   accountMenuOpen.value = false;
 }
