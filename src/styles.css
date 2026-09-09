@@ -2706,10 +2706,9 @@ select:focus {
 }
 
 .task-tags span {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
+  max-width: none;
   padding: 4px 8px;
   border: 1px solid var(--tag-border, #ccdbe2);
   border-radius: 5px;
@@ -2718,7 +2717,6 @@ select:focus {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.15;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2732,6 +2730,8 @@ select:focus {
 .task-tags .tag-tone-7 { --tag-surface: #f3f0f7; --tag-border: #d9cfe6; --tag-ink: #6a5b84; }
 
 .task-tags em {
+  width: 100%;
+  text-align: center;
   color: #929aa0;
   font-style: normal;
 }
