@@ -314,7 +314,7 @@
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
                 <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
                 <template v-else-if="column.key === 'status'"><span class="task-status" :class="taskStatusClass(task)">{{ taskStatusLabel(task) }}</span></template>
-                <template v-else-if="column.key === 'tags'"><div class="task-tags"><span v-for="tag in taskTags(task)" :key="tag" :class="`tag-tone-${taskTagTone(tag)}`">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
+                <template v-else-if="column.key === 'tags'"><div class="task-tags" :title="taskTags(task).join('、') || '无标签'"><span v-for="tag in taskTags(task)" :key="tag" :class="`tag-tone-${taskTagTone(tag)}`">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
                 <template v-else-if="column.key === 'tracker'"><span class="task-tracker" :class="`tag-tone-${taskTagTone(trackerDisplayName(task.tracker))}`" :title="trackerDisplayName(task.tracker)">{{ trackerDisplayName(task.tracker) }}</span></template>
                 <template v-else-if="column.key === 'name'"><span class="task-cell-text" @mouseenter="scheduleTaskNameTooltip(task, $event)" @mouseleave="hideTaskNameTooltip">{{ formatTaskValue(task, column.key) }}</span></template>
                 <template v-else><span class="task-cell-text" :title="taskCellTitle(task, column.key)">{{ formatTaskValue(task, column.key) }}</span></template>
@@ -2055,7 +2055,7 @@ function formatTaskValue(task, key) {
 function formatRemainingTime(value) {
   const eta = Number(value);
   if (!Number.isFinite(eta) || eta < 0 || eta >= 8640000) return '—';
-  if (eta === 0) return '已完成';
+  if (eta === 0) return '—';
   const seconds = Math.floor(eta);
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -2070,7 +2070,8 @@ function formatRemainingTime(value) {
 function taskRemainingSeconds(task) {
   if (!task) return null;
   const progress = Number(task.progress);
-  if (Number.isFinite(progress) && progress >= 1) return 0;
+  if (Number.isFinite(progress) && progress >= 1) return null;
+  if (taskMatchesStatus(task, 'stopped')) return null;
 
   const amountLeft = Number(task.amount_left);
   const downSpeed = Number(task.dlspeed);

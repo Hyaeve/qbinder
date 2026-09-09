@@ -2696,14 +2696,18 @@ select:focus {
 /* Each tag deterministically receives a quiet, low-saturation Monet tone. */
 .task-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   align-items: center;
-  max-height: 46px;
+  width: 100%;
+  min-width: 0;
+  max-height: 28px;
   overflow: hidden;
 }
 
 .task-tags span {
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   padding: 4px 8px;
@@ -2748,6 +2752,15 @@ select:focus {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-cell-eta {
+  justify-content: center;
+  text-align: center;
+}
+
+.task-cell-eta .task-cell-text {
+  text-align: center;
 }
 
 .task-tracker.tag-tone-0 { --tag-surface: #edf6f8; --tag-border: #c6dfe5; --tag-ink: #427082; }
