@@ -1307,6 +1307,7 @@ type torrentTask struct {
 	UpSpeed    int64   `json:"upspeed"`
 	Uploaded   int64   `json:"uploaded"`
 	Downloaded int64   `json:"downloaded"`
+	AmountLeft int64   `json:"amount_left"`
 	Tags       string  `json:"tags"`
 	AddedOn    int64   `json:"added_on"`
 	ETA        int64   `json:"eta"`

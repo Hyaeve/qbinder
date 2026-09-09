@@ -2044,7 +2044,7 @@ function formatTaskValue(task, key) {
     case 'leechers': return task.num_leechs ?? 0;
     case 'dlspeed': return formatSpeed(task.dlspeed);
     case 'upspeed': return formatSpeed(task.upspeed);
-    case 'eta': return formatRemainingTime(task.eta);
+    case 'eta': return formatRemainingTime(taskRemainingSeconds(task));
     case 'added_on': return task.added_on ? new Date(task.added_on * 1000).toLocaleString('zh-CN', { hour12: false }) : '—';
     case 'tracker': return trackerDisplayName(task.tracker);
     case 'save_path': return task.save_path || '—';
@@ -2065,6 +2065,27 @@ function formatRemainingTime(value) {
   if (hours) return `${hours}小时 ${minutes}分`;
   if (minutes) return `${minutes}分 ${remainingSeconds}秒`;
   return `${remainingSeconds}秒`;
+}
+
+function taskRemainingSeconds(task) {
+  if (!task) return null;
+  const progress = Number(task.progress);
+  if (Number.isFinite(progress) && progress >= 1) return 0;
+
+  const amountLeft = Number(task.amount_left);
+  const downSpeed = Number(task.dlspeed);
+  if (Number.isFinite(amountLeft) && amountLeft <= 0) return 0;
+  if (Number.isFinite(amountLeft) && amountLeft > 0 && Number.isFinite(downSpeed) && downSpeed > 0) {
+    return Math.ceil(amountLeft / downSpeed);
+  }
+
+  const size = Number(task.size);
+  if (Number.isFinite(size) && size > 0 && Number.isFinite(progress) && progress >= 0 && progress < 1 && downSpeed > 0) {
+    return Math.ceil((size * (1 - progress)) / downSpeed);
+  }
+
+  const eta = Number(task.eta);
+  return Number.isFinite(eta) && eta >= 0 && eta < 8640000 ? eta : null;
 }
 
 function taskCellTitle(task, key) {
