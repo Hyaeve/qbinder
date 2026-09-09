@@ -167,7 +167,7 @@ const (
 	maxQBResponseSize     = 64 << 10
 	maxTorrentListSize    = 16 << 20
 	sessionLifetime       = 14 * 24 * time.Hour
-	trafficSampleInterval = 10 * time.Minute
+	trafficSampleInterval = 24 * time.Hour
 	trafficRetention      = 31 * 24 * time.Hour
 )
 
@@ -186,11 +186,19 @@ var qBHTTPClient = &http.Client{
 
 type Server struct {
 	mu               sync.Mutex
+	syncMu           sync.Mutex
+	trafficSampleMu  sync.Mutex
 	configPath       string
 	logsPath         string
 	trafficPath      string
 	distDir          string
 	trafficColorSeed string
+	syncSessions     map[string]qbSyncSession
+}
+
+type qbSyncSession struct {
+	baseURL string
+	cookie  string
 }
 
 type qBLoginError struct {
@@ -219,6 +227,7 @@ func main() {
 		trafficPath:      filepath.Join(dataDir, "traffic-history.json"),
 		distDir:          filepath.Join("dist"),
 		trafficColorSeed: randomID(),
+		syncSessions:     make(map[string]qbSyncSession),
 	}
 	if err := server.ensureConfig(); err != nil {
 		panic(err)
@@ -578,6 +587,7 @@ func (s *Server) handleConfigRestore(w http.ResponseWriter, r *http.Request, con
 	config.Cards = normalizeBackupCards(backup.Cards, config.QBittorrents, config.Lanes)
 	config.TagPool = mergeTags(backup.TagPool, collectCardTags(config.Cards))
 	config.TrackerMappings = normalizeTrackerMappings(backup.TrackerMappings)
+	s.clearSyncSessions()
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -1306,13 +1316,13 @@ type torrentTask struct {
 }
 
 type trafficTorrent struct {
-	QBID       string `json:"qbId"`
-	Hash       string `json:"hash"`
-	Name       string `json:"name"`
-	Tracker    string `json:"tracker"`
-	Uploaded   int64  `json:"uploaded"`
-	Downloaded int64  `json:"downloaded"`
-	Size       int64  `json:"size"`
+	QBID       string  `json:"qbId"`
+	Hash       string  `json:"hash"`
+	Name       string  `json:"name"`
+	Tracker    string  `json:"tracker"`
+	Uploaded   int64   `json:"uploaded"`
+	Downloaded int64   `json:"downloaded"`
+	Size       int64   `json:"size"`
 	Progress   float64 `json:"progress"`
 	State      string  `json:"state"`
 }
@@ -1348,31 +1358,42 @@ type trafficStatsResponse struct {
 }
 
 func (s *Server) runTrafficSampleLoop() {
-	if err := s.captureTrafficSnapshot(context.Background(), true); err != nil {
-		log.Printf("traffic initial sample failed: %v", err)
-	}
-	ticker := time.NewTicker(trafficSampleInterval)
-	defer ticker.Stop()
-	for range ticker.C {
+	for {
 		if err := s.captureTrafficSnapshot(context.Background(), false); err != nil {
 			log.Printf("traffic sample failed: %v", err)
 		}
+		delay := trafficSampleInterval
+		s.mu.Lock()
+		latest, err := s.latestTrafficSnapshotLocked()
+		s.mu.Unlock()
+		if err == nil && latest != nil {
+			elapsed := time.Since(latest.CapturedAt)
+			if elapsed < trafficSampleInterval {
+				delay = trafficSampleInterval - elapsed
+			} else {
+				delay = time.Minute
+			}
+		}
+		timer := time.NewTimer(delay)
+		<-timer.C
 	}
 }
 
 func (s *Server) captureTrafficSnapshot(ctx context.Context, force bool) error {
+	s.trafficSampleMu.Lock()
+	defer s.trafficSampleMu.Unlock()
 	config, err := s.readConfig()
 	if err != nil {
 		return err
 	}
 
 	s.mu.Lock()
-	history, err := s.readTrafficHistoryLocked()
+	latest, err := s.latestTrafficSnapshotLocked()
 	if err != nil {
 		s.mu.Unlock()
 		return err
 	}
-	if !force && len(history) > 0 && time.Since(history[len(history)-1].CapturedAt) < trafficSampleInterval/2 {
+	if !force && latest != nil && time.Since(latest.CapturedAt) < trafficSampleInterval {
 		s.mu.Unlock()
 		return nil
 	}
@@ -1397,22 +1418,17 @@ func (s *Server) captureTrafficSnapshot(ctx context.Context, force bool) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	history, err = s.readTrafficHistoryLocked()
+	latest, err = s.latestTrafficSnapshotLocked()
 	if err != nil {
 		return err
 	}
-	if len(history) > 0 && now.Sub(history[len(history)-1].CapturedAt) < trafficSampleInterval/2 {
+	if !force && latest != nil && now.Sub(latest.CapturedAt) < trafficSampleInterval {
 		return nil
 	}
-	cutoff := now.Add(-trafficRetention)
-	kept := make([]trafficSnapshot, 0, len(history)+1)
-	for _, item := range history {
-		if !item.CapturedAt.Before(cutoff) {
-			kept = append(kept, item)
-		}
+	if err := s.appendTrafficSnapshotLocked(snapshot); err != nil {
+		return err
 	}
-	kept = append(kept, snapshot)
-	return s.writeTrafficHistoryLocked(kept)
+	return s.pruneTrafficHistoryLocked(now.Add(-trafficRetention))
 }
 
 func fetchQBTorrentTasks(ctx context.Context, account QBAccount) ([]torrentTask, error) {
@@ -1447,28 +1463,59 @@ func fetchQBTorrentTasks(ctx context.Context, account QBAccount) ([]torrentTask,
 	return tasks, nil
 }
 
-func (s *Server) readTrafficHistoryLocked() ([]trafficSnapshot, error) {
-	content, err := os.ReadFile(s.trafficPath)
+func (s *Server) trafficHistoryDir() string {
+	return strings.TrimSuffix(s.trafficPath, filepath.Ext(s.trafficPath))
+}
+
+func trafficShardName(capturedAt time.Time) string {
+	return capturedAt.UTC().Format("2006-01-02") + ".json"
+}
+
+func parseTrafficShardName(name string) (time.Time, bool) {
+	if filepath.Ext(name) != ".json" {
+		return time.Time{}, false
+	}
+	date, err := time.Parse("2006-01-02", strings.TrimSuffix(name, ".json"))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return date, true
+}
+
+func readTrafficShard(path string) ([]trafficSnapshot, error) {
+	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []trafficSnapshot{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	var history []trafficSnapshot
-	if err := json.Unmarshal(content, &history); err != nil {
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, err
+	}
+	if token != json.Delim('[') {
+		return nil, errors.New("invalid traffic history shard")
+	}
+	history := []trafficSnapshot{}
+	for decoder.More() {
+		var snapshot trafficSnapshot
+		if err := decoder.Decode(&snapshot); err != nil {
+			return nil, err
+		}
+		history = append(history, snapshot)
+	}
+	if _, err := decoder.Token(); err != nil {
 		return nil, err
 	}
 	sort.Slice(history, func(i, j int) bool { return history[i].CapturedAt.Before(history[j].CapturedAt) })
 	return history, nil
 }
 
-func (s *Server) writeTrafficHistoryLocked(history []trafficSnapshot) error {
-	content, err := json.Marshal(history)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(s.trafficPath)
+func writeTrafficShard(path string, history []trafficSnapshot) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
@@ -1478,7 +1525,24 @@ func (s *Server) writeTrafficHistoryLocked(history []trafficSnapshot) error {
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if _, err := temporary.Write(content); err != nil {
+	if _, err := temporary.WriteString("["); err != nil {
+		temporary.Close()
+		return err
+	}
+	encoder := json.NewEncoder(temporary)
+	for index, snapshot := range history {
+		if index > 0 {
+			if _, err := temporary.WriteString(","); err != nil {
+				temporary.Close()
+				return err
+			}
+		}
+		if err := encoder.Encode(snapshot); err != nil {
+			temporary.Close()
+			return err
+		}
+	}
+	if _, err := temporary.WriteString("]"); err != nil {
 		temporary.Close()
 		return err
 	}
@@ -1489,7 +1553,226 @@ func (s *Server) writeTrafficHistoryLocked(history []trafficSnapshot) error {
 	if err := temporary.Close(); err != nil {
 		return err
 	}
-	return os.Rename(temporaryPath, s.trafficPath)
+	return os.Rename(temporaryPath, path)
+}
+
+func (s *Server) migrateTrafficHistoryLocked() error {
+	legacy, err := os.Open(s.trafficPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer legacy.Close()
+
+	decoder := json.NewDecoder(legacy)
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '[' {
+		return errors.New("invalid traffic history")
+	}
+
+	var currentDay string
+	batch := []trafficSnapshot{}
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		path := filepath.Join(s.trafficHistoryDir(), currentDay+".json")
+		existing, readErr := readTrafficShard(path)
+		if readErr != nil {
+			return readErr
+		}
+		merged := append(existing, batch...)
+		sort.Slice(merged, func(i, j int) bool { return merged[i].CapturedAt.Before(merged[j].CapturedAt) })
+		unique := merged[:0]
+		for _, snapshot := range merged {
+			if len(unique) > 0 && unique[len(unique)-1].CapturedAt.Equal(snapshot.CapturedAt) {
+				unique[len(unique)-1] = snapshot
+				continue
+			}
+			unique = append(unique, snapshot)
+		}
+		return writeTrafficShard(path, unique)
+	}
+
+	for decoder.More() {
+		var snapshot trafficSnapshot
+		if err := decoder.Decode(&snapshot); err != nil {
+			return err
+		}
+		day := snapshot.CapturedAt.UTC().Format("2006-01-02")
+		if currentDay != "" && day != currentDay {
+			if err := flush(); err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+		currentDay = day
+		batch = append(batch, snapshot)
+	}
+	if _, err := decoder.Token(); err != nil {
+		return err
+	}
+	if err := flush(); err != nil {
+		return err
+	}
+	if err := legacy.Close(); err != nil {
+		return err
+	}
+	return os.Remove(s.trafficPath)
+}
+
+func (s *Server) trafficShardEntriesLocked() ([]os.DirEntry, error) {
+	if err := s.migrateTrafficHistoryLocked(); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(s.trafficHistoryDir())
+	if errors.Is(err, os.ErrNotExist) {
+		return []os.DirEntry{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	kept := entries[:0]
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if _, ok := parseTrafficShardName(entry.Name()); ok {
+			kept = append(kept, entry)
+		}
+	}
+	sort.Slice(kept, func(i, j int) bool { return kept[i].Name() < kept[j].Name() })
+	return kept, nil
+}
+
+func (s *Server) latestTrafficSnapshotLocked() (*trafficSnapshot, error) {
+	entries, err := s.trafficShardEntriesLocked()
+	if err != nil {
+		return nil, err
+	}
+	for index := len(entries) - 1; index >= 0; index-- {
+		history, err := readTrafficShard(filepath.Join(s.trafficHistoryDir(), entries[index].Name()))
+		if err != nil {
+			return nil, err
+		}
+		if len(history) > 0 {
+			latest := history[len(history)-1]
+			return &latest, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *Server) appendTrafficSnapshotLocked(snapshot trafficSnapshot) error {
+	path := filepath.Join(s.trafficHistoryDir(), trafficShardName(snapshot.CapturedAt))
+	history, err := readTrafficShard(path)
+	if err != nil {
+		return err
+	}
+	history = append(history, snapshot)
+	sort.Slice(history, func(i, j int) bool { return history[i].CapturedAt.Before(history[j].CapturedAt) })
+	return writeTrafficShard(path, history)
+}
+
+func (s *Server) pruneTrafficHistoryLocked(cutoff time.Time) error {
+	entries, err := s.trafficShardEntriesLocked()
+	if err != nil {
+		return err
+	}
+	cutoffDay := cutoff.UTC().Format("2006-01-02")
+	for _, entry := range entries {
+		day := strings.TrimSuffix(entry.Name(), ".json")
+		path := filepath.Join(s.trafficHistoryDir(), entry.Name())
+		if day < cutoffDay {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			continue
+		}
+		if day != cutoffDay {
+			continue
+		}
+		history, err := readTrafficShard(path)
+		if err != nil {
+			return err
+		}
+		kept := history[:0]
+		for _, snapshot := range history {
+			if !snapshot.CapturedAt.Before(cutoff) {
+				kept = append(kept, snapshot)
+			}
+		}
+		if len(kept) == 0 {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+		} else if err := writeTrafficShard(path, kept); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) readTrafficHistoryRangeLocked(from, to time.Time) ([]trafficSnapshot, error) {
+	entries, err := s.trafficShardEntriesLocked()
+	if err != nil {
+		return nil, err
+	}
+	fromDay := from.UTC().Format("2006-01-02")
+	toDay := to.UTC().Format("2006-01-02")
+	history := []trafficSnapshot{}
+	var baseline *trafficSnapshot
+	start := sort.Search(len(entries), func(index int) bool {
+		return entries[index].Name() >= fromDay+".json"
+	})
+	for index := start - 1; index >= 0; index-- {
+		shard, err := readTrafficShard(filepath.Join(s.trafficHistoryDir(), entries[index].Name()))
+		if err != nil {
+			return nil, err
+		}
+		for index := len(shard) - 1; index >= 0; index-- {
+			if !shard[index].CapturedAt.After(from) {
+				copy := shard[index]
+				baseline = &copy
+				break
+			}
+		}
+		if baseline != nil {
+			break
+		}
+	}
+	for _, entry := range entries[start:] {
+		day := strings.TrimSuffix(entry.Name(), ".json")
+		if day > toDay {
+			break
+		}
+		shard, err := readTrafficShard(filepath.Join(s.trafficHistoryDir(), entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for _, snapshot := range shard {
+			if snapshot.CapturedAt.After(to) {
+				break
+			}
+			if !snapshot.CapturedAt.After(from) {
+				copy := snapshot
+				baseline = &copy
+				continue
+			}
+			history = append(history, snapshot)
+		}
+	}
+	if baseline != nil {
+		history = append([]trafficSnapshot{*baseline}, history...)
+	}
+	sort.Slice(history, func(i, j int) bool { return history[i].CapturedAt.Before(history[j].CapturedAt) })
+	return history, nil
 }
 
 func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, config Config, session Session) {
@@ -1510,19 +1793,21 @@ func (s *Server) handleTrafficStats(w http.ResponseWriter, r *http.Request, conf
 	if !ok {
 		rangeName, duration = "1d", 24*time.Hour
 	}
-	if err := s.captureTrafficSnapshot(r.Context(), false); err != nil {
-		log.Printf("traffic request sample failed: %v", err)
+	if r.URL.Query().Get("sample") == "1" || strings.EqualFold(r.URL.Query().Get("sample"), "true") {
+		if err := s.captureTrafficSnapshot(r.Context(), true); err != nil {
+			log.Printf("traffic request sample failed: %v", err)
+		}
 	}
 
 	s.mu.Lock()
-	history, err := s.readTrafficHistoryLocked()
+	now := time.Now().UTC()
+	from := now.Add(-duration)
+	history, err := s.readTrafficHistoryRangeLocked(from, now)
 	s.mu.Unlock()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	now := time.Now().UTC()
-	from := now.Add(-duration)
 	result := aggregateTrafficStats(history, config.TrackerMappings, rangeName, qbID, s.trafficColorSeed, from, now)
 	writeJSON(w, http.StatusOK, result)
 }
@@ -1588,7 +1873,9 @@ func aggregateTrafficStats(history []trafficSnapshot, mappings []TrackerMapping,
 	}
 	latest := selected[len(selected)-1]
 	for _, torrent := range latest.Torrents {
-		if qbID != "" && torrent.QBID != qbID { continue }
+		if qbID != "" && torrent.QBID != qbID {
+			continue
+		}
 		state := strings.ToLower(torrent.State)
 		if torrent.Progress >= 1 && (strings.Contains(state, "up") || strings.Contains(state, "uploading")) && !strings.Contains(state, "paused") && !strings.Contains(state, "stopped") && !strings.Contains(state, "error") && !strings.Contains(state, "missing") {
 			result.Summary.SeedingCount++
@@ -1656,10 +1943,20 @@ type transferStatus struct {
 }
 
 type torrentListResponse struct {
-	Tasks          []torrentTask  `json:"tasks"`
-	TotalDownSpeed int64          `json:"totalDownSpeed"`
-	TotalUpSpeed   int64          `json:"totalUpSpeed"`
-	Transfer       transferStatus `json:"transfer"`
+	Tasks          map[string]json.RawMessage `json:"tasks"`
+	Removed        []string                   `json:"removed"`
+	Rid            int64                      `json:"rid"`
+	Full           bool                       `json:"full"`
+	TotalDownSpeed int64                      `json:"totalDownSpeed"`
+	TotalUpSpeed   int64                      `json:"totalUpSpeed"`
+	Transfer       transferStatus             `json:"transfer"`
+}
+
+type qbMainDataResponse struct {
+	Rid      int64                      `json:"rid"`
+	Full     bool                       `json:"full_update"`
+	Torrents map[string]json.RawMessage `json:"torrents"`
+	Deleted  []string                   `json:"torrents_removed"`
 }
 
 type torrentActionRequest struct {
@@ -1723,6 +2020,7 @@ func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config C
 	config.QBittorrents = filterQB(config.QBittorrents, id)
 	config.Lanes = filterLanes(config.Lanes, id)
 	config.Cards = filterCardsByQB(config.Cards, id)
+	s.clearSyncSession(id)
 	if err := s.writeConfig(config); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -2043,23 +2341,47 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		writeErrorText(w, http.StatusNotFound, "qBittorrent account not found")
 		return
 	}
-	baseURL, cookie, err := loginQB(account)
+	baseURL, cookie, err := s.loginQBSync(account)
 	if err != nil {
 		logQBFailure("torrent_list_login", account, err)
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/torrents/info", nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	rid, err := strconv.ParseInt(r.URL.Query().Get("rid"), 10, 64)
+	if r.URL.Query().Has("rid") && (err != nil || rid < 0) {
+		writeErrorText(w, http.StatusBadRequest, "Invalid sync rid")
 		return
 	}
-	request.Header.Set("Cookie", cookie)
-	response, err := qBHTTPClient.Do(request)
+	requestMainData := func(currentBaseURL, currentCookie string, currentRid int64) (*http.Response, error) {
+		request, requestErr := http.NewRequestWithContext(r.Context(), http.MethodGet, currentBaseURL+"/api/v2/sync/maindata?rid="+strconv.FormatInt(currentRid, 10), nil)
+		if requestErr != nil {
+			return nil, requestErr
+		}
+		request.Header.Set("Cookie", currentCookie)
+		return qBHTTPClient.Do(request)
+	}
+	response, err := requestMainData(baseURL, cookie, rid)
 	if err != nil {
 		logQBFailure("torrent_list_request", account, err)
 		writeError(w, http.StatusBadGateway, err)
 		return
+	}
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		response.Body.Close()
+		s.clearSyncSession(account.ID)
+		baseURL, cookie, err = s.loginQBSync(account)
+		if err != nil {
+			logQBFailure("torrent_list_relogin", account, err)
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+		rid = 0
+		response, err = requestMainData(baseURL, cookie, rid)
+		if err != nil {
+			logQBFailure("torrent_list_retry", account, err)
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -2075,16 +2397,12 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		writeErrorText(w, http.StatusBadGateway, "qBittorrent torrent list is too large")
 		return
 	}
-	var tasks []torrentTask
-	if err := json.Unmarshal(body, &tasks); err != nil {
+	var syncData qbMainDataResponse
+	if err := json.Unmarshal(body, &syncData); err != nil {
 		writeErrorText(w, http.StatusBadGateway, "Invalid qBittorrent torrent list response")
 		return
 	}
-	result := torrentListResponse{Tasks: tasks}
-	for _, task := range tasks {
-		result.TotalDownSpeed += task.DownSpeed
-		result.TotalUpSpeed += task.UpSpeed
-	}
+	result := torrentListResponse{Tasks: syncData.Torrents, Removed: syncData.Deleted, Rid: syncData.Rid, Full: syncData.Full || rid == 0}
 	transferRequest, err := http.NewRequestWithContext(r.Context(), http.MethodGet, baseURL+"/api/v2/transfer/info", nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -2121,6 +2439,8 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		UpRateLimit:      qBTransfer.UpRateLimit,
 		AltSpeedLimitsOn: qBTransfer.AltSpeedsOn,
 	}
+	result.TotalDownSpeed = qBTransfer.DownSpeed
+	result.TotalUpSpeed = qBTransfer.UpSpeed
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -2144,6 +2464,7 @@ func (s *Server) updateQB(w http.ResponseWriter, r *http.Request, config Config,
 			updated.LastVerifiedAt = ""
 			updated.LastError = ""
 			config.QBittorrents[index] = updated
+			s.clearSyncSession(id)
 			if err := s.writeConfig(config); err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				return
@@ -2542,6 +2863,48 @@ func normalizeQBAccount(account QBAccount) QBAccount {
 		Username: strings.TrimSpace(account.Username),
 		Password: account.Password,
 	}
+}
+
+func qbAccountBaseURL(account QBAccount) string {
+	protocol := strings.ToLower(strings.TrimSpace(account.Protocol))
+	if protocol == "" {
+		protocol = "http"
+	}
+	return protocol + "://" + cleanHost(account.Host) + ":" + strconv.Itoa(account.Port)
+}
+
+func (s *Server) loginQBSync(account QBAccount) (string, string, error) {
+	expectedBaseURL := qbAccountBaseURL(account)
+	s.syncMu.Lock()
+	if session, ok := s.syncSessions[account.ID]; ok && session.baseURL == expectedBaseURL && session.cookie != "" {
+		s.syncMu.Unlock()
+		return session.baseURL, session.cookie, nil
+	}
+	s.syncMu.Unlock()
+
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		return "", "", err
+	}
+	s.syncMu.Lock()
+	if s.syncSessions == nil {
+		s.syncSessions = make(map[string]qbSyncSession)
+	}
+	s.syncSessions[account.ID] = qbSyncSession{baseURL: baseURL, cookie: cookie}
+	s.syncMu.Unlock()
+	return baseURL, cookie, nil
+}
+
+func (s *Server) clearSyncSession(accountID string) {
+	s.syncMu.Lock()
+	delete(s.syncSessions, accountID)
+	s.syncMu.Unlock()
+}
+
+func (s *Server) clearSyncSessions() {
+	s.syncMu.Lock()
+	s.syncSessions = make(map[string]qbSyncSession)
+	s.syncMu.Unlock()
 }
 
 func loginQB(account QBAccount) (string, string, error) {

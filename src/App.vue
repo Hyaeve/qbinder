@@ -839,6 +839,9 @@ let taskNameTooltipTimer = null;
 let taskRefreshTimer = null;
 let trafficRefreshTimer = null;
 let taskRequestInFlight = false;
+let taskSyncRid = 0;
+let taskSyncQbId = '';
+let taskFullRefreshPending = false;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const schedules = ref([]);
 const scheduleError = ref('');
@@ -894,7 +897,7 @@ onMounted(async () => {
     user.value = { username: response.username };
     if (view.value === 'logs') loadOperationLogs();
     if (view.value === 'traffic') {
-      loadTrafficStats();
+      loadTrafficStats({ sample: false });
       startTrafficRefresh();
     }
     if (view.value === 'torrents') {
@@ -916,7 +919,7 @@ watch(view, (next) => {
   if (next === 'tasks') loadSchedules();
   if (next === 'logs') loadOperationLogs();
   if (next === 'traffic') {
-    loadTrafficStats();
+    loadTrafficStats({ sample: false });
     startTrafficRefresh();
   } else {
     stopTrafficRefresh();
@@ -932,11 +935,11 @@ watch(view, (next) => {
 
 watch(trafficRange, (nextRange) => {
   localStorage.setItem('qbinder-flow-range', nextRange);
-  if (view.value === 'traffic') loadTrafficStats();
+  if (view.value === 'traffic') loadTrafficStats({ sample: false });
 });
 
 watch(activeQbId, () => {
-  if (view.value === 'traffic') loadTrafficStats();
+  if (view.value === 'traffic') loadTrafficStats({ sample: false });
   if (view.value === 'torrents') loadTasks();
 });
 
@@ -1557,15 +1560,18 @@ function clampWidth(value, fallback) {
   return Number.isFinite(width) ? Math.max(56, Math.min(720, width)) : fallback;
 }
 
-async function loadTrafficStats(options = false) {
-  const showNotice = typeof options === 'boolean' ? options : Boolean(options?.showNotice);
+async function loadTrafficStats(options = {}) {
+  const normalizedOptions = typeof options === 'boolean' ? { showNotice: options, sample: options } : (options || {});
+  const showNotice = Boolean(normalizedOptions.showNotice);
+  const sample = Boolean(normalizedOptions.sample);
   if (trafficLoading.value) return;
   const startedAt = performance.now();
   trafficLoading.value = true;
   trafficError.value = '';
   try {
     const qbQuery = activeQb.value?.id ? `&qbId=${encodeURIComponent(activeQb.value.id)}` : '';
-    trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}${qbQuery}`);
+    const sampleQuery = sample ? '&sample=1' : '';
+    trafficStats.value = await api(`/api/traffic?range=${trafficRange.value}${qbQuery}${sampleQuery}`);
     trafficColorSeed.value = trafficStats.value.colorSeed || '';
     const summary = trafficStats.value.summary || {};
     if (showNotice && !Number(summary.uploaded || 0) && !Number(summary.downloaded || 0)) {
@@ -1847,7 +1853,7 @@ function formatScheduleDate(value) { const date = new Date(value); return Number
 
 async function refreshTraffic() {
   refreshPulse.traffic += 1;
-  await loadTrafficStats(true);
+  await loadTrafficStats({ showNotice: true, sample: true });
 }
 
 async function refreshLogs() {
@@ -1857,20 +1863,35 @@ async function refreshLogs() {
 
 async function refreshTasks() {
   refreshPulse.tasks += 1;
-  await loadTasks();
+  await loadTasks({ full: true });
 }
 
-async function loadTasks({ silent = false } = {}) {
+async function loadTasks({ silent = false, full = false } = {}) {
+  if (full) taskFullRefreshPending = true;
   if (!activeQb.value || taskRequestInFlight) return;
   const requestedQbId = activeQb.value.id;
+  if (taskSyncQbId !== requestedQbId) {
+    taskSyncQbId = requestedQbId;
+    taskSyncRid = 0;
+    tasks.value = [];
+    selectedTaskHashes.value = [];
+  }
+  const requestedRid = taskFullRefreshPending ? 0 : taskSyncRid;
+  taskFullRefreshPending = false;
   taskRequestInFlight = true;
   if (!silent) tasksLoading.value = true;
   tasksError.value = '';
   try {
-    const result = await api(`/api/qb/${requestedQbId}/torrents`);
+    const result = await api(`/api/qb/${requestedQbId}/torrents?rid=${requestedRid}`);
     if (activeQb.value?.id !== requestedQbId) return;
-    tasks.value = Array.isArray(result.tasks) ? result.tasks : [];
-    selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => tasks.value.some((task) => task.hash === hash));
+    const byHash = result.full || requestedRid === 0 ? new Map() : new Map(tasks.value.map((task) => [task.hash, task]));
+    for (const [hash, patch] of Object.entries(result.tasks || {})) {
+      byHash.set(hash, { ...byHash.get(hash), ...patch, hash });
+    }
+    for (const hash of result.removed || []) byHash.delete(hash);
+    tasks.value = [...byHash.values()];
+    taskSyncRid = result.rid;
+    selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => byHash.has(hash));
     Object.assign(transferInfo, result.transfer || {});
     if (altSpeedStateOverride.value !== null) transferInfo.altSpeedLimitsOn = altSpeedStateOverride.value;
   } catch (requestError) {
@@ -1878,6 +1899,7 @@ async function loadTasks({ silent = false } = {}) {
   } finally {
     taskRequestInFlight = false;
     if (!silent) tasksLoading.value = false;
+    if (activeQb.value && (activeQb.value.id !== requestedQbId || taskFullRefreshPending)) loadTasks();
   }
 }
 
@@ -1903,7 +1925,7 @@ function startTaskRefresh() {
   stopTaskRefresh();
   taskRefreshTimer = window.setInterval(() => {
     if (view.value === 'torrents' && document.visibilityState === 'visible') loadTasks({ silent: true });
-  }, 1000);
+  }, 5000);
 }
 
 function stopTaskRefresh() {
@@ -1915,7 +1937,7 @@ function startTrafficRefresh() {
   stopTrafficRefresh();
   trafficRefreshTimer = window.setInterval(() => {
     if (view.value === 'traffic' && document.visibilityState === 'visible') loadTrafficStats({ silent: true });
-  }, 60 * 60 * 1000);
+  }, 24 * 60 * 60 * 1000);
 }
 
 function stopTrafficRefresh() {
