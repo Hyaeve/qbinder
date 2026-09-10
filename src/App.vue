@@ -532,7 +532,6 @@
         </div>
         <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" @click="closeTaskPathDialog">取消</button>
           <button class="primary-button" :disabled="!taskPathDialog.savePath || taskPathDialog.submitting"><Loader2 v-if="taskPathDialog.submitting" class="spin" /><Save v-else />{{ taskPathDialog.submitting ? '更改中…' : '确认更改' }}</button>
         </div>
       </form>

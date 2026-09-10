@@ -2435,6 +2435,26 @@ body:has(.modal-backdrop) {
   width: min(680px, 100%);
 }
 
+.task-path-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.task-path-modal .primary-button {
+  background: #47786c;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(65, 111, 103, .16);
+}
+
+.task-path-modal .primary-button:hover:not(:disabled) {
+  background: #396559;
+}
+
+.task-path-modal .primary-button:focus-visible {
+  outline: 2px solid #47786c;
+  outline-offset: 3px;
+}
+
 .task-path-presets {
   display: grid;
   grid-auto-rows: max-content;
