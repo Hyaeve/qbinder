@@ -2432,26 +2432,35 @@ body:has(.modal-backdrop) {
 }
 
 .task-path-modal {
+  display: flex;
+  flex-direction: column;
   width: min(680px, 100%);
+  min-height: min(560px, calc(100dvh - 48px));
+}
+
+.task-path-modal > * {
+  flex-shrink: 0;
 }
 
 .task-path-modal .modal-actions {
   display: flex;
   justify-content: flex-end;
+  margin-top: auto;
 }
 
 .task-path-modal .primary-button {
-  background: #47786c;
-  color: #fff;
-  box-shadow: 0 8px 20px rgba(65, 111, 103, .16);
+  border: 1px solid #bdceca;
+  background: #e3ece9;
+  color: #4f6761;
+  box-shadow: 0 4px 12px rgba(78, 99, 93, .08);
 }
 
 .task-path-modal .primary-button:hover:not(:disabled) {
-  background: #396559;
+  background: #d5e2dd;
 }
 
 .task-path-modal .primary-button:focus-visible {
-  outline: 2px solid #47786c;
+  outline: 2px solid #849e95;
   outline-offset: 3px;
 }
 
@@ -2459,7 +2468,7 @@ body:has(.modal-backdrop) {
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
-  max-height: 190px;
+  max-height: 300px;
   gap: 5px;
   margin: 2px 0 4px;
   padding: 5px;
