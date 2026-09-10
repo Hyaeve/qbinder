@@ -2424,6 +2424,8 @@ select:focus {
 
 .task-path-presets {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   max-height: 190px;
   gap: 5px;
   margin: 2px 0 4px;
@@ -2450,6 +2452,8 @@ select:focus {
 
 .task-path-preset {
   width: 100%;
+  min-width: 0;
+  min-height: 56px;
   max-width: none;
   overflow: hidden;
   display: grid;
