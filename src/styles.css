@@ -1025,6 +1025,16 @@ select:focus {
   border-radius: 22px;
 }
 
+html:has(.modal-backdrop),
+body:has(.modal-backdrop) {
+  overflow: hidden;
+}
+
+.modal-backdrop,
+.modal-backdrop .modal {
+  overscroll-behavior: contain;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -2414,12 +2424,15 @@ select:focus {
   cursor: help;
 }
 
-.task-path-modal,
 .task-rename-modal,
 .task-tags-modal,
 .task-delete-modal,
 .backup-restore-modal {
   width: min(460px, calc(100vw - 32px));
+}
+
+.task-path-modal {
+  width: min(680px, 100%);
 }
 
 .task-path-presets {

@@ -528,7 +528,7 @@
           </datalist>
         </label>
         <div v-if="taskPathOptions.length" class="task-path-presets" aria-label="卡片保存路径预设">
-          <button v-for="option in taskPathOptions" :key="option.path" type="button" class="task-path-preset" :class="{ active: taskPathDialog.savePath === option.path }" :title="option.path" @click="taskPathDialog.savePath = option.path"><strong>{{ option.name }}</strong><span>{{ option.path }}</span></button>
+          <button v-for="option in taskPathOptions" :key="option.path" type="button" class="task-path-preset" :class="{ active: taskPathDialog.savePath === option.path }" :data-overflow-tooltip="option.path" @click="taskPathDialog.savePath = option.path"><strong>{{ option.name }}</strong><span>{{ option.path }}</span></button>
         </div>
         <p v-if="taskPathDialog.error" class="form-error">{{ taskPathDialog.error }}</p>
         <div class="modal-actions">
@@ -2504,23 +2504,33 @@ function startColumnResize(column, event) {
 }
 
 function showTitleTooltip(event) {
-  const target = event.target instanceof Element ? event.target.closest('[title]') : null;
-  if (!target || !target.title || titleTooltip.target === target) return;
+  const target = event.target instanceof Element ? event.target.closest('[title], [data-overflow-tooltip]') : null;
+  if (!target || titleTooltip.target === target) return;
+  const text = target.dataset.overflowTooltip || target.title;
+  if (!text) return;
+  if (target.hasAttribute('data-overflow-tooltip')) {
+    const path = target.querySelector('span');
+    if (!path || (path.scrollWidth <= path.clientWidth && path.scrollHeight <= path.clientHeight)) return;
+  }
   const bounds = target.getBoundingClientRect();
   titleTooltip.target = target;
-  titleTooltip.text = target.title;
+  titleTooltip.text = text;
   titleTooltip.x = Math.min(Math.max(10, bounds.left), window.innerWidth - Math.min(360, window.innerWidth - 20));
   titleTooltip.y = Math.min(bounds.bottom + 8, window.innerHeight - 52);
-  target.dataset.uiTooltip = target.title;
-  target.removeAttribute('title');
+  if (target.title) {
+    target.dataset.uiTooltip = target.title;
+    target.removeAttribute('title');
+  }
   titleTooltip.visible = true;
 }
 
 function hideTitleTooltip(event) {
-  const target = event.target instanceof Element ? event.target.closest('[data-ui-tooltip]') : null;
+  const target = event.target instanceof Element ? event.target.closest('[data-ui-tooltip], [data-overflow-tooltip]') : null;
   if (!target || titleTooltip.target !== target || (event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) return;
-  target.title = target.dataset.uiTooltip;
-  delete target.dataset.uiTooltip;
+  if (target.dataset.uiTooltip) {
+    target.title = target.dataset.uiTooltip;
+    delete target.dataset.uiTooltip;
+  }
   titleTooltip.target = null;
   titleTooltip.visible = false;
 }
