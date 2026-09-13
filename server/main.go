@@ -40,8 +40,16 @@ type Session struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// Account types. An empty Type is treated as qBittorrent so configs written
+// before Transmission support keep working untouched.
+const (
+	accountTypeQBittorrent  = "qbittorrent"
+	accountTypeTransmission = "transmission"
+)
+
 type QBAccount struct {
 	ID             string `json:"id"`
+	Type           string `json:"type,omitempty"`
 	Alias          string `json:"alias"`
 	Protocol       string `json:"protocol"`
 	Host           string `json:"host"`
@@ -51,6 +59,13 @@ type QBAccount struct {
 	Cookie         string `json:"cookie,omitempty"`
 	LastVerifiedAt string `json:"lastVerifiedAt,omitempty"`
 	LastError      string `json:"lastError,omitempty"`
+}
+
+func accountType(account QBAccount) string {
+	if strings.EqualFold(strings.TrimSpace(account.Type), accountTypeTransmission) {
+		return accountTypeTransmission
+	}
+	return accountTypeQBittorrent
 }
 
 type Lane struct {
@@ -131,6 +146,7 @@ type Config struct {
 
 type PublicQBAccount struct {
 	ID             string `json:"id"`
+	Type           string `json:"type"`
 	Alias          string `json:"alias"`
 	Protocol       string `json:"protocol"`
 	Host           string `json:"host"`
@@ -442,7 +458,7 @@ func normalizeConfig(config Config) Config {
 func publicConfig(config Config) PublicConfig {
 	accounts := make([]PublicQBAccount, 0, len(config.QBittorrents))
 	for _, item := range config.QBittorrents {
-		accounts = append(accounts, PublicQBAccount{ID: item.ID, Alias: item.Alias, Protocol: item.Protocol, Host: item.Host, Port: item.Port, Username: item.Username, LastVerifiedAt: item.LastVerifiedAt, LastError: item.LastError})
+		accounts = append(accounts, PublicQBAccount{ID: item.ID, Type: accountType(item), Alias: item.Alias, Protocol: item.Protocol, Host: item.Host, Port: item.Port, Username: item.Username, LastVerifiedAt: item.LastVerifiedAt, LastError: item.LastError})
 	}
 	return PublicConfig{Username: config.Auth.Username, QBittorrents: accounts, Lanes: config.Lanes, Cards: config.Cards, Schedules: config.Schedules, TagPool: config.TagPool, TrackerMappings: config.TrackerMappings}
 }
@@ -1253,6 +1269,16 @@ func (s *Server) handleQBTest(w http.ResponseWriter, r *http.Request, config Con
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	if accountType(payload) == accountTypeTransmission {
+		if err := verifyTransmission(payload); err != nil {
+			logQBFailure("verify_transmission", payload, err)
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		logQBEvent("verify_success", payload, "Transmission connection verified")
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
 	if _, _, err := loginQB(payload); err != nil {
 		logQBFailure("verify", payload, err)
 		writeError(w, http.StatusBadRequest, err)
@@ -1277,16 +1303,23 @@ func (s *Server) handleQBCreate(w http.ResponseWriter, r *http.Request, config C
 	}
 	account := normalizeQBAccount(payload)
 	account.ID = randomID()
-	if _, cookie, err := loginQB(account); err != nil {
+	var verifyErr error
+	var cookie string
+	if accountType(account) == accountTypeTransmission {
+		verifyErr = verifyTransmission(account)
+	} else {
+		_, cookie, verifyErr = loginQB(account)
+	}
+	if verifyErr != nil {
 		account.Cookie = ""
 		account.LastVerifiedAt = ""
-		account.LastError = err.Error()
-		logQBFailure("account_verify_on_save", account, err)
+		account.LastError = verifyErr.Error()
+		logQBFailure("account_verify_on_save", account, verifyErr)
 	} else {
 		account.Cookie = cookie
 		account.LastVerifiedAt = time.Now().Format(time.RFC3339)
 		account.LastError = ""
-		logQBEvent("account_verified_on_save", account, "qBittorrent account saved and verified")
+		logQBEvent("account_verified_on_save", account, "account saved and verified as "+accountType(account))
 	}
 	config.QBittorrents = append(config.QBittorrents, account)
 	if err := s.writeConfig(config); err != nil {
@@ -1976,6 +2009,14 @@ type torrentActionRequest struct {
 
 func (s *Server) handleQBDelete(w http.ResponseWriter, r *http.Request, config Config, session Session) {
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/qb/"), "/"), "/")
+	// Transmission accounts are managed through the generic account routes below, but
+	// the sub-resources here are qBittorrent WebUI specific.
+	if len(parts) >= 2 {
+		if account, ok := findQB(config.QBittorrents, parts[0]); ok && accountType(account) == accountTypeTransmission {
+			writeErrorText(w, http.StatusNotImplemented, "Transmission 账户暂不支持该功能")
+			return
+		}
+	}
 	if len(parts) == 2 && parts[1] == "torrents" {
 		if r.Method != http.MethodGet {
 			methodNotAllowed(w)
@@ -2498,10 +2539,14 @@ func (s *Server) updateQB(w http.ResponseWriter, r *http.Request, config Config,
 	}
 	for index := range config.QBittorrents {
 		if config.QBittorrents[index].ID == id {
+			existing := config.QBittorrents[index]
+			if strings.TrimSpace(payload.Type) == "" {
+				payload.Type = existing.Type
+			}
 			updated := normalizeQBAccount(payload)
 			updated.ID = id
 			if strings.TrimSpace(updated.Password) == "" {
-				updated.Password = config.QBittorrents[index].Password
+				updated.Password = existing.Password
 			}
 			updated.Cookie = ""
 			updated.LastVerifiedAt = ""
@@ -2881,11 +2926,14 @@ func validateQB(account QBAccount, requirePassword bool) error {
 	if account.Port <= 0 {
 		missing = append(missing, "port")
 	}
-	if strings.TrimSpace(account.Username) == "" {
-		missing = append(missing, "username")
-	}
-	if requirePassword && strings.TrimSpace(account.Password) == "" {
-		missing = append(missing, "password")
+	// Transmission RPC frequently runs without authentication, so its credentials stay optional.
+	if accountType(account) != accountTypeTransmission {
+		if strings.TrimSpace(account.Username) == "" {
+			missing = append(missing, "username")
+		}
+		if requirePassword && strings.TrimSpace(account.Password) == "" {
+			missing = append(missing, "password")
+		}
 	}
 	if len(missing) > 0 {
 		return errors.New("Missing fields: " + strings.Join(missing, ", "))
@@ -2898,7 +2946,13 @@ func normalizeQBAccount(account QBAccount) QBAccount {
 	if protocol == "" {
 		protocol = "http"
 	}
+	kind := accountType(account)
+	if kind == accountTypeQBittorrent {
+		// Keep stored configs free of a redundant type marker.
+		kind = ""
+	}
 	return QBAccount{
+		Type:     kind,
 		Alias:    strings.TrimSpace(account.Alias),
 		Protocol: protocol,
 		Host:     cleanHost(account.Host),
@@ -2988,6 +3042,95 @@ func loginQB(account QBAccount) (string, string, error) {
 		return "", "", qBLoginError{BaseURL: baseURL, StatusCode: response.StatusCode, Body: truncateLog(body, 500)}
 	}
 	return baseURL, strings.Join(cookies, "; "), nil
+}
+
+type transmissionRPCResult struct {
+	Result    string          `json:"result"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+func transmissionBaseURL(account QBAccount) (string, error) {
+	protocol := strings.ToLower(strings.TrimSpace(account.Protocol))
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" {
+		return "", errors.New("Transmission protocol must be http or https")
+	}
+	return protocol + "://" + cleanHost(account.Host) + ":" + strconv.Itoa(account.Port), nil
+}
+
+// verifyTransmission confirms the endpoint and credentials. Transmission answers the
+// first request with 409 plus an X-Transmission-Session-Id header, so the handshake is
+// handled inside callTransmissionRPC and session-get doubles as the auth check.
+func verifyTransmission(account QBAccount) error {
+	baseURL, err := transmissionBaseURL(account)
+	if err != nil {
+		return err
+	}
+	_, err = callTransmissionRPC(baseURL, account, "session-get", nil)
+	return err
+}
+
+func callTransmissionRPC(baseURL string, account QBAccount, method string, args any) (transmissionRPCResult, error) {
+	payload := map[string]any{"method": method}
+	if args != nil {
+		payload["arguments"] = args
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return transmissionRPCResult{}, err
+	}
+	client := &http.Client{Timeout: 8 * time.Second, Transport: qBHTTPClient.Transport}
+	sessionID := ""
+	for attempt := 0; attempt < 2; attempt++ {
+		request, err := http.NewRequest(http.MethodPost, baseURL+"/transmission/rpc", bytes.NewReader(body))
+		if err != nil {
+			return transmissionRPCResult{}, err
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json")
+		if sessionID != "" {
+			request.Header.Set("X-Transmission-Session-Id", sessionID)
+		}
+		if account.Username != "" || account.Password != "" {
+			request.SetBasicAuth(account.Username, account.Password)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return transmissionRPCResult{}, err
+		}
+		if response.StatusCode == http.StatusConflict {
+			issued := response.Header.Get("X-Transmission-Session-Id")
+			response.Body.Close()
+			if issued == "" {
+				return transmissionRPCResult{}, errors.New("Transmission 未返回会话标识，请确认地址指向 RPC 端口")
+			}
+			sessionID = issued
+			continue
+		}
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+			response.Body.Close()
+			return transmissionRPCResult{}, errors.New("Transmission 账号或密码校验失败")
+		}
+		content, readErr := io.ReadAll(io.LimitReader(response.Body, maxQBResponseSize))
+		response.Body.Close()
+		if readErr != nil {
+			return transmissionRPCResult{}, readErr
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			return transmissionRPCResult{}, fmt.Errorf("Transmission RPC 返回状态异常：%d", response.StatusCode)
+		}
+		var result transmissionRPCResult
+		if err := json.Unmarshal(content, &result); err != nil {
+			return transmissionRPCResult{}, errors.New("Transmission RPC 响应无法解析")
+		}
+		if result.Result != "success" {
+			return transmissionRPCResult{}, fmt.Errorf("Transmission RPC 拒绝请求：%s", truncateLog(result.Result, 200))
+		}
+		return result, nil
+	}
+	return transmissionRPCResult{}, errors.New("Transmission 会话握手失败，请检查地址与端口")
 }
 
 func logQBEvent(action string, account QBAccount, message string) {

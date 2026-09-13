@@ -399,6 +399,7 @@ select:focus {
   font-size: 18px;
   font-weight: 800;
   text-align: left;
+  transition: color .2s ease, background-color .22s ease, box-shadow .24s ease;
 }
 
 .sidebar nav button svg {
@@ -443,10 +444,20 @@ select:focus {
   right: -19px;
 }
 
+/* Hover hint for sidebar entries: low-saturation Monet tint, never on the active one. */
+.sidebar nav button:hover:not(.active),
+.sidebar .logout:hover {
+  color: #3f4c56;
+  background: rgba(154, 201, 180, .2);
+}
+
+/* Active entry: the Monet palette drifts slowly instead of sitting on a flat purple. */
 .sidebar nav button.active {
-  color: #fff;
-  background: linear-gradient(135deg, #9a72ef, #8264ea);
-  box-shadow: 0 14px 28px rgba(140, 100, 236, .24);
+  color: #38464f;
+  background: linear-gradient(115deg, #b8dbea, #c7e3d5, #ddc0d4, #b8dbea);
+  background-size: 260% 260%;
+  box-shadow: 0 12px 26px rgba(122, 152, 160, .26);
+  animation: monetFlow 16s ease-in-out infinite;
 }
 
 .logout {
@@ -805,6 +816,128 @@ select:focus {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+/* Account panel: type switcher on the left, verify/add pinned to the panel's top-right. */
+.account-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.account-type-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #f0f1f7;
+}
+
+.account-type-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #6d6a78;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 800;
+  transition: color .2s ease, background .24s ease, box-shadow .24s ease;
+}
+
+.account-type-switch button img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.account-type-switch button:hover:not(.active) {
+  color: #4d5a63;
+  background: rgba(154, 201, 180, .2);
+}
+
+.account-type-switch button.active {
+  color: #3d4b57;
+  background: linear-gradient(120deg, #cfe6ee, #d6ebde, #e6d3de, #cfe6ee);
+  background-size: 240% 240%;
+  box-shadow: 0 6px 16px rgba(122, 152, 160, .22);
+  animation: monetFlow 14s ease-in-out infinite;
+}
+
+.account-panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+/* Left column: name, address. Right column: account, password. */
+.account-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+}
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: #8d8a97;
+  background: transparent;
+  transform: translateY(-50%);
+  transition: color .18s ease, background .18s ease;
+}
+
+.password-toggle:hover {
+  color: #4d5a63;
+  background: rgba(154, 201, 180, .22);
+}
+
+.password-toggle svg {
+  width: 17px;
+  height: 17px;
+}
+
+.field-hint {
+  margin: 10px 0 0;
+  color: #8c8896;
+  font-size: 12px;
+}
+
+.configured-qb-icon {
+  justify-self: start;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  object-fit: contain;
+}
+
+@keyframes monetFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .button-row {

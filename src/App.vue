@@ -12,7 +12,7 @@
       </div>
       <form class="login-form" @submit.prevent="login">
         <label>账号<input v-model="loginForm.username" autocomplete="username" /></label>
-        <label>密码<input v-model="loginForm.password" type="password" autocomplete="current-password" /></label>
+        <label>密码<span class="password-field"><input v-model="loginForm.password" :type="passwordVisibility.login ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.login ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.login" @click="togglePassword('login')"><EyeOff v-if="passwordVisibility.login" /><Eye v-else /></button></span></label>
         <p v-if="error" class="form-error">{{ error }}</p>
         <button class="primary-button" :disabled="busy"><Loader2 v-if="busy" class="spin" /><KeyRound v-else />登录</button>
       </form>
@@ -60,7 +60,7 @@
           <form class="setting-panel" @submit.prevent="saveCredentials">
             <h2><KeyRound />登录账号</h2>
             <label>账号<input v-model="credentialForm.username" /></label>
-            <label>新密码<input v-model="credentialForm.password" type="password" /></label>
+            <label>密码<span class="password-field"><input v-model="credentialForm.password" :type="passwordVisibility.credential ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.credential ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.credential" @click="togglePassword('credential')"><EyeOff v-if="passwordVisibility.credential" /><Eye v-else /></button></span></label>
             <button class="primary-button"><Save />保存</button>
           </form>
 
@@ -83,29 +83,32 @@
 
         <div class="settings-column settings-column-right">
           <section class="setting-panel wide">
-            <h2><Layers />添加 qBittorrent</h2>
-            <div class="qb-form">
-              <label>别名<input v-model="qbForm.alias" @input="verified = false" /></label>
-              <label>协议<select v-model="qbForm.protocol" @change="verified = false"><option>http</option><option>https</option></select></label>
-              <label>地址<input v-model="qbForm.host" placeholder="192.168.1.10" @input="verified = false" /></label>
-              <label>端口<input v-model="qbForm.port" @input="verified = false" /></label>
-              <label>账号<input v-model="qbForm.username" @input="verified = false" /></label>
-              <label>密码<input v-model="qbForm.password" type="password" @input="verified = false" /></label>
+            <header class="account-panel-header">
+              <div class="account-type-switch" role="tablist" aria-label="账户类型">
+                <button type="button" role="tab" :aria-selected="qbForm.type === 'qbittorrent'" :class="{ active: qbForm.type === 'qbittorrent' }" @click="setAccountType('qbittorrent')"><img src="/qbittorrent.png" alt="" />qBittorrent</button>
+                <button type="button" role="tab" :aria-selected="qbForm.type === 'transmission'" :class="{ active: qbForm.type === 'transmission' }" @click="setAccountType('transmission')"><img src="/transmission.png" alt="" />Transmission</button>
+              </div>
+              <div class="account-panel-actions">
+                <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
+                <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
+              </div>
+            </header>
+            <div class="qb-form account-form-grid">
+              <label>名称<input v-model="qbForm.alias" @input="verified = false" /></label>
+              <label>地址<input v-model="qbForm.address" @input="verified = false" /></label>
+              <label>账户<input v-model="qbForm.username" @input="verified = false" /></label>
+              <label>密码<span class="password-field"><input v-model="qbForm.password" :type="passwordVisibility.account ? 'text' : 'password'" @input="verified = false" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.account ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.account" @click="togglePassword('account')"><EyeOff v-if="passwordVisibility.account" /><Eye v-else /></button></span></label>
             </div>
             <p v-if="message" :class="verified ? 'form-ok' : 'form-error'">{{ message }}</p>
-            <div class="button-row">
-              <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
-              <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
-            </div>
-            <section class="configured-qb-accounts" aria-label="已配置 qB 账户">
+            <section class="configured-qb-accounts" aria-label="已配置账户">
               <div class="configured-qb-heading">
-                <h3>已配置 qB 账户</h3>
+                <h3>已配置账户</h3>
                 <span>{{ config.qbittorrents.length }} 个账户</span>
               </div>
               <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
                 <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
                   <div class="configured-qb-card-main">
-                    <Layers />
+                    <img class="configured-qb-icon" :src="accountTypeIcon(account)" :alt="accountTypeLabel(account)" :title="accountTypeLabel(account)" />
                     <strong :title="account.alias">{{ account.alias }}</strong>
                     <span :title="`${account.protocol}://${account.host}:${account.port}`">{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
                   </div>
@@ -116,7 +119,7 @@
                 </article>
                 <div class="configured-qb-empty">
                   <Plus />
-                  <span>{{ config.qbittorrents.length ? '预留账户窗口' : '添加后的 qBittorrent 账户将显示在这里。' }}</span>
+                  <span>{{ config.qbittorrents.length ? '预留账户窗口' : '添加后的账户将显示在这里。' }}</span>
                 </div>
               </div>
             </section>
@@ -125,7 +128,7 @@
           <section class="setting-panel backup-panel">
             <h2><Save />配置备份</h2>
             <div class="backup-summary">
-              <span>{{ config.qbittorrents.length }} 个 qB 账户</span>
+              <span>{{ config.qbittorrents.length }} 个账户</span>
               <span>{{ config.lanes.length }} 个横栏</span>
               <span>{{ config.cards.length }} 张卡片</span>
               <span>{{ config.tagPool.length }} 个标签</span>
@@ -467,15 +470,16 @@
     <div v-if="editingQb" class="modal-backdrop" @click.self="editingQb = null">
       <section class="modal edit-qb-modal">
         <header>
-          <h2>编辑 qBittorrent</h2>
+          <h2>编辑 {{ accountTypeLabel(editingQb) }}</h2>
           <button class="icon-button" @click="editingQb = null"><X /></button>
         </header>
-        <label>别名<input v-model="editingQb.alias" /></label>
-        <label>协议<select v-model="editingQb.protocol"><option>http</option><option>https</option></select></label>
-        <label>地址<input v-model="editingQb.host" /></label>
-        <label>端口<input v-model="editingQb.port" /></label>
-        <label>账号<input v-model="editingQb.username" /></label>
-        <label>新密码<input v-model="editingQb.password" type="password" placeholder="留空则不修改" /></label>
+        <div class="qb-form account-form-grid">
+          <label>名称<input v-model="editingQb.alias" /></label>
+          <label>地址<input v-model="editingQb.address" /></label>
+          <label>账户<input v-model="editingQb.username" /></label>
+          <label>密码<span class="password-field"><input v-model="editingQb.password" :type="passwordVisibility.editing ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.editing ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.editing" @click="togglePassword('editing')"><EyeOff v-if="passwordVisibility.editing" /><Eye v-else /></button></span></label>
+        </div>
+        <p class="field-hint">密码留空表示不修改当前密码。</p>
         <p v-if="editQbMessage" class="form-error">{{ editQbMessage }}</p>
         <div class="button-row">
           <button class="secondary-button" @click="testEditingQb"><CheckCircle2 />验证</button>
@@ -756,6 +760,8 @@ import {
   Tags,
   Upload,
   UploadCloud,
+  Eye,
+  EyeOff,
   X
 } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
@@ -883,7 +889,58 @@ const filteredOperationLogs = computed(() => {
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
-const qbForm = reactive({ alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
+const accountFormDefaults = { type: 'qbittorrent', alias: '', address: 'http://', username: '', password: '' };
+const qbForm = reactive({ ...accountFormDefaults });
+const accountDefaultPorts = { qbittorrent: 8080, transmission: 9091 };
+const passwordVisibility = reactive({ login: false, credential: false, account: false, editing: false });
+const addressHint = '地址需以 http:// 或 https:// 开头，并包含端口，例如 http://192.168.1.10:8080';
+
+function togglePassword(field) {
+  passwordVisibility[field] = !passwordVisibility[field];
+}
+
+function setAccountType(type) {
+  if (qbForm.type === type) return;
+  qbForm.type = type;
+  verified.value = false;
+  message.value = '';
+}
+
+function accountTypeIcon(account) {
+  return (account?.type || 'qbittorrent') === 'transmission' ? '/transmission.png' : '/qbittorrent.png';
+}
+
+function accountTypeLabel(account) {
+  return (account?.type || 'qbittorrent') === 'transmission' ? 'Transmission' : 'qBittorrent';
+}
+
+function parseAccountAddress(value, type) {
+  const raw = String(value ?? '').trim();
+  const match = /^(https?):\/\/([^/:\s]+)(?::(\d{1,5}))?\/?$/i.exec(raw);
+  if (!match) return null;
+  const port = match[3] ? Number(match[3]) : accountDefaultPorts[type] ?? accountDefaultPorts.qbittorrent;
+  if (!port || port < 1 || port > 65535) return null;
+  return { protocol: match[1].toLowerCase(), host: match[2], port };
+}
+
+function formatAccountAddress(account) {
+  if (!account) return 'http://';
+  const protocol = account.protocol || 'http';
+  return account.port ? `${protocol}://${account.host}:${account.port}` : `${protocol}://${account.host}`;
+}
+
+function accountPayload(form) {
+  const parsed = parseAccountAddress(form.address, form.type);
+  if (!parsed) return null;
+  return {
+    id: form.id,
+    type: form.type || 'qbittorrent',
+    alias: form.alias,
+    username: form.username,
+    password: form.password,
+    ...parsed,
+  };
+}
 
 onMounted(async () => {
   window.addEventListener('hashchange', syncViewFromHash);
@@ -1204,8 +1261,13 @@ async function saveTrackerMappings() {
 async function testQb() {
   message.value = '';
   verified.value = false;
+  const payload = accountPayload(qbForm);
+  if (!payload) {
+    message.value = addressHint;
+    return;
+  }
   try {
-    await api('/api/qb/test', { method: 'POST', body: JSON.stringify({ ...qbForm, port: Number(qbForm.port) }) });
+    await api('/api/qb/test', { method: 'POST', body: JSON.stringify(payload) });
     verified.value = true;
     message.value = '连接验证成功';
   } catch (requestError) {
@@ -1214,12 +1276,21 @@ async function testQb() {
 }
 
 async function addQb() {
+  message.value = '';
+  const payload = accountPayload(qbForm);
+  if (!payload) {
+    verified.value = false;
+    message.value = addressHint;
+    return;
+  }
+  const type = qbForm.type;
   try {
-    config.value = await api('/api/qb', { method: 'POST', body: JSON.stringify({ ...qbForm, port: Number(qbForm.port) }) });
-    Object.assign(qbForm, { alias: '', protocol: 'http', host: '', port: '8080', username: '', password: '' });
+    config.value = await api('/api/qb', { method: 'POST', body: JSON.stringify(payload) });
+    Object.assign(qbForm, { ...accountFormDefaults, type });
     verified.value = false;
     const added = config.value.qbittorrents.at(-1);
-    message.value = added?.lastVerifiedAt ? '已添加 qB 账户，连接验证成功' : '已添加 qB 账户，连接未验证，详细原因见容器日志';
+    const label = accountTypeLabel(added);
+    message.value = added?.lastVerifiedAt ? `已添加 ${label} 账户，连接验证成功` : `已添加 ${label} 账户，连接未验证，详细原因见容器日志`;
   } catch (requestError) {
     message.value = requestError.message;
   }
@@ -1230,14 +1301,20 @@ function scrollQbAccounts(event) {
 }
 
 function editQb(account) {
-  editingQb.value = { ...account, password: '', port: String(account.port) };
+  editingQb.value = { ...account, type: account.type || 'qbittorrent', address: formatAccountAddress(account), password: '' };
+  passwordVisibility.editing = false;
   editQbMessage.value = '';
 }
 
 async function testEditingQb() {
   editQbMessage.value = '';
+  const payload = accountPayload(editingQb.value);
+  if (!payload) {
+    editQbMessage.value = addressHint;
+    return;
+  }
   try {
-    await api('/api/qb/test', { method: 'POST', body: JSON.stringify({ ...editingQb.value, port: Number(editingQb.value.port) }) });
+    await api('/api/qb/test', { method: 'POST', body: JSON.stringify(payload) });
     editQbMessage.value = '连接验证成功';
   } catch (requestError) {
     editQbMessage.value = `${requestError.message}，可先保存，详细原因见容器日志`;
@@ -1245,8 +1322,13 @@ async function testEditingQb() {
 }
 
 async function saveQb() {
+  const payload = accountPayload(editingQb.value);
+  if (!payload) {
+    editQbMessage.value = addressHint;
+    return;
+  }
   try {
-    config.value = await api(`/api/qb/${editingQb.value.id}`, { method: 'PUT', body: JSON.stringify({ ...editingQb.value, port: Number(editingQb.value.port) }) });
+    config.value = await api(`/api/qb/${editingQb.value.id}`, { method: 'PUT', body: JSON.stringify(payload) });
     editingQb.value = null;
   } catch (requestError) {
     editQbMessage.value = requestError.message;
