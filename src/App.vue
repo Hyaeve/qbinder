@@ -588,12 +588,12 @@
         </header>
         <p>确认删除已选 {{ selectedTaskHashes.length }} 个种子任务？</p>
         <div class="task-delete-options">
-          <button type="button" class="task-switch" role="switch" :aria-checked="taskDeleteDialog.deleteFiles" @click="taskDeleteDialog.deleteFiles = !taskDeleteDialog.deleteFiles">
+          <button type="button" class="task-switch" :class="{ on: taskDeleteDialog.deleteFiles }" role="switch" :aria-checked="taskDeleteDialog.deleteFiles" @click="taskDeleteDialog.deleteFiles = !taskDeleteDialog.deleteFiles">
             <span class="task-switch-track" aria-hidden="true"><i></i></span>
-            <span class="task-switch-label">同时删除已下载的文件</span>
+            <span class="task-switch-label">同时删除本地文件</span>
           </button>
         </div>
-        <p class="task-delete-hint">{{ taskDeleteDialog.deleteFiles ? '种子任务与已下载的文件都会被删除。' : '仅从下载服务中移除种子任务，保留已下载的文件。' }}</p>
+        <p class="task-delete-hint">{{ taskDeleteDialog.deleteFiles ? '种子任务与本地文件都会被删除。' : '仅从下载服务中移除种子任务，保留本地文件。' }}</p>
         <p v-if="taskDeleteDialog.error" class="form-error">{{ taskDeleteDialog.error }}</p>
         <div class="modal-actions">
           <button type="button" class="danger-button" :disabled="taskDeleteDialog.submitting" @click="confirmTaskDelete"><Loader2 v-if="taskDeleteDialog.submitting" class="spin" /><Trash2 v-else />确认删除</button>
@@ -690,12 +690,12 @@
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <div v-if="scheduleEditor.action === 'delete'" class="task-delete-options schedule-delete-options">
-            <button type="button" class="task-switch" role="switch" :aria-checked="scheduleEditor.deleteFiles" @click="scheduleEditor.deleteFiles = !scheduleEditor.deleteFiles">
+            <button type="button" class="task-switch" :class="{ on: scheduleEditor.deleteFiles }" role="switch" :aria-checked="scheduleEditor.deleteFiles" @click="scheduleEditor.deleteFiles = !scheduleEditor.deleteFiles">
               <span class="task-switch-track" aria-hidden="true"><i></i></span>
-              <span class="task-switch-label">同时删除已下载的文件</span>
+              <span class="task-switch-label">同时删除本地文件</span>
             </button>
           </div>
-          <p v-if="scheduleEditor.action === 'delete'" class="task-delete-hint">{{ scheduleEditor.deleteFiles ? '到点执行时会连已下载的文件一起删除。' : '到点执行时只移除种子任务，保留已下载的文件。' }}</p>
+          <p v-if="scheduleEditor.action === 'delete'" class="task-delete-hint">{{ scheduleEditor.deleteFiles ? '到点执行时会连本地文件一起删除。' : '到点执行时只移除种子任务，保留本地文件。' }}</p>
         </template>
         <template v-else-if="scheduleEditor.action === 'toggleAltSpeed'">
           <div class="schedule-alt-speed">
