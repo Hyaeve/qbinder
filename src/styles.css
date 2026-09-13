@@ -392,7 +392,7 @@ select:focus {
   align-items: center;
   gap: 14px;
   height: 54px;
-  border-radius: 999px;
+  border-radius: 16px;
   padding: 0 18px;
   color: #686572;
   background: transparent;
@@ -451,13 +451,11 @@ select:focus {
   background: rgba(154, 201, 180, .2);
 }
 
-/* Active entry: the Monet palette drifts slowly instead of sitting on a flat purple. */
+/* Active entry: one randomly drawn low-saturation Monet tint, re-rolled on every page load. */
 .sidebar nav button.active {
-  color: #38464f;
-  background: linear-gradient(115deg, #b8dbea, #c7e3d5, #ddc0d4, #b8dbea);
-  background-size: 260% 260%;
+  color: var(--sidebar-monet-fg, #38464f);
+  background: var(--sidebar-monet-bg, #c9e0d2);
   box-shadow: 0 12px 26px rgba(122, 152, 160, .26);
-  animation: monetFlow 16s ease-in-out infinite;
 }
 
 .logout {
@@ -862,12 +860,17 @@ select:focus {
   background: rgba(154, 201, 180, .2);
 }
 
-.account-type-switch button.active {
-  color: #3d4b57;
-  background: linear-gradient(120deg, #cfe6ee, #d6ebde, #e6d3de, #cfe6ee);
-  background-size: 240% 240%;
-  box-shadow: 0 6px 16px rgba(122, 152, 160, .22);
-  animation: monetFlow 14s ease-in-out infinite;
+/* Fixed type colours: qBittorrent reads light blue, Transmission light grey-red. */
+.account-type-switch button.active.account-type-qb {
+  color: #35566a;
+  background: #cbe3f0;
+  box-shadow: 0 6px 16px rgba(108, 158, 190, .26);
+}
+
+.account-type-switch button.active.account-type-tr {
+  color: #6c4a4f;
+  background: #e3d5d7;
+  box-shadow: 0 6px 16px rgba(170, 132, 138, .24);
 }
 
 .account-panel-actions {
@@ -932,12 +935,6 @@ select:focus {
   height: 27px;
   border-radius: 7px;
   object-fit: contain;
-}
-
-@keyframes monetFlow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 .button-row {
@@ -1019,21 +1016,31 @@ select:focus {
   color: #799aab;
 }
 
-.configured-qb-card-main strong {
+.configured-qb-card-main strong,
+.configured-qb-card-main > span {
+  display: block;
+  min-width: 0;
   overflow: hidden;
-  color: #435d64;
-  font-size: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.configured-qb-card-main span {
-  overflow: hidden;
+.configured-qb-card-main strong {
+  color: #435d64;
+  font-size: 18px;
+}
+
+.configured-qb-card-main > span {
   color: #78868c;
   font-size: 12px;
   line-height: 1.4;
-  text-overflow: ellipsis;
+}
+
+/* Card text truncates; the floating full-text box fires only when it is really clipped. */
+.configured-qb-card-main strong > span,
+.configured-qb-card-main > span > span {
+  display: block;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .configured-qb-card-main em {
@@ -1540,7 +1547,7 @@ body:has(.modal-backdrop) {
   .task-header-cell svg { width: 14px; height: 14px; color: #8e8a99; }
   .column-resizer { position: absolute; top: 8px; right: -3px; bottom: 8px; z-index: 2; width: 6px; cursor: col-resize; }
   .column-resizer:hover, .column-resizer:active { background: #a88af1; }
-  .task-cell { display: flex; align-items: center; min-height: 56px; overflow: hidden; color: #514e5a; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+  .task-cell { display: flex; align-items: center; min-height: 48px; overflow: hidden; color: #514e5a; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
   .task-cell-name, .task-cell-tracker, .task-cell-save_path { overflow: hidden; text-overflow: ellipsis; }
   .task-cell-name { color: #3f3c48; font-weight: 800; }
 
@@ -1642,7 +1649,7 @@ body:has(.modal-backdrop) {
   .task-header-cell svg { width: 14px; height: 14px; color: #8e8a99; }
   .column-resizer { position: absolute; top: 8px; right: -3px; bottom: 8px; z-index: 2; width: 6px; cursor: col-resize; }
   .column-resizer:hover, .column-resizer:active { background: #a88af1; }
-  .task-cell { display: flex; align-items: center; min-height: 56px; overflow: hidden; color: #514e5a; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+  .task-cell { display: flex; align-items: center; min-height: 48px; overflow: hidden; color: #514e5a; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
   .task-cell-name, .task-cell-tracker, .task-cell-save_path { overflow: hidden; text-overflow: ellipsis; }
   .task-cell-name { color: #3f3c48; font-weight: 800; }
   .progress-value { display: flex; align-items: center; width: 100%; gap: 9px; }
@@ -2345,8 +2352,8 @@ body:has(.modal-backdrop) {
 }
 
 .task-cell {
-  min-height: 64px;
-  padding: 14px 16px;
+  min-height: 52px;
+  padding: 10px 16px;
   border-right: 1px solid rgba(232, 231, 238, .65);
   border-bottom-color: #ecebf1;
   font-size: 14px;

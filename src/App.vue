@@ -19,7 +19,7 @@
     </section>
   </main>
 
-  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }" :style="sidebarAccentStyle">
     <aside class="sidebar">
       <div class="sidebar-top">
         <div class="brand-lockup">
@@ -85,8 +85,8 @@
           <section class="setting-panel wide">
             <header class="account-panel-header">
               <div class="account-type-switch" role="tablist" aria-label="账户类型">
-                <button type="button" role="tab" :aria-selected="qbForm.type === 'qbittorrent'" :class="{ active: qbForm.type === 'qbittorrent' }" @click="setAccountType('qbittorrent')"><img src="/qbittorrent.png" alt="" />qBittorrent</button>
-                <button type="button" role="tab" :aria-selected="qbForm.type === 'transmission'" :class="{ active: qbForm.type === 'transmission' }" @click="setAccountType('transmission')"><img src="/transmission.png" alt="" />Transmission</button>
+                <button type="button" role="tab" :aria-selected="qbForm.type === 'qbittorrent'" class="account-type-qb" :class="{ active: qbForm.type === 'qbittorrent' }" @click="setAccountType('qbittorrent')"><img src="/qbittorrent.png" alt="" />qBittorrent</button>
+                <button type="button" role="tab" :aria-selected="qbForm.type === 'transmission'" class="account-type-tr" :class="{ active: qbForm.type === 'transmission' }" @click="setAccountType('transmission')"><img src="/transmission.png" alt="" />Transmission</button>
               </div>
               <div class="account-panel-actions">
                 <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
@@ -108,9 +108,9 @@
               <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
                 <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
                   <div class="configured-qb-card-main">
-                    <img class="configured-qb-icon" :src="accountTypeIcon(account)" :alt="accountTypeLabel(account)" :title="accountTypeLabel(account)" />
-                    <strong :title="account.alias">{{ account.alias }}</strong>
-                    <span :title="`${account.protocol}://${account.host}:${account.port}`">{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span>
+                    <img class="configured-qb-icon" :src="accountTypeIcon(account)" :alt="accountTypeLabel(account)" />
+                    <strong :data-overflow-tooltip="account.alias"><span>{{ account.alias }}</span></strong>
+                    <span :data-overflow-tooltip="`${account.protocol}://${account.host}:${account.port}`"><span>{{ account.protocol }}://{{ account.host }}:{{ account.port }}</span></span>
                   </div>
                   <div class="configured-qb-actions">
                     <button type="button" class="secondary-button" @click="editQb(account)">编辑</button>
@@ -769,6 +769,23 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
 const accentColors = ['#7d8fd7', '#8eb7a4', '#d0a49b', '#bfa6d9', '#d7bc76', '#8fb7c8', '#c6b4a4'];
 const scheduleAccentColors = ['#89aaa2', '#9aa9bd', '#b3a0b4', '#b7a58e', '#8fa9b0', '#a5b493', '#b59698', '#969eb5'];
+
+// Active sidebar entry takes one randomly drawn low-saturation Monet tint. It is picked once per
+// page load, so a refresh re-rolls it instead of animating a gradient.
+const sidebarMonetPalette = [
+  { bg: '#c6ddea', fg: '#3a5866' },
+  { bg: '#c9e0d2', fg: '#3d5c4c' },
+  { bg: '#e1d5c5', fg: '#5c5041' },
+  { bg: '#ddd4e4', fg: '#4f4761' },
+  { bg: '#e4d2d8', fg: '#5e454d' },
+  { bg: '#d6e0c6', fg: '#4b5739' },
+  { bg: '#cfdbe7', fg: '#3f5266' },
+  { bg: '#e7dec7', fg: '#5e5540' },
+  { bg: '#d3d7e6', fg: '#454a63' },
+  { bg: '#dae3d7', fg: '#48543f' }
+];
+const sidebarMonet = sidebarMonetPalette[Math.floor(Math.random() * sidebarMonetPalette.length)];
+const sidebarAccentStyle = { '--sidebar-monet-bg': sidebarMonet.bg, '--sidebar-monet-fg': sidebarMonet.fg };
 
 const loading = ref(true);
 const busy = ref(false);
