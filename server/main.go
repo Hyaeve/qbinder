@@ -1930,7 +1930,10 @@ type transferInfo struct {
 	Uploaded      int64 `json:"up_info_data"`
 	DownRateLimit int64 `json:"dl_rate_limit"`
 	UpRateLimit   int64 `json:"up_rate_limit"`
-	AltSpeedsOn   bool  `json:"alt_speeds_on"`
+	// qBittorrent exposes the alternate-speed switch as use_alt_speed_limits.
+	// Pointers keep "field absent" distinguishable from "switch off".
+	AltSpeedLimitsEnabled *bool `json:"use_alt_speed_limits"`
+	AltSpeedsOnLegacy     *bool `json:"alt_speeds_on"`
 }
 
 type transferStatus struct {
@@ -2285,6 +2288,45 @@ func manualOperationLog(account QBAccount, action string, payload torrentActionR
 	return entry
 }
 
+// resolveAltSpeedLimits reports qBittorrent's alternate-speed switch so the client's
+// highlight always mirrors qB. Newer builds include use_alt_speed_limits in
+// transfer/info; when the field is missing we ask the dedicated endpoint instead.
+func resolveAltSpeedLimits(ctx context.Context, baseURL, cookie string, info transferInfo, account QBAccount) bool {
+	if info.AltSpeedLimitsEnabled != nil {
+		return *info.AltSpeedLimitsEnabled
+	}
+	if info.AltSpeedsOnLegacy != nil {
+		return *info.AltSpeedsOnLegacy
+	}
+	enabled, err := queryQBSpeedLimitsMode(ctx, baseURL, cookie)
+	if err != nil {
+		logQBFailure("speed_limits_mode_request", account, err)
+		return false
+	}
+	return enabled
+}
+
+func queryQBSpeedLimitsMode(ctx context.Context, baseURL, cookie string) (bool, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v2/transfer/speedLimitsMode", nil)
+	if err != nil {
+		return false, err
+	}
+	request.Header.Set("Cookie", cookie)
+	response, err := qBHTTPClient.Do(request)
+	if err != nil {
+		return false, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return false, fmt.Errorf("qBittorrent speed limits mode failed: %d", response.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 64))
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(body)) == "1", nil
+}
+
 func (s *Server) handleQBTransferToggleSpeedLimits(w http.ResponseWriter, r *http.Request, config Config, id string) {
 	account, ok := findQB(config.QBittorrents, id)
 	if !ok {
@@ -2438,7 +2480,7 @@ func (s *Server) handleQBTorrents(w http.ResponseWriter, r *http.Request, config
 		Uploaded:         qBTransfer.Uploaded,
 		DownRateLimit:    qBTransfer.DownRateLimit,
 		UpRateLimit:      qBTransfer.UpRateLimit,
-		AltSpeedLimitsOn: qBTransfer.AltSpeedsOn,
+		AltSpeedLimitsOn: resolveAltSpeedLimits(r.Context(), baseURL, cookie, qBTransfer, account),
 	}
 	result.TotalDownSpeed = qBTransfer.DownSpeed
 	result.TotalUpSpeed = qBTransfer.UpSpeed

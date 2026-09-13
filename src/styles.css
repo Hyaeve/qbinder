@@ -1870,12 +1870,19 @@ body:has(.modal-backdrop) {
   stroke-linejoin: round;
 }
 
+/* Needle pivots on its own base (the hub), so the tip sweeps instead of lying flat. */
 .transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-needle {
   fill: #8d9299;
   stroke: none;
   transform-box: view-box;
-  transform-origin: 12px 12px;
+  transform-origin: 12px 15.8px;
+  transform: rotate(38deg);
   transition: transform .24s ease, fill .18s ease;
+}
+
+.transfer-alt-speed-icon.transfer-alt-speed-gauge .alt-speed-gauge-hub {
+  fill: #8d9299;
+  transition: fill .18s ease;
 }
 
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge {
@@ -1886,7 +1893,10 @@ body:has(.modal-backdrop) {
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-ticks { stroke: #159b82; stroke-width: 2.1; }
 .transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-needle {
   fill: #159b82;
-  transform: rotate(-120deg);
+  transform: rotate(-36deg);
+}
+.transfer-alt-speed-button.active .transfer-alt-speed-gauge .alt-speed-gauge-hub {
+  fill: #159b82;
 }
 
 .transfer-alt-speed-icon .alt-speed-blue,

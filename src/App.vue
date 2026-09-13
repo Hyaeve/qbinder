@@ -28,15 +28,15 @@
         </div>
       </div>
       <nav>
-        <button :class="{ active: view === 'cards' }" title="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
-        <button :class="{ active: view === 'torrents' }" title="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'tasks' }" title="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="3.5" /><path d="M7 7h.01M7 12h.01M7 17h.01M10 7h8M10 12h8M10 17h5" /></svg><span>任务</span></button>
-        <button :class="{ active: view === 'traffic' }" title="域流" @click="navigateToView('traffic')"><Gauge /><span>域流</span></button>
-        <button :class="{ active: view === 'logs' }" title="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
-        <button :class="{ active: view === 'settings' }" title="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
+        <button :class="{ active: view === 'cards' }" aria-label="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
+        <button :class="{ active: view === 'torrents' }" aria-label="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
+        <button :class="{ active: view === 'tasks' }" aria-label="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="3.5" /><path d="M7 7h.01M7 12h.01M7 17h.01M10 7h8M10 12h8M10 17h5" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'traffic' }" aria-label="域流" @click="navigateToView('traffic')"><Gauge /><span>域流</span></button>
+        <button :class="{ active: view === 'logs' }" aria-label="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
+        <button :class="{ active: view === 'settings' }" aria-label="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
       </nav>
-      <button class="ghost-button logout" title="退出" @click="logout"><LogOut /><span>退出</span></button>
-      <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
+      <button class="ghost-button logout" aria-label="退出" @click="logout"><LogOut /><span>退出</span></button>
+      <button class="sidebar-toggle" :class="{ 'is-expand-action': sidebarCollapsed }" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="toggleSidebar">
         <span class="sidebar-toggle-rail" aria-hidden="true"></span>
         <span class="sidebar-toggle-action" aria-hidden="true">
           <svg viewBox="0 0 24 120" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25">
@@ -341,7 +341,8 @@
           ><svg class="transfer-alt-speed-icon transfer-alt-speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="alt-speed-gauge-ring" cx="12" cy="12" r="8.6" />
             <path class="alt-speed-gauge-ticks" d="M8.3 6.4 7.5 5M12 5.3V3.8M15.7 6.4l.8-1.4" />
-            <path class="alt-speed-gauge-needle" d="m8.1 16.2 7.5-7.4-3.9 8.6Z" />
+            <path class="alt-speed-gauge-needle" d="M12 5.4 13.1 15.8 10.9 15.8Z" />
+            <circle class="alt-speed-gauge-hub" cx="12" cy="15.8" r="1.4" />
           </svg></button>
           <div class="transfer-stat is-upload" aria-label="上传传输状态">
             <Upload aria-hidden="true" />
@@ -1892,7 +1893,7 @@ async function loadTasks({ silent = false, full = false } = {}) {
     taskSyncRid = result.rid;
     selectedTaskHashes.value = selectedTaskHashes.value.filter((hash) => byHash.has(hash));
     Object.assign(transferInfo, result.transfer || {});
-    if (altSpeedStateOverride.value !== null) transferInfo.altSpeedLimitsOn = altSpeedStateOverride.value;
+    applyAltSpeedOverride();
   } catch (requestError) {
     if (activeQb.value?.id === requestedQbId) tasksError.value = requestError.message;
   } finally {
@@ -2199,6 +2200,31 @@ function renameSelectedTask() {
   taskRenameDialog.open = true;
 }
 
+function holdAltSpeedState(value) {
+  altSpeedStateOverride.value = value;
+  if (altSpeedOverrideTimer) window.clearTimeout(altSpeedOverrideTimer);
+  altSpeedOverrideTimer = window.setTimeout(() => {
+    altSpeedOverrideTimer = null;
+    altSpeedStateOverride.value = null;
+  }, 15000);
+}
+
+function releaseAltSpeedState() {
+  if (altSpeedOverrideTimer) window.clearTimeout(altSpeedOverrideTimer);
+  altSpeedOverrideTimer = null;
+  altSpeedStateOverride.value = null;
+}
+
+function applyAltSpeedOverride() {
+  if (altSpeedStateOverride.value === null) return;
+  if (transferInfo.altSpeedLimitsOn === altSpeedStateOverride.value) {
+    // qB agrees with the local value, so stop holding it and mirror qB from now on.
+    releaseAltSpeedState();
+    return;
+  }
+  transferInfo.altSpeedLimitsOn = altSpeedStateOverride.value;
+}
+
 async function toggleAlternativeSpeedLimits() {
   if (!activeQb.value || transferInfo.togglingAltSpeedLimits) return;
   transferInfo.togglingAltSpeedLimits = true;
@@ -2207,7 +2233,7 @@ async function toggleAlternativeSpeedLimits() {
   try {
     await api(`/api/qb/${activeQb.value.id}/transfer/toggle-speed-limits`, { method: 'POST' });
     transferInfo.altSpeedLimitsOn = nextState;
-    altSpeedStateOverride.value = nextState;
+    holdAltSpeedState(nextState);
     await loadTasks();
     transferInfo.altSpeedLimitsOn = nextState;
   } catch (requestError) {
@@ -2444,7 +2470,7 @@ async function confirmTorrentExport() {
 }
 
 function selectQbAccount(id) {
-  altSpeedStateOverride.value = null;
+  releaseAltSpeedState();
   transferInfo.altSpeedLimitsOn = false;
   activeQbId.value = id;
   accountMenuOpen.value = false;
