@@ -110,10 +110,13 @@ type Schedule struct {
 	SavePath     string   `json:"savePath,omitempty"`
 	Tags         []string `json:"tags,omitempty"`
 	DeleteFiles  bool     `json:"deleteFiles,omitempty"`
-	Enabled      bool     `json:"enabled"`
-	LastRunAt    string   `json:"lastRunAt,omitempty"`
-	LastError    string   `json:"lastError,omitempty"`
-	CreatedAt    string   `json:"createdAt"`
+	// AltSpeedOn is the requested end state for the alt-speed action. It is a pointer so that
+	// schedules written before the field existed stay distinguishable; nil is treated as on.
+	AltSpeedOn *bool  `json:"altSpeedOn,omitempty"`
+	Enabled    bool   `json:"enabled"`
+	LastRunAt  string `json:"lastRunAt,omitempty"`
+	LastError  string `json:"lastError,omitempty"`
+	CreatedAt  string `json:"createdAt"`
 }
 
 type OperationLog struct {
@@ -764,6 +767,10 @@ func (s *Server) runScheduleNow(w http.ResponseWriter, config Config, id string)
 	if executionError == nil && requiresScheduleTorrentMatch(*schedule) && len(torrentNames) == 0 {
 		entry.Detail = "手动立即执行；执行时无匹配种子，本次未执行操作"
 	}
+	if executionError == nil && schedule.Action == "addURLs" {
+		entry.Detail = "手动立即执行；已提交并清空本次种子"
+		consumeScheduleTorrents(schedule)
+	}
 	if executionError != nil {
 		schedule.LastError = executionError.Error()
 		entry.Status, entry.Error = "failed", executionError.Error()
@@ -780,8 +787,12 @@ func validateSchedule(schedule Schedule, accounts []QBAccount) error {
 	if strings.TrimSpace(schedule.Name) == "" || len([]rune(strings.TrimSpace(schedule.Name))) > 100 {
 		return errors.New("任务名称不能为空且不能超过 100 个字符")
 	}
-	if _, ok := findQB(accounts, schedule.QBID); !ok {
-		return errors.New("qBittorrent 账户不存在")
+	account, ok := findQB(accounts, schedule.QBID)
+	if !ok {
+		return errors.New("下载服务账户不存在")
+	}
+	if accountType(account) == accountTypeTransmission && schedule.Action != "toggleAltSpeed" {
+		return errors.New("Transmission 账户目前仅支持「设置备用速度」任务")
 	}
 	if !validCron(schedule.Cron) {
 		return errors.New("Cron 格式无效，请使用标准五段格式：分 时 日 月 周")
@@ -801,8 +812,18 @@ func validateSchedule(schedule Schedule, accounts []QBAccount) error {
 		}
 	case "toggleAltSpeed":
 	case "addURLs":
-		if strings.TrimSpace(schedule.TorrentURLs) == "" && len(schedule.TorrentFiles) == 0 {
-			return errors.New("请选择种子文件或输入至少一个种子链接")
+		// Links and files are consumed by the first successful run, so an empty list is a legal
+		// resting state: the task stays in place and simply has nothing to submit.
+		if len(schedule.TorrentFiles) > 50 {
+			return errors.New("最多保存 50 个种子文件")
+		}
+		for _, name := range schedule.TorrentFiles {
+			if filepath.Base(name) != name || !strings.HasSuffix(name, ".torrent") {
+				return errors.New("种子文件名无效")
+			}
+		}
+		if len(schedule.TorrentURLs) > 200000 {
+			return errors.New("种子链接内容过长")
 		}
 	default:
 		return errors.New("不支持的定时操作")
@@ -855,6 +876,10 @@ func (s *Server) runScheduleLoop() {
 			if executionError == nil && requiresScheduleTorrentMatch(*schedule) && len(torrentNames) == 0 {
 				entry.Detail = "执行时无匹配种子，本次未执行操作"
 			}
+			if executionError == nil && schedule.Action == "addURLs" {
+				entry.Detail = "已提交并清空本次种子"
+				consumeScheduleTorrents(schedule)
+			}
 			if executionError != nil {
 				schedule.LastError = executionError.Error()
 				entry.Status, entry.Error = "failed", executionError.Error()
@@ -873,7 +898,10 @@ func (s *Server) runScheduleLoop() {
 
 func scheduleLogTarget(schedule Schedule) string {
 	if schedule.Action == "toggleAltSpeed" {
-		return "全局备用速度"
+		if scheduleAltSpeedTarget(schedule) {
+			return "备用速度：开启"
+		}
+		return "备用速度：关闭"
 	}
 	if schedule.Action == "addURLs" {
 		return fmt.Sprintf("添加种子（文件 %d 个）", len(schedule.TorrentFiles))
@@ -894,16 +922,23 @@ func scheduleLogTarget(schedule Schedule) string {
 func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) ([]string, error) {
 	account, ok := findQB(accounts, schedule.QBID)
 	if !ok {
-		return nil, errors.New("qBittorrent 账户不存在")
+		return nil, errors.New("下载服务账户不存在")
+	}
+	// The alt-speed action is the one both back ends can serve, so it resolves before any
+	// qBittorrent-specific login happens.
+	if schedule.Action == "toggleAltSpeed" {
+		return nil, applyAltSpeedTarget(schedule, account)
 	}
 	baseURL, cookie, err := loginQB(account)
 	if err != nil {
 		return nil, err
 	}
-	if schedule.Action == "toggleAltSpeed" {
-		return nil, postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
-	}
 	if schedule.Action == "addURLs" {
+		// A consumed task keeps its schedule but has nothing left to submit, which is a no-op
+		// rather than a failure.
+		if len(schedule.TorrentFiles) == 0 && strings.TrimSpace(schedule.TorrentURLs) == "" {
+			return []string{}, nil
+		}
 		if len(schedule.TorrentFiles) > 0 {
 			return nil, s.addScheduledTorrentFiles(context.Background(), baseURL, cookie, schedule)
 		}
@@ -937,6 +972,70 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) ([]str
 		form.Set("deleteFiles", strconv.FormatBool(schedule.DeleteFiles))
 	}
 	return torrentNames, postQBForm(context.Background(), baseURL, cookie, endpoint, form)
+}
+
+func scheduleAltSpeedTarget(schedule Schedule) bool {
+	if schedule.AltSpeedOn == nil {
+		return true
+	}
+	return *schedule.AltSpeedOn
+}
+
+// applyAltSpeedTarget drives the downloader to the requested state instead of blindly flipping
+// it, so a task that asks for "on" never turns an already-enabled limiter off.
+func applyAltSpeedTarget(schedule Schedule, account QBAccount) error {
+	target := scheduleAltSpeedTarget(schedule)
+	if accountType(account) == accountTypeTransmission {
+		return applyTransmissionAltSpeed(account, target)
+	}
+	baseURL, cookie, err := loginQB(account)
+	if err != nil {
+		return err
+	}
+	current, err := queryQBSpeedLimitsMode(context.Background(), baseURL, cookie)
+	if err != nil {
+		return err
+	}
+	if current == target {
+		log.Printf("alt-speed schedule: already at target=%t, skipping toggle", target)
+		return nil
+	}
+	return postQBForm(context.Background(), baseURL, cookie, "/api/v2/transfer/toggleSpeedLimitsMode", url.Values{})
+}
+
+func applyTransmissionAltSpeed(account QBAccount, target bool) error {
+	baseURL, err := transmissionBaseURL(account)
+	if err != nil {
+		return err
+	}
+	result, err := callTransmissionRPC(baseURL, account, "session-get", nil)
+	if err != nil {
+		return err
+	}
+	var session struct {
+		AltSpeedEnabled *bool `json:"alt-speed-enabled"`
+	}
+	if len(result.Arguments) > 0 {
+		if err := json.Unmarshal(result.Arguments, &session); err != nil {
+			return errors.New("Transmission 会话信息无法解析")
+		}
+	}
+	if session.AltSpeedEnabled != nil && *session.AltSpeedEnabled == target {
+		log.Printf("alt-speed schedule: transmission already at target=%t, skipping session-set", target)
+		return nil
+	}
+	_, err = callTransmissionRPC(baseURL, account, "session-set", map[string]any{"alt-speed-enabled": target})
+	return err
+}
+
+// consumeScheduleTorrents blanks an add-links task after a successful run: the payload is meant
+// to be submitted once, while the task itself stays so it can be refilled or left as a no-op.
+func consumeScheduleTorrents(schedule *Schedule) {
+	if schedule.Action != "addURLs" {
+		return
+	}
+	schedule.TorrentURLs = ""
+	schedule.TorrentFiles = []string{}
 }
 
 func (s *Server) uploadScheduleFiles(w http.ResponseWriter, r *http.Request) {
