@@ -679,7 +679,13 @@
         <div class="schedule-form-grid schedule-form-grid-cron"><label>下载服务<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" aria-haspopup="listbox" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span class="schedule-service-value"><img v-if="scheduleEditorAccount" class="schedule-service-icon" :src="accountTypeIcon(scheduleEditorAccount)" alt="" /><b>{{ scheduleEditorAccount?.alias || '请选择下载服务' }}</b><em v-if="scheduleEditorAccount">{{ accountTypeLabel(scheduleEditorAccount) }}</em></span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><img class="schedule-service-icon" :src="accountTypeIcon(account)" alt="" /><span>{{ account.alias }}</span><em>{{ accountTypeLabel(account) }}</em><Check v-if="account.id === scheduleEditor.qbId" /></button></div></div></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" @mousemove="moveCronPreview" @mouseleave="hideCronPreview" @focus="anchorCronPreview" @blur="hideCronPreview" /><span v-if="cronPreview.visible" class="schedule-cron-preview" :style="{ left: `${cronPreview.x}px`, top: `${cronPreview.y}px` }" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
-          <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
+          <div v-if="scheduleEditor.action === 'delete'" class="task-delete-options schedule-delete-options">
+            <button type="button" class="task-switch" role="switch" :aria-checked="scheduleEditor.deleteFiles" @click="scheduleEditor.deleteFiles = !scheduleEditor.deleteFiles">
+              <span class="task-switch-track" aria-hidden="true"><i></i></span>
+              <span class="task-switch-label">同时删除已下载的文件</span>
+            </button>
+          </div>
+          <p v-if="scheduleEditor.action === 'delete'" class="task-delete-hint">{{ scheduleEditor.deleteFiles ? '到点执行时会连已下载的文件一起删除。' : '到点执行时只移除种子任务，保留已下载的文件。' }}</p>
         </template>
         <template v-else-if="scheduleEditor.action === 'toggleAltSpeed'">
           <div class="schedule-alt-speed">
@@ -730,7 +736,7 @@
         </div>
         <div class="modal-actions split">
           <button class="danger-button" @click="openCardDeleteDialog"><X />删除卡片</button>
-          <button class="primary-button" @click="saveCard"><Save />保存卡片</button>
+          <button class="primary-button monet-sidebar" @click="saveCard"><Save />保存卡片</button>
         </div>
       </section>
     </div>
@@ -750,7 +756,7 @@
       </section>
     </div>
 
-    <div v-if="titleTooltip.visible" class="ui-tooltip" :style="{ left: `${titleTooltip.x}px`, top: `${titleTooltip.y}px` }" role="tooltip">{{ titleTooltip.text }}</div>
+    <div v-if="titleTooltip.visible" ref="titleTooltipEl" class="ui-tooltip" :style="{ left: `${titleTooltip.x}px`, top: `${titleTooltip.y}px` }" role="tooltip">{{ titleTooltip.text }}</div>
   </div>
 </template>
 
@@ -886,6 +892,7 @@ const uploadLimitSliderStyle = computed(() => {
 const taskDeleteDialog = reactive({ open: false, deleteFiles: false, submitting: false, error: '' });
 const cardDeleteDialog = reactive({ open: false, name: '', id: '', submitting: false, error: '' });
 const titleTooltip = reactive({ visible: false, text: '', x: 0, y: 0, target: null });
+const titleTooltipEl = ref(null);
 const torrentExportDialog = reactive({ open: false, submitting: false, completed: false, error: '' });
 const transferInfo = reactive({ downSpeed: 0, upSpeed: 0, downloaded: 0, uploaded: 0, downRateLimit: 0, upRateLimit: 0, altSpeedLimitsOn: false, togglingAltSpeedLimits: false });
 const altSpeedStateOverride = ref(null);
@@ -967,6 +974,8 @@ function resetLogPaging() {
 }
 
 function onWindowScroll() {
+  // A visible tip stays glued right under its trigger while the page moves.
+  if (titleTooltip.visible) positionTitleTooltip();
   if (view.value !== 'logs' || !hasMoreLogs.value) return;
   const sentinel = logSentinel.value;
   if (!sentinel || sentinel.getBoundingClientRect().top > window.innerHeight + LOG_PREFETCH_PX) return;
@@ -2827,16 +2836,34 @@ function showTitleTooltip(event) {
     const path = target.querySelector('span');
     if (!path || (path.scrollWidth <= path.clientWidth && path.scrollHeight <= path.clientHeight)) return;
   }
-  const bounds = target.getBoundingClientRect();
   titleTooltip.target = target;
   titleTooltip.text = text;
-  titleTooltip.x = Math.min(Math.max(10, bounds.left), window.innerWidth - Math.min(360, window.innerWidth - 20));
-  titleTooltip.y = Math.min(bounds.bottom + 8, window.innerHeight - 52);
   if (target.title) {
     target.dataset.uiTooltip = target.title;
     target.removeAttribute('title');
   }
+  const bounds = target.getBoundingClientRect();
+  titleTooltip.x = Math.max(8, bounds.left);
+  titleTooltip.y = bounds.bottom + 8;
   titleTooltip.visible = true;
+  // The box is measured after paint because its width depends on the text; only then can it be
+  // centred on the trigger and kept glued right below it.
+  nextTick(() => positionTitleTooltip(bounds));
+}
+
+// Anchors the tooltip under the centre of the element it describes, nudged back inside the viewport
+// (and flipped above the trigger when there is no room below).
+function positionTitleTooltip(bounds) {
+  const element = titleTooltipEl.value;
+  const trigger = bounds || titleTooltip.target?.getBoundingClientRect();
+  if (!element || !trigger) return;
+  const margin = 8;
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  const centred = trigger.left + trigger.width / 2 - width / 2;
+  titleTooltip.x = Math.min(Math.max(margin, centred), Math.max(margin, window.innerWidth - width - margin));
+  const below = trigger.bottom + 8;
+  titleTooltip.y = below + height > window.innerHeight - margin ? Math.max(margin, trigger.top - height - 8) : below;
 }
 
 function hideTitleTooltip(event) {

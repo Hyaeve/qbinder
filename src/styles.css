@@ -4063,7 +4063,7 @@ body:has(.modal-backdrop) {
 .schedule-choice button.active.is-off { color: #5d4a4c; background: #e2dcdc; box-shadow: 0 4px 12px rgba(150, 128, 130, .2); }
 .schedule-alt-speed .field-hint { flex: 1 1 100%; margin: 0; }
 
-.schedule-filter { margin-top: 18px; border: 1px solid #d8e5e2; border-radius: 14px; overflow: hidden; background: #fbfdfc; }.schedule-filter-heading { display: flex; justify-content: space-between; padding: 12px 15px; color: #4a696e; background: #eef6f3; }.schedule-filter-heading span { color: #7e9995; font-size: 12px; }.schedule-filter-columns { display: grid; grid-template-columns: 150px 180px minmax(0,1fr); min-height: 220px; }.schedule-filter-columns section { display: grid; align-content: start; gap: 5px; max-height: 300px; padding: 12px; overflow-y: auto; border-right: 1px solid #e3ece9; }.schedule-filter-columns section:last-child { border: 0; }.schedule-filter-columns small { margin-bottom: 4px; color: #7b9794; font-weight: 800; }.schedule-filter-columns label,.schedule-delete-files-option { display: flex !important; align-items: center; gap: 7px; padding: 6px; border-radius: 7px; color: #5e7075; font-size: 12px; font-weight: 600; }.schedule-filter-columns label:hover { background: #edf6f3; }.schedule-filter-columns input { accent-color: #709f96; }.schedule-filter-columns i { color: #a1abad; font-size: 12px; font-style: normal; }.schedule-torrent-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-filter { margin-top: 18px; border: 1px solid #d8e5e2; border-radius: 14px; overflow: hidden; background: #fbfdfc; }.schedule-filter-heading { display: flex; justify-content: space-between; padding: 12px 15px; color: #4a696e; background: #eef6f3; }.schedule-filter-heading span { color: #7e9995; font-size: 12px; }.schedule-filter-columns { display: grid; grid-template-columns: 150px 180px minmax(0,1fr); min-height: 220px; }.schedule-filter-columns section { display: grid; align-content: start; gap: 5px; max-height: 300px; padding: 12px; overflow-y: auto; border-right: 1px solid #e3ece9; }.schedule-filter-columns section:last-child { border: 0; }.schedule-filter-columns small { margin-bottom: 4px; color: #7b9794; font-weight: 800; }.schedule-filter-columns label { display: flex !important; align-items: center; gap: 7px; padding: 6px; border-radius: 7px; color: #5e7075; font-size: 12px; font-weight: 600; }.schedule-filter-columns label:hover { background: #edf6f3; }.schedule-filter-columns input { accent-color: #709f96; }.schedule-filter-columns i { color: #a1abad; font-size: 12px; font-style: normal; }.schedule-torrent-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 700px) { .schedule-page { padding-top: 20px; }.schedule-header { align-items: flex-start; flex-direction: column; padding: 22px; }.schedule-form-grid,.schedule-filter-columns { grid-template-columns: 1fr; }.schedule-filter-columns section { max-height: 160px; border-right: 0; border-bottom: 1px solid #e3ece9; }.schedule-card { align-items: flex-start; flex-wrap: wrap; } }
 
 .sidebar-alt-speed-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -4463,6 +4463,17 @@ body:has(.modal-backdrop) {
 }
 
 .task-delete-modal .task-delete-options { margin-bottom: 0; }
+
+/* The schedule editor is much wider than the delete dialog, so it pins an explicit four-up row
+   instead of letting auto-fit spread the switches across the whole panel. */
+.schedule-delete-options { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 16px 0 0; }
+.schedule-delete-options .task-switch { min-height: 44px; }
+.schedule-delete-options .task-switch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-delete-options + .task-delete-hint { margin: 8px 0 0 !important; }
+
+@media (max-width: 700px) {
+  .schedule-delete-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* Operation log: paging sentinel and the loaded-so-far counter. */
 .operation-log-sentinel { height: 1px; }
