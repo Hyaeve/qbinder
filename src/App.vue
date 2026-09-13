@@ -218,8 +218,8 @@
         <div class="operation-log-header-actions"><label class="operation-log-search"><Search /><input v-model.trim="logSearch" placeholder="搜索任务、操作、qB 服务或种子名称" /></label><button class="secondary-button" :disabled="logsLoading" @click="refreshLogs"><RefreshCw :key="refreshPulse.logs" :class="{ 'refresh-spin': refreshPulse.logs }" />刷新</button></div>
       </header>
       <p v-if="logsError" class="form-error">{{ logsError }}</p>
-      <section v-if="filteredOperationLogs.length" class="operation-log-list">
-        <article v-for="entry in visibleOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`, { expanded: expandedLogIds.includes(entry.id), expandable: entry.torrentNames?.length }]" :tabindex="entry.torrentNames?.length ? 0 : undefined" @click="toggleOperationLog(entry)" @keydown.enter.prevent="toggleOperationLog(entry)" @keydown.space.prevent="toggleOperationLog(entry)">
+      <section v-if="filteredOperationLogs.length" ref="logListEl" class="operation-log-list">
+        <article v-for="entry in pagedOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`, { expanded: expandedLogIds.includes(entry.id), expandable: entry.torrentNames?.length }]" :tabindex="entry.torrentNames?.length ? 0 : undefined" @click="toggleOperationLog(entry)" @keydown.enter.prevent="toggleOperationLog(entry)" @keydown.space.prevent="toggleOperationLog(entry)">
           <div class="operation-log-marker"><CheckCircle2 v-if="entry.status === 'success'" /><X v-else /></div>
           <div class="operation-log-main">
             <div class="operation-log-title"><span class="operation-log-source">{{ entry.source === 'schedule' ? '任务自动' : '手动操作' }}</span><strong>{{ operationLogActionLabel(entry.action) }}</strong><span class="operation-log-status">{{ entry.status === 'success' ? '成功' : '失败' }}</span></div>
@@ -229,10 +229,20 @@
             <div v-if="entry.torrentNames?.length && expandedLogIds.includes(entry.id)" class="operation-log-details"><strong>操作种子</strong><ol><li v-for="(name, index) in entry.torrentNames" :key="`${entry.id}-${index}`"><span>{{ name }}</span></li></ol></div>
           </div>
         </article>
-        <div v-if="hasMoreLogs" ref="logSentinel" class="operation-log-sentinel" aria-hidden="true"></div>
+        <div class="operation-log-pagination">
+          <span class="operation-log-range">第 {{ logRangeStart }}–{{ logRangeEnd }} 条 · 共 {{ filteredOperationLogs.length }} 条 · 每页 {{ LOG_PAGE_SIZE }} 条</span>
+          <div class="operation-log-pages">
+            <button type="button" class="log-page-button log-page-step" :disabled="logPage === 1" aria-label="上一页" @click="goLogPage(logPage - 1)"><ChevronLeft /></button>
+            <template v-for="(item, index) in logPageItems" :key="`${item}-${index}`">
+              <span v-if="item === '…'" class="log-page-gap">…</span>
+              <button v-else type="button" class="log-page-button" :class="{ active: item === logPage }" :aria-current="item === logPage ? 'page' : undefined" :aria-label="`第 ${item} 页`" @click="goLogPage(item)">{{ item }}</button>
+            </template>
+            <button type="button" class="log-page-button log-page-step" :disabled="logPage >= logPageCount" aria-label="下一页" @click="goLogPage(logPage + 1)"><ChevronRight /></button>
+          </div>
+        </div>
       </section>
-      <p v-if="filteredOperationLogs.length" class="operation-log-progress">已显示 {{ visibleOperationLogs.length }} / {{ filteredOperationLogs.length }} 条{{ hasMoreLogs ? ' · 继续下滑加载更早的记录' : '' }}</p>
-      <section v-else-if="!logsLoading" class="operation-log-empty"><ScrollText /><h2>暂无操作记录</h2><p>执行手动种子操作或定时任务后，记录会显示在这里。</p></section>
+      <p v-if="logsLoading" class="operation-log-progress">正在加载操作日志…</p>
+      <section v-else-if="!filteredOperationLogs.length" class="operation-log-empty"><ScrollText /><h2>暂无操作记录</h2><p>执行手动种子操作或定时任务后，记录会显示在这里。</p></section>
     </div>
 
     <div v-else-if="view === 'torrents'" class="content tasks-page" @click="closeTaskPopovers">
@@ -788,6 +798,8 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Tags,
   Upload,
   UploadCloud,
@@ -960,27 +972,50 @@ const filteredOperationLogs = computed(() => {
   });
 });
 
-// The log file can hold a thousand entries; render them a page at a time and pull the next page in
-// once the reader gets near the bottom, instead of mounting every card on first paint.
-const LOG_PAGE_SIZE = 24;
-const LOG_PREFETCH_PX = 800;
-const logSentinel = ref(null);
-const visibleLogCount = ref(LOG_PAGE_SIZE);
-const visibleOperationLogs = computed(() => filteredOperationLogs.value.slice(0, visibleLogCount.value));
-const hasMoreLogs = computed(() => visibleLogCount.value < filteredOperationLogs.value.length);
+// The log file can hold a thousand entries; show them a page at a time instead of mounting every
+// card on first paint. Paging is client-side so the keyword filter keeps working on the whole set.
+const LOG_PAGE_SIZE = 100;
+const logPage = ref(1);
+const logListEl = ref(null);
+const logPageCount = computed(() => Math.max(1, Math.ceil(filteredOperationLogs.value.length / LOG_PAGE_SIZE)));
+const pagedOperationLogs = computed(() => {
+  const start = (logPage.value - 1) * LOG_PAGE_SIZE;
+  return filteredOperationLogs.value.slice(start, start + LOG_PAGE_SIZE);
+});
+const logRangeStart = computed(() => (filteredOperationLogs.value.length ? (logPage.value - 1) * LOG_PAGE_SIZE + 1 : 0));
+const logRangeEnd = computed(() => Math.min(logPage.value * LOG_PAGE_SIZE, filteredOperationLogs.value.length));
+
+// With more than seven pages the buttons collapse to "first … around-current … last".
+const logPageItems = computed(() => {
+  const total = logPageCount.value;
+  const current = logPage.value;
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  const items = [1];
+  const from = Math.max(2, current - 1);
+  const to = Math.min(total - 1, current + 1);
+  if (from > 2) items.push('…');
+  for (let page = from; page <= to; page += 1) items.push(page);
+  if (to < total - 1) items.push('…');
+  items.push(total);
+  return items;
+});
 
 function resetLogPaging() {
-  visibleLogCount.value = LOG_PAGE_SIZE;
+  logPage.value = 1;
+}
+
+function goLogPage(page) {
+  const target = Math.min(Math.max(1, page), logPageCount.value);
+  if (target === logPage.value) return;
+  logPage.value = target;
+  // Only jump back up when the reader had scrolled past the start of the list.
+  const list = logListEl.value;
+  if (list && list.getBoundingClientRect().top < 0) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function onWindowScroll() {
   // A visible tip stays glued right under its trigger while the page moves.
   if (titleTooltip.visible) positionTitleTooltip();
-  if (view.value !== 'logs' || !hasMoreLogs.value) return;
-  const sentinel = logSentinel.value;
-  if (!sentinel || sentinel.getBoundingClientRect().top > window.innerHeight + LOG_PREFETCH_PX) return;
-  visibleLogCount.value = Math.min(filteredOperationLogs.value.length, visibleLogCount.value + LOG_PAGE_SIZE);
-  nextTick(onWindowScroll);
 }
 
 const loginForm = reactive({ username: '', password: '' });
@@ -1090,6 +1125,10 @@ watch(view, (next) => {
 });
 
 watch(logSearch, () => resetLogPaging());
+// A refresh or a narrower filter can leave the reader parked on a page that no longer exists.
+watch(filteredOperationLogs, () => {
+  if (logPage.value > logPageCount.value) logPage.value = logPageCount.value;
+});
 
 watch(trafficRange, (nextRange) => {
   localStorage.setItem('qbinder-flow-range', nextRange);
@@ -1873,8 +1912,6 @@ async function loadOperationLogs() {
   } finally {
     logsLoading.value = false;
   }
-  // A short first page can already sit inside the prefetch zone; top it up without waiting for a scroll.
-  nextTick(onWindowScroll);
 }
 
 function toggleOperationLog(entry) {

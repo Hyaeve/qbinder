@@ -4475,6 +4475,42 @@ body:has(.modal-backdrop) {
   .schedule-delete-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Operation log: paging sentinel and the loaded-so-far counter. */
-.operation-log-sentinel { height: 1px; }
+/* Operation log: one page of at most 100 entries, with explicit page navigation. */
 .operation-log-progress { margin: 14px 0 0; color: #93a3a2; font-size: 12px; text-align: center; }
+
+.operation-log-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0 2px;
+  padding-top: 16px;
+  border-top: 1px solid #e8ebe9;
+}
+
+.operation-log-range { color: #8b9b9a; font-size: 13px; font-weight: 650; }
+.operation-log-pages { display: flex; align-items: center; gap: 6px; }
+
+.log-page-button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8e5e2;
+  border-radius: 10px;
+  color: #5d8d96;
+  background: #fbfdfc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.log-page-button svg { width: 16px; height: 16px; }
+.log-page-button:hover:not(:disabled) { border-color: #a9c8bf; color: #356f7e; background: #eaf4f3; }
+.log-page-button:disabled { color: #c4d0d2; background: transparent; border-color: #e6ecea; cursor: not-allowed; }
+.log-page-button.active { border-color: #a9c8bf; color: #2f6a68; background: #d9e9e1; box-shadow: 0 6px 14px rgba(110, 150, 135, .18); }
+.log-page-button.log-page-step { padding: 0; }
+.log-page-gap { min-width: 16px; color: #b0bcbb; font-size: 13px; text-align: center; }
