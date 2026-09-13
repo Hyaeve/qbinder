@@ -2940,12 +2940,6 @@ body:has(.modal-backdrop) {
 .task-switch.on .task-switch-track i { transform: translateX(17px); }
 .task-switch-label { min-width: 0; }
 
-.task-delete-hint {
-  margin: 2px 0 0 !important;
-  color: #958087 !important;
-  font-size: 12px !important;
-}
-
 .task-delete-modal .danger-button {
   border: 1px solid #e5b9bf;
   color: #9e3f4c;
@@ -4469,7 +4463,6 @@ body:has(.modal-backdrop) {
 .schedule-delete-options { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 16px 0 0; }
 .schedule-delete-options .task-switch { min-height: 44px; }
 .schedule-delete-options .task-switch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-delete-options + .task-delete-hint { margin: 8px 0 0 !important; }
 
 @media (max-width: 700px) {
   .schedule-delete-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -593,7 +593,6 @@
             <span class="task-switch-label">同时删除本地文件</span>
           </button>
         </div>
-        <p class="task-delete-hint">{{ taskDeleteDialog.deleteFiles ? '种子任务与本地文件都会被删除。' : '仅从下载服务中移除种子任务，保留本地文件。' }}</p>
         <p v-if="taskDeleteDialog.error" class="form-error">{{ taskDeleteDialog.error }}</p>
         <div class="modal-actions">
           <button type="button" class="danger-button" :disabled="taskDeleteDialog.submitting" @click="confirmTaskDelete"><Loader2 v-if="taskDeleteDialog.submitting" class="spin" /><Trash2 v-else />确认删除</button>
@@ -695,7 +694,6 @@
               <span class="task-switch-label">同时删除本地文件</span>
             </button>
           </div>
-          <p v-if="scheduleEditor.action === 'delete'" class="task-delete-hint">{{ scheduleEditor.deleteFiles ? '到点执行时会连本地文件一起删除。' : '到点执行时只移除种子任务，保留本地文件。' }}</p>
         </template>
         <template v-else-if="scheduleEditor.action === 'toggleAltSpeed'">
           <div class="schedule-alt-speed">
