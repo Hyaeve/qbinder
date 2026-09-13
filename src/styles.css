@@ -1215,6 +1215,15 @@ body:has(.modal-backdrop) {
   margin: 0;
 }
 
+/* Dialog footers keep their primary action on the right edge, with no stray cancel button on the left. */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .field-block {
   display: grid;
   gap: 10px;
@@ -2576,7 +2585,6 @@ body:has(.modal-backdrop) {
 
 .task-rename-modal,
 .task-tags-modal,
-.task-delete-modal,
 .backup-restore-modal {
   width: min(460px, calc(100vw - 32px));
 }
@@ -2760,6 +2768,65 @@ body:has(.modal-backdrop) {
   font-size: 12px !important;
 }
 
+/* Candidate chips let an existing tag be reused without retyping it. */
+.task-tag-candidates {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dce8ea;
+  border-radius: 12px;
+  background: #fafcfd;
+}
+
+.task-tag-candidates > small {
+  color: #7d9398;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.task-tag-candidate-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 132px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.task-tag-candidate-list::-webkit-scrollbar { display: none; }
+
+.task-tag-candidate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 4px 9px;
+  border: 1px solid #cfe0ea;
+  border-radius: 999px;
+  color: #3f6879;
+  background: linear-gradient(135deg, #eaf4fa, #eef2ec);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-tag-candidate svg {
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.task-tag-candidate:hover {
+  border-color: #a9cfe0;
+  color: #2f5d72;
+  background: linear-gradient(135deg, #dcecf7, #e7efe6);
+}
+
 .torrent-export-modal {
   width: min(430px, calc(100vw - 32px));
   border: 1px solid #d5e3e7;
@@ -2798,6 +2865,8 @@ body:has(.modal-backdrop) {
 }
 
 .task-delete-modal {
+  /* Wide enough for a four-up row of option switches. */
+  width: min(620px, calc(100vw - 32px));
   border: 1px solid #eadde0;
   background: linear-gradient(145deg, #fff, #fffbfa);
 }
@@ -2808,32 +2877,71 @@ body:has(.modal-backdrop) {
   font-weight: 650;
 }
 
-.task-delete-files-option {
+/* Options sit in a four-up grid, so one row can hold four switches side by side. */
+.task-delete-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin: 4px 0 0;
+}
+
+.task-switch {
   display: flex;
   align-items: center;
+  width: 100%;
+  min-height: 46px;
   gap: 10px;
-  padding: 12px 13px;
+  padding: 10px 12px;
   border: 1px solid #ecd9dc;
   border-radius: 12px;
   color: #774f57;
   background: #fff7f6;
-  cursor: pointer;
-}
-
-.task-delete-files-option input {
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  accent-color: #bf6974;
-}
-
-.task-delete-files-option span {
+  font: inherit;
   font-size: 13px;
   font-weight: 750;
+  text-align: left;
 }
 
+.task-switch:hover {
+  border-color: #e0c2c7;
+  background: #fff2f1;
+}
+
+.task-switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 21px;
+  border-radius: 999px;
+  background: #e7d6d9;
+  box-shadow: inset 0 1px 2px rgba(120, 80, 88, .16);
+  transition: background .18s ease;
+}
+
+.task-switch-track i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(90, 60, 66, .3);
+  transition: transform .18s ease;
+}
+
+.task-switch.on {
+  border-color: #dfa9b2;
+  color: #8d3c48;
+  background: #fdeeef;
+}
+
+.task-switch.on .task-switch-track { background: #cf8d98; }
+.task-switch.on .task-switch-track i { transform: translateX(17px); }
+.task-switch-label { min-width: 0; }
+
 .task-delete-hint {
-  margin-top: -9px !important;
+  margin: 2px 0 0 !important;
   color: #958087 !important;
   font-size: 12px !important;
 }
@@ -2864,11 +2972,23 @@ body:has(.modal-backdrop) {
   z-index: 45;
   display: grid;
   width: min(220px, calc(100vw - 24px));
+  max-height: calc(100vh - 20px);
   padding: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Scrollable when it cannot fit, but the bar itself stays invisible. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   border: 1px solid #d8dce4;
   border-radius: 10px;
   background: rgba(255, 255, 255, .99);
   box-shadow: 0 18px 42px rgba(52, 61, 73, .2);
+}
+
+.task-menu::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .task-menu strong {
@@ -2878,6 +2998,9 @@ body:has(.modal-backdrop) {
 }
 
 .task-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 9px;
   border: 0;
   border-radius: 7px;
@@ -2887,6 +3010,22 @@ body:has(.modal-backdrop) {
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+
+.task-menu button svg {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  color: #7f8b98;
+  stroke-width: 1.9;
+}
+
+.task-menu button:hover:not(:disabled) svg {
+  color: #5d6f80;
+}
+
+.task-menu button.danger svg {
+  color: #c07b7b;
 }
 
 /* Each tag deterministically receives a quiet, low-saturation Monet tone. */
@@ -3719,12 +3858,65 @@ body:has(.modal-backdrop) {
   white-space: nowrap;
 }
 
+/* Custom range track: a Monet tint fills up to the current value, thumb reads clearly on the pale card. */
 .upload-limit-slider {
   width: 100%;
-  height: 5px;
+  height: 22px;
   margin: 0;
-  accent-color: #6d9ca7;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.upload-limit-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a8cdd6 0 var(--upload-limit-fill, 0%), #e4ecee var(--upload-limit-fill, 0%) 100%);
+  box-shadow: inset 0 1px 2px rgba(60, 92, 98, .14);
+}
+
+.upload-limit-slider::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -6px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #9fc6cf, #7fa9b4);
+  box-shadow: 0 3px 9px rgba(64, 100, 108, .34);
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+
+.upload-limit-slider:hover::-webkit-slider-thumb,
+.upload-limit-slider:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(64, 100, 108, .42);
+}
+
+.upload-limit-slider:focus-visible { outline: 0; }
+
+.upload-limit-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e4ecee;
+}
+
+.upload-limit-slider::-moz-range-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b7d5dc, #a8cdd6);
+}
+
+.upload-limit-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #9fc6cf, #7fa9b4);
+  box-shadow: 0 3px 9px rgba(64, 100, 108, .34);
 }
 
 .upload-limit-hint {
@@ -3747,12 +3939,17 @@ body:has(.modal-backdrop) {
   background: rgba(237, 244, 243, .72);
 }
 
-.upload-limit-actions button {
+/* The four torrent dialogs share one footer metric so their bottom-right confirm buttons match. */
+.upload-limit-actions button,
+.task-rename-modal .modal-actions button,
+.task-tags-modal .modal-actions button,
+.task-path-modal .modal-actions button {
   min-width: 76px;
-  min-height: 32px;
-  padding: 6px 14px;
-  border-radius: 7px;
+  min-height: 34px;
+  padding: 6px 16px;
+  border-radius: 9px;
   font-size: 13px;
+  font-weight: 800;
 }
 
 @media (max-width: 480px) {
@@ -4220,3 +4417,53 @@ body:has(.modal-backdrop) {
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Monet button tints. Kept low-saturation and flat, matching the sidebar accent logic. */
+.monet-sidebar {
+  color: var(--sidebar-monet-fg, #38464f);
+  background: var(--sidebar-monet-bg, #c9e0d2);
+  box-shadow: 0 12px 26px rgba(122, 152, 160, .24);
+}
+
+.monet-amber {
+  color: #5f5233;
+  background: #ecdfb4;
+  box-shadow: 0 12px 26px rgba(160, 140, 90, .2);
+}
+
+.monet-mint {
+  color: #3d5c4c;
+  background: #cfe4d5;
+  box-shadow: 0 12px 26px rgba(110, 150, 125, .22);
+}
+
+.monet-sky {
+  color: #3a5866;
+  background: #cbe3f0;
+  box-shadow: 0 12px 26px rgba(120, 150, 175, .22);
+}
+
+.monet-sidebar:hover:not(:disabled) { filter: brightness(.965); }
+.monet-amber:hover:not(:disabled) { background: #e4d5a4; }
+.monet-mint:hover:not(:disabled) { background: #c2ddcb; }
+.monet-sky:hover:not(:disabled) { background: #bcdaeb; }
+
+/* The compact dialogs set their own button metrics, so the tint needs the same specificity there. */
+.upload-limit-actions .monet-amber {
+  color: #5f5233;
+  background: #ecdfb4;
+  box-shadow: 0 8px 18px rgba(160, 140, 90, .2);
+}
+
+.upload-limit-actions .monet-amber:hover:not(:disabled) { background: #e4d5a4; }
+
+.task-rename-modal .monet-mint,
+.task-tags-modal .monet-sky {
+  box-shadow: 0 8px 18px rgba(122, 152, 160, .22);
+}
+
+.task-delete-modal .task-delete-options { margin-bottom: 0; }
+
+/* Operation log: paging sentinel and the loaded-so-far counter. */
+.operation-log-sentinel { height: 1px; }
+.operation-log-progress { margin: 14px 0 0; color: #93a3a2; font-size: 12px; text-align: center; }

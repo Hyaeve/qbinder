@@ -61,7 +61,7 @@
             <h2><KeyRound />登录账号</h2>
             <label>账号<input v-model="credentialForm.username" /></label>
             <label>密码<span class="password-field"><input v-model="credentialForm.password" :type="passwordVisibility.credential ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.credential ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.credential" @click="togglePassword('credential')"><EyeOff v-if="passwordVisibility.credential" /><Eye v-else /></button></span></label>
-            <button class="primary-button"><Save />保存</button>
+            <button class="primary-button monet-sidebar"><Save />保存</button>
           </form>
 
           <section class="setting-panel tracker-mapping-panel">
@@ -76,7 +76,7 @@
             </div>
             <div class="button-row">
               <button type="button" class="secondary-button" @click="addTrackerMapping"><Plus />新增映射</button>
-              <button type="button" class="primary-button" @click="saveTrackerMappings"><Save />保存映射</button>
+              <button type="button" class="primary-button monet-sidebar" @click="saveTrackerMappings"><Save />保存映射</button>
             </div>
           </section>
         </div>
@@ -90,7 +90,7 @@
               </div>
               <div class="account-panel-actions">
                 <button type="button" class="secondary-button" @click="testQb"><CheckCircle2 />验证</button>
-                <button type="button" class="primary-button" @click="addQb"><Plus />添加</button>
+                <button type="button" class="primary-button monet-sidebar" @click="addQb"><Plus />添加</button>
               </div>
             </header>
             <div class="qb-form account-form-grid">
@@ -136,8 +136,8 @@
             <p v-if="backupMessage" :class="backupOk ? 'form-ok' : 'form-error'">{{ backupMessage }}</p>
             <input ref="backupFileInput" type="file" accept="application/json,.json" hidden @change="restoreBackup" />
             <div class="button-row">
-              <button type="button" class="secondary-button" :disabled="backupBusy" @click="exportBackup"><Download />备份配置</button>
-              <button type="button" class="primary-button" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份</button>
+              <button type="button" class="secondary-button monet-amber" :disabled="backupBusy" @click="exportBackup"><Download />备份配置</button>
+              <button type="button" class="primary-button monet-mint" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份</button>
             </div>
           </section>
         </div>
@@ -219,7 +219,7 @@
       </header>
       <p v-if="logsError" class="form-error">{{ logsError }}</p>
       <section v-if="filteredOperationLogs.length" class="operation-log-list">
-        <article v-for="entry in filteredOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`, { expanded: expandedLogIds.includes(entry.id), expandable: entry.torrentNames?.length }]" :tabindex="entry.torrentNames?.length ? 0 : undefined" @click="toggleOperationLog(entry)" @keydown.enter.prevent="toggleOperationLog(entry)" @keydown.space.prevent="toggleOperationLog(entry)">
+        <article v-for="entry in visibleOperationLogs" :key="entry.id" class="operation-log-entry" :class="[`source-${entry.source}`, `status-${entry.status}`, { expanded: expandedLogIds.includes(entry.id), expandable: entry.torrentNames?.length }]" :tabindex="entry.torrentNames?.length ? 0 : undefined" @click="toggleOperationLog(entry)" @keydown.enter.prevent="toggleOperationLog(entry)" @keydown.space.prevent="toggleOperationLog(entry)">
           <div class="operation-log-marker"><CheckCircle2 v-if="entry.status === 'success'" /><X v-else /></div>
           <div class="operation-log-main">
             <div class="operation-log-title"><span class="operation-log-source">{{ entry.source === 'schedule' ? '任务自动' : '手动操作' }}</span><strong>{{ operationLogActionLabel(entry.action) }}</strong><span class="operation-log-status">{{ entry.status === 'success' ? '成功' : '失败' }}</span></div>
@@ -229,7 +229,9 @@
             <div v-if="entry.torrentNames?.length && expandedLogIds.includes(entry.id)" class="operation-log-details"><strong>操作种子</strong><ol><li v-for="(name, index) in entry.torrentNames" :key="`${entry.id}-${index}`"><span>{{ name }}</span></li></ol></div>
           </div>
         </article>
+        <div v-if="hasMoreLogs" ref="logSentinel" class="operation-log-sentinel" aria-hidden="true"></div>
       </section>
+      <p v-if="filteredOperationLogs.length" class="operation-log-progress">已显示 {{ visibleOperationLogs.length }} / {{ filteredOperationLogs.length }} 条{{ hasMoreLogs ? ' · 继续下滑加载更早的记录' : '' }}</p>
       <section v-else-if="!logsLoading" class="operation-log-empty"><ScrollText /><h2>暂无操作记录</h2><p>执行手动种子操作或定时任务后，记录会显示在这里。</p></section>
     </div>
 
@@ -376,17 +378,17 @@
             <label v-for="column in taskColumns" :key="column.key"><input type="checkbox" :checked="!column.hidden" :disabled="column.locked" @change="toggleTaskColumn(column.key)" />{{ column.label }}</label>
           </div>
         </div>
-        <div v-if="taskMenu" class="task-menu" :style="{ left: `${taskMenu.x}px`, top: `${taskMenu.y}px` }" @click.stop>
+        <div v-if="taskMenu" ref="taskMenuElement" class="task-menu" :style="{ left: `${taskMenu.x}px`, top: `${taskMenu.y}px` }" @click.stop>
           <strong>已选 {{ selectedTaskHashes.length }} 个种子</strong>
-          <button @click="runTorrentAction('start')">开始</button>
-          <button @click="runTorrentAction('forceStart')">强制开始</button>
-          <button @click="runTorrentAction('stop')">停止</button>
-          <button :disabled="selectedTaskHashes.length !== 1" @click="renameSelectedTask">重命名</button>
-          <button @click="editSelectedTaskTags">编辑标签</button>
-          <button @click="changeSelectedTaskPath">更改保存路径</button>
-          <button @click="setSelectedUploadLimit">限制上传速率</button>
-          <button @click="exportSelectedTorrents">导出 torrent</button>
-          <button class="danger" @click="openTaskDeleteDialog">删除种子</button>
+          <button @click="runTorrentAction('start')"><Play /><span>开始</span></button>
+          <button @click="runTorrentAction('forceStart')"><Zap /><span>强制开始</span></button>
+          <button @click="runTorrentAction('stop')"><Pause /><span>停止</span></button>
+          <button :disabled="selectedTaskHashes.length !== 1" @click="renameSelectedTask"><Pencil /><span>重命名</span></button>
+          <button @click="editSelectedTaskTags"><Tags /><span>编辑标签</span></button>
+          <button @click="changeSelectedTaskPath"><FolderCog /><span>更改保存路径</span></button>
+          <button @click="setSelectedUploadLimit"><Gauge /><span>限制上传速率</span></button>
+          <button @click="exportSelectedTorrents"><Download /><span>导出 torrent</span></button>
+          <button class="danger" @click="openTaskDeleteDialog"><Trash2 /><span>删除种子</span></button>
         </div>
       </template>
     </div>
@@ -514,8 +516,7 @@
         <label>种子名称<input v-model.trim="taskRenameDialog.name" autofocus /></label>
         <p v-if="taskRenameDialog.error" class="form-error">{{ taskRenameDialog.error }}</p>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" @click="closeTaskRenameDialog">取消</button>
-          <button class="primary-button" :disabled="!taskRenameDialog.name">确认重命名</button>
+          <button class="primary-button monet-mint" :disabled="!taskRenameDialog.name">确认重命名</button>
         </div>
       </form>
     </div>
@@ -555,10 +556,16 @@
           <input ref="tagEditorInput" v-model="taskTagsDialog.input" aria-label="添加标签" placeholder="输入标签后按回车" @keydown.enter.prevent="addTaskTag" />
         </div>
         <p class="task-tags-hint">多个标签请逐个输入并按回车；保存后将替换所选种子的现有标签。</p>
+        <section v-if="taskTagCandidates.length" class="task-tag-candidates" aria-label="已有标签候选">
+          <small>已有标签 · 点击添加</small>
+          <div class="task-tag-candidate-list">
+            <button v-for="tag in taskTagCandidates" :key="tag" type="button" class="task-tag-candidate" @click="addTaskTagValue(tag)"><Plus />{{ tag }}</button>
+          </div>
+        </section>
+        <p v-else class="task-tags-hint">当前没有可复用的已有标签。</p>
         <p v-if="taskTagsDialog.error" class="form-error">{{ taskTagsDialog.error }}</p>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" @click="closeTaskTagsDialog">取消</button>
-          <button class="primary-button">保存标签</button>
+          <button class="primary-button monet-sky">保存标签</button>
         </div>
       </form>
     </div>
@@ -570,11 +577,15 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskDeleteDialog"><X /></button>
         </header>
         <p>确认删除已选 {{ selectedTaskHashes.length }} 个种子任务？</p>
-        <label class="task-delete-files-option"><input v-model="taskDeleteDialog.deleteFiles" type="checkbox" /><span>同时删除已下载的文件</span></label>
-        <p class="task-delete-hint">未勾选时仅从 qBittorrent 中移除种子任务。</p>
+        <div class="task-delete-options">
+          <button type="button" class="task-switch" role="switch" :aria-checked="taskDeleteDialog.deleteFiles" @click="taskDeleteDialog.deleteFiles = !taskDeleteDialog.deleteFiles">
+            <span class="task-switch-track" aria-hidden="true"><i></i></span>
+            <span class="task-switch-label">同时删除已下载的文件</span>
+          </button>
+        </div>
+        <p class="task-delete-hint">{{ taskDeleteDialog.deleteFiles ? '种子任务与已下载的文件都会被删除。' : '仅从下载服务中移除种子任务，保留已下载的文件。' }}</p>
         <p v-if="taskDeleteDialog.error" class="form-error">{{ taskDeleteDialog.error }}</p>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" :disabled="taskDeleteDialog.submitting" @click="closeTaskDeleteDialog">取消</button>
           <button type="button" class="danger-button" :disabled="taskDeleteDialog.submitting" @click="confirmTaskDelete"><Loader2 v-if="taskDeleteDialog.submitting" class="spin" /><Trash2 v-else />确认删除</button>
         </div>
       </section>
@@ -622,16 +633,16 @@
             class="upload-limit-slider"
             type="range"
             min="0"
-            max="102400"
-            step="128"
-            aria-label="上传限制滑块，最大 102400 KiB 每秒"
+            :max="UPLOAD_LIMIT_MAX"
+            step="32"
+            :style="uploadLimitSliderStyle"
+            aria-label="上传限制滑块，最大 10240 KiB 每秒"
           />
           <p class="upload-limit-hint">0 表示不限速 · 已选 {{ selectedTaskHashes.length }} 个种子</p>
         </div>
         <p v-if="taskUploadLimitDialog.error" class="form-error">{{ taskUploadLimitDialog.error }}</p>
         <div class="upload-limit-actions">
-          <button type="button" class="secondary-button" @click="closeTaskUploadLimitDialog">取消</button>
-          <button class="primary-button">确定</button>
+          <button class="primary-button monet-amber">确定</button>
         </div>
       </form>
     </div>
@@ -748,12 +759,15 @@ import {
   Boxes,
   CheckCircle2,
   Download,
+  FolderCog,
   FolderDown,
   Image as ImageIcon,
   KeyRound,
   Layers,
   Loader2,
   LogOut,
+  Pause,
+  Pencil,
   Play,
   Plus,
   Check,
@@ -773,7 +787,8 @@ import {
   UploadCloud,
   Eye,
   EyeOff,
-  X
+  X,
+  Zap
 } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
@@ -856,11 +871,18 @@ const hoveredTaskHash = ref('');
 const selectedTaskHashes = ref([]);
 const taskSelectionAnchor = ref('');
 const taskMenu = ref(null);
+const taskMenuElement = ref(null);
 const taskRenameDialog = reactive({ open: false, name: '', error: '' });
 const taskPathDialog = reactive({ open: false, savePath: '', error: '', submitting: false });
 const taskTagsDialog = reactive({ open: false, tags: [], originalTags: [], input: '', error: '' });
 const tagEditorInput = ref(null);
 const taskUploadLimitDialog = reactive({ open: false, uploadLimit: '0', error: '' });
+// The slider is capped at 10240 KiB/s so a single pixel of travel is a small, precise step.
+const UPLOAD_LIMIT_MAX = 10240;
+const uploadLimitSliderStyle = computed(() => {
+  const ratio = Math.max(0, Math.min(1, (Number(taskUploadLimitDialog.uploadLimit) || 0) / UPLOAD_LIMIT_MAX));
+  return { '--upload-limit-fill': `${(ratio * 100).toFixed(2)}%` };
+});
 const taskDeleteDialog = reactive({ open: false, deleteFiles: false, submitting: false, error: '' });
 const cardDeleteDialog = reactive({ open: false, name: '', id: '', submitting: false, error: '' });
 const titleTooltip = reactive({ visible: false, text: '', x: 0, y: 0, target: null });
@@ -931,6 +953,27 @@ const filteredOperationLogs = computed(() => {
   });
 });
 
+// The log file can hold a thousand entries; render them a page at a time and pull the next page in
+// once the reader gets near the bottom, instead of mounting every card on first paint.
+const LOG_PAGE_SIZE = 24;
+const LOG_PREFETCH_PX = 800;
+const logSentinel = ref(null);
+const visibleLogCount = ref(LOG_PAGE_SIZE);
+const visibleOperationLogs = computed(() => filteredOperationLogs.value.slice(0, visibleLogCount.value));
+const hasMoreLogs = computed(() => visibleLogCount.value < filteredOperationLogs.value.length);
+
+function resetLogPaging() {
+  visibleLogCount.value = LOG_PAGE_SIZE;
+}
+
+function onWindowScroll() {
+  if (view.value !== 'logs' || !hasMoreLogs.value) return;
+  const sentinel = logSentinel.value;
+  if (!sentinel || sentinel.getBoundingClientRect().top > window.innerHeight + LOG_PREFETCH_PX) return;
+  visibleLogCount.value = Math.min(filteredOperationLogs.value.length, visibleLogCount.value + LOG_PAGE_SIZE);
+  nextTick(onWindowScroll);
+}
+
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
 const accountFormDefaults = { type: 'qbittorrent', alias: '', address: 'http://', username: '', password: '' };
@@ -992,6 +1035,7 @@ onMounted(async () => {
   window.addEventListener('pointerover', showTitleTooltip, true);
   window.addEventListener('pointerout', hideTitleTooltip, true);
   window.addEventListener('keydown', handleGlobalKeydown);
+  window.addEventListener('scroll', onWindowScroll, { passive: true });
   syncViewFromHash();
   try {
     const response = await api('/api/config');
@@ -1036,6 +1080,8 @@ watch(view, (next) => {
   }
 });
 
+watch(logSearch, () => resetLogPaging());
+
 watch(trafficRange, (nextRange) => {
   localStorage.setItem('qbinder-flow-range', nextRange);
   if (view.value === 'traffic') loadTrafficStats({ sample: false });
@@ -1061,6 +1107,11 @@ const imageUrlValue = computed(() => {
 
 const requiresScheduleTargets = computed(() => ['start', 'forceStart', 'stop', 'delete'].includes(scheduleEditor.action));
 const scheduleTagOptions = computed(() => [...new Set(tasks.value.flatMap(taskTags))].sort((left, right) => left.localeCompare(right, 'zh-CN')));
+// Candidate chips for the tag dialog: every tag already used by a torrent, plus the card tag pool.
+const taskTagCandidates = computed(() => {
+  const pool = new Set([...(config.value?.tagPool || []), ...scheduleTagOptions.value]);
+  return [...pool].filter((tag) => tag && !taskTagsDialog.tags.includes(tag)).sort((left, right) => left.localeCompare(right, 'zh-CN'));
+});
 const scheduleFilteredTasks = computed(() => tasks.value.filter((task) => {
   const statusMatches = !scheduleFilter.status.length || scheduleFilter.status.some((status) => taskMatchesStatus(task, status));
   const tagMatches = !scheduleFilter.tags.length || taskTags(task).some((tag) => scheduleFilter.tags.includes(tag));
@@ -1804,6 +1855,7 @@ async function loadOperationLogs() {
   if (logsLoading.value) return;
   logsLoading.value = true;
   logsError.value = '';
+  resetLogPaging();
   try {
     const response = await api('/api/logs');
     operationLogs.value = Array.isArray(response.logs) ? response.logs : [];
@@ -1812,6 +1864,8 @@ async function loadOperationLogs() {
   } finally {
     logsLoading.value = false;
   }
+  // A short first page can already sit inside the prefetch zone; top it up without waiting for a scroll.
+  nextTick(onWindowScroll);
 }
 
 function toggleOperationLog(entry) {
@@ -2390,11 +2444,22 @@ function selectTask(task, event) {
   }
 }
 
-function openTaskMenu(task, event) {
+// Right-clicking near the bottom of the page used to push the last entries past the viewport edge,
+// so the menu is measured after render and lifted up until it fits.
+async function openTaskMenu(task, event) {
   if (!selectedTaskHashes.value.includes(task.hash)) selectTask(task, event);
   filterOpen.value = false;
   columnMenu.value = null;
-  taskMenu.value = { x: Math.min(event.clientX, window.innerWidth - 220), y: Math.min(event.clientY, window.innerHeight - 310) };
+  taskMenu.value = { x: event.clientX, y: event.clientY };
+  await nextTick();
+  const element = taskMenuElement.value;
+  if (!element || !taskMenu.value) return;
+  const { width, height } = element.getBoundingClientRect();
+  const margin = 10;
+  taskMenu.value = {
+    x: Math.max(margin, Math.min(taskMenu.value.x, window.innerWidth - margin - width)),
+    y: Math.max(margin, Math.min(taskMenu.value.y, window.innerHeight - margin - height))
+  };
 }
 
 async function runTorrentAction(action, extra = {}) {
@@ -2500,6 +2565,13 @@ function addTaskTag() {
   taskTagsDialog.input = '';
   taskTagsDialog.error = '';
   return true;
+}
+
+function addTaskTagValue(tag) {
+  const value = String(tag || '').trim();
+  if (!value || value.includes(',')) return;
+  if (!taskTagsDialog.tags.includes(value)) taskTagsDialog.tags.push(value);
+  taskTagsDialog.error = '';
 }
 
 function removeTaskTag(tag) {
@@ -2782,6 +2854,7 @@ onUnmounted(() => {
   window.removeEventListener('hashchange', syncViewFromHash);
   window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('scroll', onWindowScroll);
   window.removeEventListener('pointerover', showTitleTooltip, true);
   window.removeEventListener('pointerout', hideTitleTooltip, true);
   if (titleTooltip.target?.dataset.uiTooltip) {
