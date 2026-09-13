@@ -665,7 +665,7 @@
       <form class="modal schedule-editor" @submit.prevent="saveSchedule">
         <header><div><p class="eyebrow">CRON AUTOMATION</p><h2>{{ scheduleEditor.id ? '编辑定时任务' : '新建定时任务' }}</h2></div><button type="button" class="icon-button" @click="closeScheduleEditor"><X /></button></header>
         <div class="schedule-form-grid"><label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label>执行操作<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleActionMenuOpen }" :aria-expanded="scheduleActionMenuOpen" aria-haspopup="listbox" @click="scheduleActionMenuOpen = !scheduleActionMenuOpen"><span>{{ scheduleActionLabel(scheduleEditor.action) }}</span><ChevronDown /></button><div v-if="scheduleActionMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="option in scheduleActionOptions" :key="option.value" type="button" :class="{ selected: scheduleEditor.action === option.value }" role="option" :aria-selected="scheduleEditor.action === option.value" @click="selectScheduleAction(option.value)"><Check v-if="scheduleEditor.action === option.value" /><span>{{ option.label }}</span></button></div></div></label></div>
-        <div class="schedule-form-grid schedule-form-grid-cron"><label>下载服务<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" aria-haspopup="listbox" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span class="schedule-service-value"><img v-if="scheduleEditorAccount" class="schedule-service-icon" :src="accountTypeIcon(scheduleEditorAccount)" alt="" /><b>{{ scheduleEditorAccount?.alias || '请选择下载服务' }}</b><em v-if="scheduleEditorAccount">{{ accountTypeLabel(scheduleEditorAccount) }}</em></span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><img class="schedule-service-icon" :src="accountTypeIcon(account)" alt="" /><span>{{ account.alias }}</span><em>{{ accountTypeLabel(account) }}</em><Check v-if="account.id === scheduleEditor.qbId" /></button></div></div></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" @mousemove="moveCronPreview" @mouseleave="cronPreview.visible = false" @focus="anchorCronPreview" @blur="cronPreview.visible = false" /><span v-if="cronPreview.visible" class="schedule-cron-preview" :style="{ left: `${cronPreview.x}px`, top: `${cronPreview.y}px` }" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
+        <div class="schedule-form-grid schedule-form-grid-cron"><label>下载服务<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" aria-haspopup="listbox" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span class="schedule-service-value"><img v-if="scheduleEditorAccount" class="schedule-service-icon" :src="accountTypeIcon(scheduleEditorAccount)" alt="" /><b>{{ scheduleEditorAccount?.alias || '请选择下载服务' }}</b><em v-if="scheduleEditorAccount">{{ accountTypeLabel(scheduleEditorAccount) }}</em></span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><img class="schedule-service-icon" :src="accountTypeIcon(account)" alt="" /><span>{{ account.alias }}</span><em>{{ accountTypeLabel(account) }}</em><Check v-if="account.id === scheduleEditor.qbId" /></button></div></div></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" @mousemove="moveCronPreview" @mouseleave="hideCronPreview" @focus="anchorCronPreview" @blur="hideCronPreview" /><span v-if="cronPreview.visible" class="schedule-cron-preview" :style="{ left: `${cronPreview.x}px`, top: `${cronPreview.y}px` }" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <label v-if="scheduleEditor.action === 'delete'" class="schedule-delete-files-option"><input v-model="scheduleEditor.deleteFiles" type="checkbox" />同时删除已下载的文件</label>
@@ -896,6 +896,11 @@ const scheduleActionOptions = [
   { value: 'addURLs', label: '添加种子链接' }
 ];
 const cronPreview = reactive({ visible: false, x: 0, y: 0 });
+// The Cron preview only appears once the pointer rests on the field, so merely
+// passing over it does not pop a panel open.
+const CRON_PREVIEW_DWELL = 600;
+let cronPreviewTimer = 0;
+let cronPreviewPointerDownAt = 0;
 const scheduleFilter = reactive({ status: [], tags: [] });
 const scheduleTagsText = computed({ get: () => scheduleEditor.tags.join(', '), set: (value) => { scheduleEditor.tags = String(value).split(',').map((item) => item.trim()).filter(Boolean); } });
 const scheduleCronPreview = computed(() => nextCronExecutionPreview(scheduleEditor.cron));
@@ -1931,20 +1936,42 @@ function selectScheduleAction(value) {
 }
 
 // The Cron preview floats under the pointer so it never covers the field being typed into.
+function placeCronPreview(x, y) {
+  cronPreview.x = Math.min(x, Math.max(10, window.innerWidth - 300));
+  cronPreview.y = Math.min(y, window.innerHeight - 140);
+}
+
+function hideCronPreview() {
+  window.clearTimeout(cronPreviewTimer);
+  cronPreviewTimer = 0;
+  cronPreview.visible = false;
+}
+
+function revealCronPreview() {
+  window.clearTimeout(cronPreviewTimer);
+  cronPreviewTimer = window.setTimeout(() => {
+    cronPreviewTimer = 0;
+    if (scheduleEditor.open) cronPreview.visible = true;
+  }, CRON_PREVIEW_DWELL);
+}
+
 function moveCronPreview(event) {
-  cronPreview.x = Math.min(event.clientX + 14, Math.max(10, window.innerWidth - 300));
-  cronPreview.y = Math.min(event.clientY + 18, window.innerHeight - 140);
-  cronPreview.visible = true;
+  placeCronPreview(event.clientX + 14, event.clientY + 18);
+  if (cronPreview.visible) return;
+  revealCronPreview();
 }
 
 function anchorCronPreview(event) {
   const bounds = event.currentTarget.getBoundingClientRect();
-  cronPreview.x = Math.min(bounds.left + 14, Math.max(10, window.innerWidth - 300));
-  cronPreview.y = Math.min(bounds.bottom + 10, window.innerHeight - 140);
+  placeCronPreview(bounds.left + 14, bounds.bottom + 10);
+  // Keyboard focus reveals it straight away; a click has to rest like hovering does.
+  if (Date.now() - cronPreviewPointerDownAt < CRON_PREVIEW_DWELL) { revealCronPreview(); return; }
+  window.clearTimeout(cronPreviewTimer);
+  cronPreviewTimer = 0;
   cronPreview.visible = true;
 }
 
-function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; scheduleQbMenuOpen.value = false; scheduleActionMenuOpen.value = false; cronPreview.visible = false; }
+function closeScheduleEditor() { scheduleEditor.open = false; scheduleEditor.error = ''; scheduleQbMenuOpen.value = false; scheduleActionMenuOpen.value = false; hideCronPreview(); }
 
 async function saveSchedule() {
   const payload = { name: scheduleEditor.name, qbId: scheduleEditor.qbId, cron: scheduleEditor.cron.replace(/\s+/g, ' ').trim(), action: scheduleEditor.action, altSpeedOn: scheduleEditor.altSpeedOn, hashes: scheduleEditor.hashes, statuses: scheduleFilter.status, filterTags: scheduleFilter.tags, torrentUrls: scheduleEditor.torrentUrls, torrentFiles: scheduleEditor.torrentFiles, savePath: scheduleEditor.savePath, tags: scheduleEditor.tags, deleteFiles: scheduleEditor.deleteFiles, enabled: scheduleEditor.enabled };
@@ -2314,13 +2341,15 @@ function closeTaskPopovers() {
 }
 
 function closeTaskMenusOnOutsidePointer(event) {
+  // Remember when a press came from the pointer, so focus can tell a click apart from Tab.
+  cronPreviewPointerDownAt = Date.now();
   if (taskMenu.value && !event.target.closest('.task-menu')) taskMenu.value = null;
   if (columnMenu.value && !event.target.closest('.column-menu')) columnMenu.value = null;
   // Any slide-down panel closes when the pointer lands outside it.
   if (scheduleQbMenuOpen.value && !event.target.closest('.schedule-picker')) scheduleQbMenuOpen.value = false;
   if (scheduleActionMenuOpen.value && !event.target.closest('.schedule-picker')) scheduleActionMenuOpen.value = false;
   if (accountMenuOpen.value && !event.target.closest('.account-switcher')) accountMenuOpen.value = false;
-  if (cronPreview.visible && !event.target.closest('.schedule-cron-field')) cronPreview.visible = false;
+  if (cronPreview.visible && !event.target.closest('.schedule-cron-field')) hideCronPreview();
 }
 
 function handleGlobalKeydown(event) {
@@ -2331,7 +2360,7 @@ function handleGlobalKeydown(event) {
     return;
   }
   if (accountMenuOpen.value) { accountMenuOpen.value = false; return; }
-  if (cronPreview.visible) { cronPreview.visible = false; return; }
+  if (cronPreview.visible) { hideCronPreview(); return; }
   if (taskMenu.value || columnMenu.value) { closeTaskPopovers(); return; }
   if (scheduleEditor.open) { closeScheduleEditor(); return; }
   if (editingQb.value) { editingQb.value = null; return; }
@@ -2760,6 +2789,7 @@ onUnmounted(() => {
     delete titleTooltip.target.dataset.uiTooltip;
   }
   window.clearTimeout(uploadNoticeTimer);
+  window.clearTimeout(cronPreviewTimer);
   stopTaskRefresh();
   stopTrafficRefresh();
 });
