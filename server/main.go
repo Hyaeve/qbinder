@@ -967,6 +967,10 @@ func (s *Server) executeSchedule(schedule Schedule, accounts []QBAccount) ([]str
 	form := url.Values{"hashes": {strings.Join(hashes, "|")}}
 	if schedule.Action == "forceStart" {
 		form.Set("value", "true")
+		// Same reasoning as the manual action: resuming is what clears qBittorrent's error state.
+		if err := postQBForm(context.Background(), baseURL, cookie, "/api/v2/torrents/start", url.Values{"hashes": form["hashes"]}); err != nil {
+			return torrentNames, err
+		}
 	}
 	if schedule.Action == "delete" {
 		form.Set("deleteFiles", strconv.FormatBool(schedule.DeleteFiles))
@@ -2386,6 +2390,17 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
+	// "Force start" also has to resume: qBittorrent only clears a torrent's error state (a piece
+	// that failed its hash check, missing files) inside start(), while setForceStart alone just
+	// flips the flag and leaves an already-flagged torrent as it was. Resuming first lets an
+	// errored torrent be re-downloaded instead of staying stuck; the force-start call afterwards
+	// re-asserts the forced mode.
+	if payload.Action == "forceStart" {
+		if err := postQBForm(r.Context(), baseURL, cookie, "/api/v2/torrents/start", url.Values{"hashes": form["hashes"]}); err != nil {
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+	}
 	torrentNames, _ := torrentNamesByHashes(r.Context(), baseURL, cookie, payload.Hashes)
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -2515,7 +2530,7 @@ func postQBForm(ctx context.Context, baseURL, cookie, endpoint string, form url.
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("qBittorrent tags update failed: %d", response.StatusCode)
+		return fmt.Errorf("qBittorrent request failed: %s %d", endpoint, response.StatusCode)
 	}
 	return nil
 }
