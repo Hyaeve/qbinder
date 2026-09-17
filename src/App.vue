@@ -1271,11 +1271,28 @@ function goToTaskPage(page) {
   taskPage.value = Math.min(Math.max(page, 1), taskPageCount.value);
 }
 
+// A 401 means this browser no longer holds a valid backend session (cookie expired, or the server
+// restarted and dropped its in-memory sessions). Drop everything and fall back to the login window
+// instead of surfacing a raw "Unauthorized" inside whichever panel happened to fire the request.
+function handleSessionExpired() {
+  stopTaskRefresh();
+  stopTrafficRefresh();
+  if (!user.value && !config.value) return; // Already sitting on the login window.
+  user.value = null;
+  config.value = null;
+  loginForm.password = '';
+  error.value = '登录状态已失效，请重新登录。';
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers }, ...options });
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
-  if (!response.ok) throw new Error(data?.error || '请求失败');
+  if (!response.ok) {
+    // The login endpoint's own 401 is a wrong password, not an expired session.
+    if (response.status === 401 && path !== '/api/auth/login') handleSessionExpired();
+    throw new Error(data?.error || '请求失败');
+  }
   return data;
 }
 
@@ -1294,9 +1311,16 @@ async function login() {
 }
 
 async function logout() {
-  await api('/api/auth/logout', { method: 'POST' });
+  try {
+    await api('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // The session may already be gone server-side; dropping the local state below is enough.
+  }
+  stopTaskRefresh();
+  stopTrafficRefresh();
   user.value = null;
   config.value = null;
+  error.value = '';
 }
 
 async function saveCredentials() {
