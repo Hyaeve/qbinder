@@ -318,7 +318,7 @@
         </header>
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
-        <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenusOnOutsidePointer" @click.stop @scroll="syncTaskScrollbar">
+        <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenusOnOutsidePointer" @click.stop @scroll="syncTaskScrollbar" @wheel="scrollTaskTableHorizontally">
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header">
               <div v-for="column in visibleTaskColumns" :key="column.key" class="task-header-cell" @click="sortTasks(column.key)" @contextmenu.prevent="openColumnMenu(column, $event)">
@@ -1191,10 +1191,17 @@ function syncTaskTableScroll(event) {
 }
 
 function scrollTaskTableHorizontally(event) {
-  const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-  if (!horizontalDelta || !taskHorizontalScrollbar.value) return;
+  const shell = taskTableShell.value;
+  if (!shell) return;
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  const maxScroll = shell.scrollWidth - shell.clientWidth;
+  if (maxScroll <= 0) return;
+  const next = Math.min(Math.max(shell.scrollLeft + delta, 0), maxScroll);
+  if (next === shell.scrollLeft) return;
   event.preventDefault();
-  taskHorizontalScrollbar.value.scrollLeft += horizontalDelta;
+  shell.scrollLeft = next;
+  if (taskHorizontalScrollbar.value) taskHorizontalScrollbar.value.scrollLeft = next;
 }
 
 const statusOptions = [
