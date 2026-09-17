@@ -2423,6 +2423,20 @@ body:has(.modal-backdrop) {
   to { background-position: 100% 50%; }
 }
 
+/* Forced recheck: the same bar switches to an amber "verification" fill, so a re-verified torrent
+   never reads as ordinary download progress. */
+.progress-value.checking > div {
+  border-color: #d9c096;
+  background: linear-gradient(135deg, #fbf7ee, #f5ecdb);
+}
+
+.progress-value.checking > div > span {
+  background: linear-gradient(105deg, #cfa865 0%, #e0c795 32%, #b99a68 60%, #dcc29b 100%);
+  background-size: 240% 100%;
+}
+
+.progress-value.checking b { text-shadow: 0 1px 2px rgba(110, 78, 26, .55); }
+
 @media (prefers-reduced-motion: reduce) {
   .progress-value > div > span { animation: none; }
 }
@@ -3122,6 +3136,7 @@ body:has(.modal-backdrop) {
 .task-status.is-停止 { border-color: #e4d9bc; color: #8b7542; background: #fbf8ed; }
 .task-status.is-错误 { border-color: #edc6c6; color: #a75f5f; background: #fff4f4; }
 .task-status.is-运行 { border-color: #ced8e9; color: #596f9a; background: #f2f5fc; }
+.task-status.is-校验 { border-color: #e0caa0; color: #8a6a2f; background: #fbf5e8; }
 
 /* Sidebar edge: calm gray divider at rest, animated Monet folded line on intent. */
 .sidebar-toggle,

@@ -328,7 +328,7 @@
             </div>
             <div v-for="task in pagedTasks" :key="task.hash" class="task-row" :class="{ selected: selectedTaskHashes.includes(task.hash) }" @mouseenter="hoveredTaskHash = task.hash" @mouseleave="hoveredTaskHash = ''" @click.stop="selectTask(task, $event)" @contextmenu.prevent.stop="openTaskMenu(task, $event)">
               <div v-for="column in visibleTaskColumns" :key="`${task.hash}-${column.key}`" class="task-cell" :class="`task-cell-${column.key}`">
-                <template v-if="column.key === 'progress'"><div class="progress-value"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
+                <template v-if="column.key === 'progress'"><div class="progress-value" :class="{ checking: taskIsChecking(task) }"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div></template>
                 <template v-else-if="column.key === 'status'"><span class="task-status" :class="taskStatusClass(task)">{{ taskStatusLabel(task) }}</span></template>
                 <template v-else-if="column.key === 'tags'"><div class="task-tags" :class="{ empty: !taskTags(task).length }" :title="taskTags(task).join('、') || '无标签'"><span v-for="tag in taskTags(task)" :key="tag" :class="`tag-tone-${taskTagTone(tag)}`">{{ tag }}</span><em v-if="!taskTags(task).length">—</em></div></template>
                 <template v-else-if="column.key === 'tracker'"><span class="task-tracker" :class="`tag-tone-${taskTagTone(trackerDisplayName(task.tracker))}`" :title="trackerDisplayName(task.tracker)">{{ trackerDisplayName(task.tracker) }}</span></template>
@@ -397,7 +397,7 @@
           <button @click="editSelectedTaskTags"><Tags /><span>编辑标签</span></button>
           <button @click="changeSelectedTaskPath"><FolderCog /><span>更改保存路径</span></button>
           <button @click="setSelectedUploadLimit"><Gauge /><span>限制上传速率</span></button>
-          <button @click="runTorrentAction('recheck')"><ShieldCheck /><span>强制重新校验</span></button>
+          <button @click="forceRecheckSelectedTasks"><ShieldCheck /><span>强制重新校验</span></button>
           <button @click="exportSelectedTorrents"><Download /><span>导出 torrent</span></button>
           <button class="danger" @click="openTaskDeleteDialog"><Trash2 /><span>删除种子</span></button>
         </div>
@@ -2248,6 +2248,13 @@ function taskTagTone(tag) {
   return Math.abs(hash) % 8;
 }
 
+// qBittorrent re-verifies a torrent under checkingDL / checkingUP / checkingResumeData. During that
+// window the API's `progress` field carries the verification percentage, so the progress column is
+// recoloured to read as "checking" instead of "downloading/seeding".
+function taskIsChecking(task) {
+  return String(task?.state || '').toLowerCase().includes('checking');
+}
+
 function taskMatchesStatus(task, category) {
   const state = String(task.state || '').toLowerCase();
   const isError = state.includes('error') || state.includes('missing');
@@ -2261,6 +2268,7 @@ function taskMatchesStatus(task, category) {
 }
 
 function taskStatusLabel(task) {
+  if (taskIsChecking(task)) return '校验中';
   if (taskMatchesStatus(task, 'error')) return '错误';
   if (taskMatchesStatus(task, 'stopped')) return '已停止';
   if (task.progress >= 1) return taskMatchesStatus(task, 'seeding') ? '做种中' : '已完成';
@@ -2519,6 +2527,17 @@ async function runTorrentAction(action, extra = {}) {
     tasksError.value = requestError.message;
     return false;
   }
+}
+
+async function forceRecheckSelectedTasks() {
+  const accepted = await runTorrentAction('recheck');
+  if (!accepted) return;
+  // qBittorrent flips the torrent into checkingDL/checkingUP asynchronously, so the reload above
+  // still reports the old state. Ask again shortly after so the "校验中" label and its amber
+  // progress bar show up right away instead of waiting for the 5s poll.
+  window.setTimeout(() => {
+    if (view.value === 'torrents' && document.visibilityState === 'visible') loadTasks({ silent: true });
+  }, 1500);
 }
 
 function renameSelectedTask() {
