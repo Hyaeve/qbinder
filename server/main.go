@@ -2374,6 +2374,8 @@ func (s *Server) handleQBTorrentAction(w http.ResponseWriter, r *http.Request, c
 		}
 		endpoint = "/api/v2/torrents/setUploadLimit"
 		form.Set("limit", strconv.FormatInt(payload.UploadLimit, 10))
+	case "recheck":
+		endpoint = "/api/v2/torrents/recheck"
 	default:
 		writeErrorText(w, http.StatusBadRequest, "不支持的种子操作")
 		return

@@ -397,6 +397,7 @@
           <button @click="editSelectedTaskTags"><Tags /><span>编辑标签</span></button>
           <button @click="changeSelectedTaskPath"><FolderCog /><span>更改保存路径</span></button>
           <button @click="setSelectedUploadLimit"><Gauge /><span>限制上传速率</span></button>
+          <button @click="runTorrentAction('recheck')"><ShieldCheck /><span>强制重新校验</span></button>
           <button @click="exportSelectedTorrents"><Download /><span>导出 torrent</span></button>
           <button class="danger" @click="openTaskDeleteDialog"><Trash2 /><span>删除种子</span></button>
         </div>
@@ -787,6 +788,7 @@ import {
   Check,
   Save,
   Settings,
+  ShieldCheck,
   Table2,
   Search,
   Filter,
@@ -1918,7 +1920,7 @@ function toggleOperationLog(entry) {
 }
 
 function operationLogActionLabel(action) {
-  return ({ start: '开始种子', forceStart: '强制开始', stop: '停止种子', delete: '删除种子', rename: '重命名', setLocation: '更改保存路径', setTags: '编辑标签', setUploadLimit: '设置上传限速', toggleAltSpeed: '切换备用速度', addURLs: '添加种子' })[action] || action;
+  return ({ start: '开始种子', forceStart: '强制开始', stop: '停止种子', delete: '删除种子', rename: '重命名', setLocation: '更改保存路径', setTags: '编辑标签', setUploadLimit: '设置上传限速', recheck: '强制重新校验', toggleAltSpeed: '切换备用速度', addURLs: '添加种子' })[action] || action;
 }
 
 function cronPreviewFieldMatches(field, value, min, max) {
