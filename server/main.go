@@ -3020,8 +3020,13 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(s.distDir, requestedPath)
 	if relative, err := filepath.Rel(s.distDir, path); err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			if strings.Contains(filepath.Base(path), ".") {
-				w.Header().Set("Cache-Control", "public, max-age=86400")
+			// Vite writes every bundle into dist/assets/ with a content hash in the name, so those are
+			// safe to cache forever. Anything else - index.html above all - has to revalidate, otherwise
+			// the browser keeps serving a stale index.html that points at an old (now deleted) bundle.
+			if strings.HasPrefix(filepath.ToSlash(requestedPath), "assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "no-cache")
 			}
 			http.ServeFile(w, r, path)
 			return

@@ -1190,14 +1190,16 @@ function syncTaskTableScroll(event) {
   if (taskTableShell.value) taskTableShell.value.scrollLeft = event.currentTarget.scrollLeft;
 }
 
+// The column header row and the transfer footer never hand the wheel over to the page:
+// over those two areas the wheel only pans the task table sideways and stops at either end.
 function scrollTaskTableHorizontally(event) {
-  const shell = taskTableShell.value;
-  if (!shell) return;
   const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
   if (!delta) return;
+  event.preventDefault();
+  const shell = taskTableShell.value;
+  if (!shell) return;
   const maxScroll = shell.scrollWidth - shell.clientWidth;
   if (maxScroll <= 0) return;
-  event.preventDefault();
   const next = Math.min(Math.max(shell.scrollLeft + delta, 0), maxScroll);
   shell.scrollLeft = next;
   if (taskHorizontalScrollbar.value) taskHorizontalScrollbar.value.scrollLeft = next;
