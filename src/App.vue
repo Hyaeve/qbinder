@@ -1287,7 +1287,7 @@ function handleSessionExpired() {
   user.value = null;
   config.value = null;
   loginForm.password = '';
-  error.value = '登录状态已失效，请重新登录。';
+  error.value = '';
 }
 
 async function api(path, options = {}) {
