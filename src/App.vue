@@ -190,7 +190,7 @@
       <section class="traffic-summary-grid">
         <article class="traffic-summary-card traffic-summary-upload"><Upload /><div><span>总上传</span><strong>{{ formatBytes(trafficStats.summary.uploaded) }}</strong></div></article>
         <article class="traffic-summary-card traffic-summary-download"><Download /><div><span>总下载</span><strong>{{ formatBytes(trafficStats.summary.downloaded) }}</strong></div></article>
-        <article class="traffic-summary-card traffic-summary-seeding"><Gauge /><div><span>总做种数</span><strong>{{ trafficStats.summary.seedingCount }} 个</strong></div></article>
+        <article class="traffic-summary-card traffic-summary-seeding"><Sprout /><div><span>总做种数</span><strong>{{ trafficStats.summary.seedingCount }} 个</strong></div></article>
         <article class="traffic-summary-card traffic-summary-size"><Layers /><div><span>总做种体积</span><strong>{{ formatBytes(trafficStats.summary.seedingSize) }}</strong></div></article>
       </section>
       <section class="traffic-chart-grid">
@@ -789,6 +789,7 @@ import {
   Save,
   Settings,
   ShieldCheck,
+  Sprout,
   Table2,
   Search,
   Filter,

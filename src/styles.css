@@ -2,6 +2,8 @@
   color: #45434f;
   background: #f5f5fa;
   font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Heading/eyebrow face: an optical-size display cut where one exists, then the UI-tuned CJK faces. */
+  --display-font: "Segoe UI Variable Display", "Segoe UI", Inter, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -4362,9 +4364,9 @@ body:has(.modal-backdrop) {
 .traffic-summary-card { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 18px 19px; border: 1px solid rgba(184,204,199,.74); border-radius: 16px; background: rgba(255,255,255,.78); box-shadow: 0 10px 28px rgba(71,91,90,.055); }
 .traffic-summary-card > svg { flex: 0 0 auto; width: 40px; height: 40px; padding: 9px; border-radius: 13px; }
 .traffic-summary-card div { display: grid; gap: 4px; min-width: 0; }
-.traffic-summary-card span { color: #829692; font-size: 12px; }
+.traffic-summary-card span { color: #5f7b76; font-family: var(--display-font); font-size: 14px; font-weight: 700; letter-spacing: .02em; }
 .traffic-summary-card strong { overflow: hidden; color: #526c6b; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
-.traffic-summary-upload > svg { color: #668f86; background: #e2efeb; }.traffic-summary-download > svg { color: #71819c; background: #e6e8f0; }.traffic-summary-seeding > svg { color: #987e98; background: #eee3ed; }.traffic-summary-size > svg { color: #917c5f; background: #f0e9dc; }
+.traffic-summary-upload > svg { color: #668f86; background: #e2efeb; }.traffic-summary-download > svg { color: #71819c; background: #e6e8f0; }.traffic-summary-seeding > svg { color: #6f8c6a; background: #e8f0e0; }.traffic-summary-size > svg { color: #917c5f; background: #f0e9dc; }
 .traffic-history-note { margin: 0 0 14px; padding: 11px 14px; border: 1px solid #dedbcc; border-radius: 11px; color: #837960; background: rgba(249,246,232,.8); font-size: 12px; }
 .traffic-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .traffic-chart-panel { min-width: 0; padding: 22px; border: 1px solid rgba(184,204,199,.74); border-radius: 18px; background: rgba(255,255,255,.78); box-shadow: 0 12px 32px rgba(71,91,90,.06); }
