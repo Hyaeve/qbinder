@@ -4360,7 +4360,7 @@ body:has(.modal-backdrop) {
 .traffic-range-button.active { color: #fff; background: #7faaa1; box-shadow: 0 4px 10px rgba(97,139,130,.2); }
 .traffic-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
 .traffic-summary-card { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 18px 19px; border: 1px solid rgba(184,204,199,.74); border-radius: 16px; background: rgba(255,255,255,.78); box-shadow: 0 10px 28px rgba(71,91,90,.055); }
-.traffic-summary-card > svg { flex: 0 0 auto; width: 23px; height: 23px; padding: 9px; border-radius: 12px; }
+.traffic-summary-card > svg { flex: 0 0 auto; width: 40px; height: 40px; padding: 9px; border-radius: 13px; }
 .traffic-summary-card div { display: grid; gap: 4px; min-width: 0; }
 .traffic-summary-card span { color: #829692; font-size: 12px; }
 .traffic-summary-card strong { overflow: hidden; color: #526c6b; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
