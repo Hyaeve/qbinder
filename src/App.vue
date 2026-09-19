@@ -53,6 +53,10 @@
         </span>
       </button>
     </aside>
+    <header class="mobile-app-header">
+      <img src="/reference.png" alt="" /><strong>qBinder</strong>
+      <button class="icon-button" aria-label="退出登录" @click="logout"><LogOut /></button>
+    </header>
 
     <div v-if="view === 'settings'" class="content settings-page">
       <section class="settings-grid">
@@ -318,6 +322,29 @@
         </header>
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
+        <section class="mobile-torrents" aria-label="种子列表">
+          <label class="mobile-sort">排序
+            <select :value="taskSort.key" @change="sortTasks($event.target.value)">
+              <option v-for="column in visibleTaskColumns" :key="column.key" :value="column.key">{{ column.label }}</option>
+            </select>
+            <button class="icon-button" :aria-label="taskSort.direction === 'asc' ? '切换降序' : '切换升序'" @click="sortTasks(taskSort.key)"><ChevronUp v-if="taskSort.direction === 'asc'" /><ChevronDown v-else /></button>
+          </label>
+          <article v-for="task in pagedTasks" :key="task.hash" class="mobile-torrent" :class="{ selected: selectedTaskHashes.includes(task.hash) }">
+            <div class="mobile-torrent-heading">
+              <input type="checkbox" :aria-label="`选择 ${task.name}`" :checked="selectedTaskHashes.includes(task.hash)" @change="toggleMobileTask(task.hash)" />
+              <strong>{{ task.name }}</strong>
+              <button class="icon-button" :aria-label="`操作 ${task.name}`" @click.stop="openTaskMenu(task, $event)"><EllipsisVertical /></button>
+            </div>
+            <div class="progress-value" :class="{ checking: taskIsChecking(task) }"><div><span :style="{ width: `${Math.round(task.progress * 100)}%` }"></span><b>{{ formatProgress(task.progress) }}</b></div></div>
+            <div class="mobile-torrent-stats"><span>{{ taskStatusLabel(task) }}</span><span>↓ {{ formatSpeed(task.dlspeed) }}</span><span>↑ {{ formatSpeed(task.upspeed) }}</span></div>
+            <details>
+              <summary>{{ formatBytes(task.size) }} · {{ trackerDisplayName(task.tracker) }}</summary>
+              <dl><dt>剩余时间</dt><dd>{{ formatTaskValue(task, 'eta') }}</dd><dt>保存路径</dt><dd>{{ task.save_path || '—' }}</dd><dt>标签</dt><dd>{{ taskTags(task).join('、') || '—' }}</dd><dt>Tracker</dt><dd>{{ task.tracker || '—' }}</dd></dl>
+            </details>
+          </article>
+          <p v-if="tasksLoading">正在同步任务…</p>
+          <p v-else-if="!filteredTasks.length">没有符合条件的任务。</p>
+        </section>
         <section ref="taskTableShell" class="task-table-shell" @click.capture="closeTaskMenusOnOutsidePointer" @click.stop @scroll="syncTaskScrollbar">
           <div class="task-table" :style="taskGridStyle">
             <div class="task-table-header" @wheel="scrollTaskTableHorizontally">
@@ -457,11 +484,13 @@
                 @dblclick="editLane(lane)"
               >{{ lane.name }}</h2>
             </div>
+            <button class="icon-button mobile-edit" :aria-label="`编辑横栏 ${lane.name}`" @click="editLane(lane)"><Pencil /></button>
             <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
           </div>
           <div class="card-row">
             <article v-for="(card, cardIndex) in cardsForLane(lane.id)" :key="card.id" class="binder-card" :class="{ dragging: draggingCardId === card.id, 'drag-over': cardDropTargetId === card.id && draggingCardId !== card.id }" :style="coverStyle(card)" draggable="true" @dragstart="startCardDrag(card, $event)" @dragover.prevent.stop="cardDropTargetId = card.id" @dragleave.stop="clearCardDrop(card.id)" @drop.prevent.stop="dropCard(lane.id, cardIndex)" @dragend="endCardDrag" @contextmenu.prevent="editingCard = cloneCard(card)">
               <input :ref="setFileInput(card.id)" type="file" multiple accept=".torrent,application/x-bittorrent" hidden @change="uploadFiles(card, $event)" />
+              <button class="icon-button mobile-edit" :aria-label="`编辑卡片 ${card.name}`" @click.stop="editingCard = cloneCard(card)"><Pencil /></button>
               <div class="card-content">
                 <FolderDown />
                 <h3>{{ card.name }}</h3>
@@ -806,6 +835,7 @@ import {
   UploadCloud,
   Eye,
   EyeOff,
+  EllipsisVertical,
   X,
   Zap
 } from '@lucide/vue';
@@ -2273,6 +2303,12 @@ function taskTags(task) {
   return String(task.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean);
 }
 
+function toggleMobileTask(hash) {
+  selectedTaskHashes.value = selectedTaskHashes.value.includes(hash)
+    ? selectedTaskHashes.value.filter((value) => value !== hash)
+    : [...selectedTaskHashes.value, hash];
+}
+
 function taskTagTone(tag) {
   let hash = 0;
   for (const character of String(tag)) {
@@ -2917,6 +2953,7 @@ function startColumnResize(column, event) {
 }
 
 function showTitleTooltip(event) {
+  if (window.matchMedia('(hover: none)').matches) return;
   const target = event.target instanceof Element ? event.target.closest('[title], [data-overflow-tooltip]') : null;
   if (!target || titleTooltip.target === target) return;
   const text = target.dataset.overflowTooltip || target.title;

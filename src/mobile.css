@@ -1,0 +1,121 @@
+.mobile-app-header, .mobile-torrents, .mobile-edit { display: none; }
+
+/* Viewport-based layout also responds to rotation, split view and desktop resizing. */
+@media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
+  :root { --mobile-nav-height: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  html, body { min-width: 320px; }
+  .app-shell, .app-shell.sidebar-collapsed { display: block; min-height: 100dvh; }
+  .app-shell .mobile-app-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
+    background: #f5f5fa; min-height: 56px;
+  }
+  .mobile-app-header img { width: 30px; height: 30px; }
+  .mobile-app-header strong { font-size: 20px; }
+  .mobile-app-header button { margin-left: auto; }
+  .app-shell .sidebar, .app-shell.sidebar-collapsed .sidebar {
+    position: fixed; inset: auto 0 0; z-index: 18; width: 100%; height: var(--mobile-nav-height);
+    display: block; padding: 5px max(6px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(6px, env(safe-area-inset-left, 0px));
+    border: 0; border-top: 1px solid #dce5e2; background: #fafcfb;
+  }
+  .app-shell .sidebar-top, .app-shell .sidebar-toggle, .app-shell .sidebar > .logout { display: none; }
+  .app-shell .sidebar nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; width: 100%; }
+  .app-shell .sidebar nav button, .app-shell.sidebar-collapsed .sidebar nav button {
+    display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 100%;
+    padding: 4px 0; height: 55px; min-width: 0; font-size: 11px; border-radius: 8px;
+  }
+  .app-shell.sidebar-collapsed .sidebar nav button span { display: block; }
+  .app-shell .sidebar nav button svg { width: 21px; height: 21px; }
+  .app-shell .content { padding: 12px max(14px, env(safe-area-inset-right, 0px)) calc(var(--mobile-nav-height) + 24px) max(14px, env(safe-area-inset-left, 0px)); width: 100%; }
+  input, select, textarea { font-size: 16px; }
+  button, a, summary { touch-action: manipulation; }
+  .icon-button, .primary-button, .secondary-button, .ghost-button { min-height: 44px; }
+  .icon-button { min-width: 44px; }
+  .page-header, .account-panel-header, .schedule-header, .operation-log-header { flex-wrap: wrap; gap: 12px; }
+  .page-header h1, .empty-workspace h1 { font-size: 24px; }
+  .app-shell .settings-grid, .app-shell .settings-column, .app-shell .account-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .app-shell .account-form-grid { grid-auto-flow: row; grid-template-rows: none; }
+  .account-form-grid label { min-width: 0; }
+  .setting-panel { min-width: 0; padding: 18px; }
+  .account-type-switch { max-width: 100%; flex-wrap: wrap; }
+  .account-type-switch button { min-width: 0; font-size: 13px; }
+  .configured-qb-card, .configured-qb-card-main { min-width: 0; }
+  .tracker-mapping-row { gap: 6px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; }
+  .tracker-mapping-row input { padding: 8px; }
+  .tracker-mapping-row input:first-child { grid-column: auto; }
+  .app-shell .cards-page .top-tabs, .app-shell .tasks-page .task-toolbar {
+    position: relative; top: auto; height: auto; min-height: 0; flex-wrap: wrap;
+    padding: 0 0 12px; margin-bottom: 12px; gap: 10px;
+  }
+  .app-shell .tasks-page .task-toolbar-actions { width: 100%; flex: 1 1 100%; gap: 6px; }
+  .app-shell .tasks-page .task-search { flex: 1; width: auto; min-width: 0; }
+  .app-shell .tasks-page .task-search input { font-size: 16px; }
+  .account-switcher { max-width: 100%; }
+  .account-switcher-menu { max-width: calc(100vw - 28px); }
+  .lane-create { display: flex; flex-wrap: wrap; }
+  .lane-create input { flex: 1 1 180px; min-width: 0; }
+  .lane { min-width: 0; }
+  .lane-title { flex-wrap: wrap; gap: 8px; }
+  .card-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .binder-card { width: 100%; height: auto; min-width: 0; max-width: 100%; min-height: 210px; padding-bottom: 54px; }
+  .binder-card .card-content { padding: 18px; }
+  .binder-card .upload-overlay, .binder-card:hover .upload-overlay {
+    inset: auto 8px 8px; height: 40px; width: calc(100% - 16px); min-height: 44px;
+    display: flex; flex-direction: row; gap: 8px; opacity: 1;
+    background: #e4eeea; color: #405e53; border-radius: 8px; backdrop-filter: none;
+  }
+  .binder-card .upload-overlay svg { width: 20px; height: 20px; }
+  .mobile-edit { display: inline-flex; }
+  .binder-card > .mobile-edit { position: absolute; top: 6px; right: 6px; z-index: 2; }
+  .binder-card .card-content h3 { padding-right: 32px; overflow-wrap: anywhere; }
+  .app-shell .tasks-page { padding-bottom: calc(var(--mobile-nav-height) + 86px); }
+  .tasks-page .task-table-shell { display: none; }
+  .mobile-torrents { display: block; }
+  .mobile-sort { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .mobile-sort select { width: auto; flex: 1; }
+  .mobile-torrent { padding: 16px 0; border-bottom: 1px solid #dce5e2; }
+  .mobile-torrent.selected { background: #eaf3f1; }
+  .mobile-torrent-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .mobile-torrent-heading input { flex: 0 0 22px; width: 22px; height: 22px; accent-color: #648d81; }
+  .mobile-torrent-heading strong { min-width: 0; flex: 1; font-size: 14px; overflow-wrap: anywhere; }
+  .mobile-torrent-heading button { flex-shrink: 0; }
+  .mobile-torrent-stats { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px; }
+  .mobile-torrent summary { padding: 12px 0; font-size: 13px; overflow-wrap: anywhere; }
+  .mobile-torrent dl { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; font-size: 13px; }
+  .mobile-torrent dd { margin: 0; overflow-wrap: anywhere; }
+  .mobile-torrent dt { color: #73847d; }
+  .app-shell .tasks-page .task-summary {
+    inset: auto 0 var(--mobile-nav-height); min-height: 64px; padding: 6px 12px;
+    display: flex; flex-wrap: wrap; gap: 6px; z-index: 17;
+  }
+  .tasks-page .task-summary .task-summary-count { display: block; flex: 1 1 100%; font-size: 11px; }
+  .tasks-page .task-summary .transfer-stat { min-width: 0; padding: 0 4px; }
+  .tasks-page .task-summary .transfer-stat > .transfer-value { display: inline; font-size: 11px; }
+  .task-summary .transfer-value em, .task-summary .transfer-value small, .task-horizontal-scrollbar { display: none; }
+  .task-summary .transfer-alt-speed-button { width: 44px; height: 44px; }
+  .task-menu { max-height: calc(100dvh - 32px); overflow-y: auto; }
+  .task-menu button { min-height: 44px; }
+  .tasks-page .task-filter-popover { position: fixed; top: max(12px, env(safe-area-inset-top, 0px)) !important; max-height: calc(100dvh - var(--mobile-nav-height) - 24px); overflow-y: auto; }
+  .modal-backdrop { padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); z-index: 40; }
+  .modal-backdrop .modal { max-width: 100%; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px); padding: 20px 16px; min-width: 0; }
+  .modal h2 { font-size: 21px; }
+  .modal header { gap: 8px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal .schedule-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .modal .schedule-filter-columns { grid-template-columns: minmax(0, 1fr); }
+  .schedule-editor .modal-actions { position: static; }
+  .task-path-modal { min-height: min(560px, calc(100dvh - 24px)); }
+  .schedule-card-actions { flex-wrap: wrap; }
+  .operation-log-search { width: 100%; min-width: 0; }
+  .operation-log-entry { min-width: 0; }
+  .operation-log-entry p { overflow-wrap: anywhere; }
+  .operation-log-pages { flex-wrap: wrap; }
+  .traffic-page .traffic-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .traffic-summary-card { min-width: 0; gap: 6px; padding: 12px; }
+  .traffic-summary-card strong { font-size: 17px; }
+  .traffic-page .traffic-chart-content { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .traffic-chart-content .traffic-pie { flex: 0 0 160px; }
+  .traffic-chart-content .traffic-legend { flex: 1 1 100px; min-width: 0; }
+  .login-page { min-height: 100dvh; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+  .login-panel { padding: 24px; }
+}

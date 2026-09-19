@@ -2,6 +2,7 @@ node_modules
 dist
 data
 /qbinder
+agents.md
 npm-debug.log*
 .DS_Store
 .env
