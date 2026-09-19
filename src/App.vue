@@ -14,7 +14,13 @@
         <label>账号<input v-model="loginForm.username" autocomplete="username" /></label>
         <label>密码<span class="password-field"><input v-model="loginForm.password" :type="passwordVisibility.login ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.login ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.login" @click="togglePassword('login')"><EyeOff v-if="passwordVisibility.login" /><Eye v-else /></button></span></label>
         <p v-if="error" class="form-error">{{ error }}</p>
-        <button class="primary-button" :disabled="busy"><Loader2 v-if="busy" class="spin" /><KeyRound v-else />登录</button>
+        <div class="login-actions">
+          <button type="button" class="task-switch login-save-toggle" :class="{ on: saveLoginEnabled }" role="switch" :aria-checked="saveLoginEnabled" @click="toggleSaveLogin">
+            <span class="task-switch-track" aria-hidden="true"><i></i></span>
+            <span class="task-switch-label">保存登录</span>
+          </button>
+          <button class="primary-button" :disabled="busy"><Loader2 v-if="busy" class="spin" /><KeyRound v-else />登录</button>
+        </div>
       </form>
     </section>
   </main>
@@ -1047,6 +1053,56 @@ function onWindowScroll() {
 
 const loginForm = reactive({ username: '', password: '' });
 const credentialForm = reactive({ username: '', password: '' });
+
+// "保存登录" keeps the account and password in this browser so the login window comes back
+// pre-filled instead of asking for both fields again. This is a single-user self-hosted panel,
+// so the values are stored in plain text in localStorage and are only ever read by this form.
+const LOGIN_STORAGE_KEY = 'qbinder-saved-login';
+const savedLogin = readSavedLogin();
+const saveLoginEnabled = ref(Boolean(savedLogin));
+
+function readSavedLogin() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOGIN_STORAGE_KEY) || 'null');
+    return parsed && typeof parsed.username === 'string' ? parsed : null;
+  } catch {
+    // Unreadable or corrupt payload: behave as if nothing was saved.
+    return null;
+  }
+}
+
+function writeSavedLogin() {
+  try {
+    localStorage.setItem(LOGIN_STORAGE_KEY, JSON.stringify({ username: loginForm.username, password: loginForm.password }));
+  } catch {
+    // Private-mode browsers can refuse the write; the login flow itself is unaffected.
+  }
+}
+
+function clearSavedLogin() {
+  try {
+    localStorage.removeItem(LOGIN_STORAGE_KEY);
+  } catch {
+    // Nothing to recover from.
+  }
+}
+
+function toggleSaveLogin() {
+  saveLoginEnabled.value = !saveLoginEnabled.value;
+  if (!saveLoginEnabled.value) {
+    clearSavedLogin();
+    return;
+  }
+  // Only persist right away when both fields already hold something; otherwise `login()`
+  // stores them once the credentials turn out to be valid.
+  if (loginForm.username && loginForm.password) writeSavedLogin();
+}
+
+if (savedLogin) {
+  loginForm.username = savedLogin.username;
+  loginForm.password = savedLogin.password || '';
+}
+
 const accountFormDefaults = { type: 'qbittorrent', alias: '', address: 'http://', username: '', password: '' };
 const qbForm = reactive({ ...accountFormDefaults });
 const accountDefaultPorts = { qbittorrent: 8080, transmission: 9091 };
@@ -1315,7 +1371,10 @@ function handleSessionExpired() {
   if (!user.value && !config.value) return; // Already sitting on the login window.
   user.value = null;
   config.value = null;
-  loginForm.password = '';
+  // When "保存登录" is on, hand the saved values back so the user only has to press 登录.
+  const remembered = readSavedLogin();
+  loginForm.username = remembered?.username || loginForm.username;
+  loginForm.password = remembered?.password || '';
   error.value = '';
 }
 
@@ -1336,6 +1395,8 @@ async function login() {
   error.value = '';
   try {
     const response = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(loginForm) });
+    // Only remember credentials that the server actually accepted.
+    if (saveLoginEnabled.value) writeSavedLogin();
     user.value = response.user;
     config.value = response.config;
   } catch (requestError) {
