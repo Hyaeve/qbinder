@@ -5,6 +5,14 @@
   re-evaluate the layout; no user-agent detection or stored mobile preference
   is required.
 - Touch devices up to 1100 CSS pixels wide retain the mobile layout in landscape.
+- Mobile navigation uses a floating frosted-glass capsule Dock. Cards remain
+  square covers, in two columns. Tap to add torrents; long press to edit
+  (850ms, or release after 450ms). Hold for 450ms then move to sort within the same lane.
+  Swiping without holding scrolls the page. Desktop drag and context editing remain.
+- Lane creation stays next to the account picker on both desktop and mobile.
+  Torrent search, filters and refresh share one row below the mobile account picker.
+- Mobile traffic charts are centered: tap a sector or legend to highlight it;
+  tapping a different sector clears selection. Desktop hover details remain.
 - Each torrent has an explicit actions button, multi-selection checkbox, and
   expandable path/tag/Tracker details. Desktop table preferences are preserved.
 - Install on iOS: open the deployed HTTPS URL in Safari, choose Share, then

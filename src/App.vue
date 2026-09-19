@@ -187,7 +187,7 @@
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
-          <button class="secondary-button" :disabled="trafficLoading" @click="refreshTraffic"><RefreshCw :key="refreshPulse.traffic" :class="{ 'refresh-spin': refreshPulse.traffic }" />刷新</button>
+          <button class="secondary-button traffic-refresh" aria-label="刷新流量" :disabled="trafficLoading" @click="refreshTraffic"><RefreshCw :key="refreshPulse.traffic" :class="{ 'refresh-spin': refreshPulse.traffic }" /><span>刷新</span></button>
         </div>
       </header>
       <p v-if="trafficError" class="form-error">{{ trafficError }}</p>
@@ -200,12 +200,12 @@
       <section class="traffic-chart-grid">
         <article v-for="chart in trafficCharts" :key="chart.key" class="traffic-chart-panel">
           <div class="traffic-chart-heading"><div><span class="eyebrow">{{ chart.key === 'upload' ? 'UPLOAD' : 'DOWNLOAD' }}</span><h2>{{ chart.title }}</h2></div></div>
-          <div v-if="chart.items.length" class="traffic-chart-content">
-            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
+          <div v-if="chart.items.length" class="traffic-chart-content" @click="clearTrafficHighlight(); hideTrafficTooltip()">
+            <div class="traffic-legend traffic-legend-left"><div v-for="item in chart.legendLeft" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @click.stop="tapTrafficItem(chart.key, item)" @pointerenter="hoverTrafficItem(chart.key, item, $event)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
             <svg class="traffic-pie" viewBox="0 0 200 200" role="img" :aria-label="`${chart.title}域分类图`" @pointerleave="resetTrafficHover">
-              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :class="trafficSegmentClass(chart.key, item.name)" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover" />
+              <path v-for="item in chart.items" :key="`${chart.key}-${item.name}`" class="traffic-pie-segment" :class="trafficSegmentClass(chart.key, item.name)" :d="item.path" :fill="item.color" :aria-label="`${item.name}，${formatBytes(item.bytes)}，${item.percent}%`" @click.stop="tapTrafficItem(chart.key, item)" @pointerenter="hoverTrafficItem(chart.key, item, $event)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover" />
             </svg>
-            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @pointerenter="showTrafficTooltip(item, $event); highlightTrafficItem(chart.key, item.name)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
+            <div class="traffic-legend traffic-legend-right"><div v-for="item in chart.legendRight" :key="item.name" class="traffic-legend-item" :class="trafficLegendClass(chart.key, item.name)" @click.stop="tapTrafficItem(chart.key, item)" @pointerenter="hoverTrafficItem(chart.key, item, $event)" @pointermove="moveTrafficTooltip" @pointerleave="resetTrafficHover"><span class="traffic-legend-swatch" :style="{ backgroundColor: item.color }"></span><span class="traffic-legend-name">{{ item.name }}</span></div></div>
           </div>
           <div v-else class="traffic-empty"><Download v-if="chart.key === 'download'" /><UploadCloud v-else /><span>暂无 {{ chart.title }} 数据</span></div>
         </article>
@@ -448,12 +448,11 @@
               <button v-for="account in config.qbittorrents" :key="account.id" :class="{ active: account.id === activeQb?.id }" role="option" :aria-selected="account.id === activeQb?.id" @click="selectQbAccount(account.id)">{{ account.alias }}</button>
             </div>
           </div>
+          <form class="lane-create" @submit.prevent="addLane">
+            <input v-model="laneName" placeholder="新增横栏名称" aria-label="新增横栏名称" />
+            <button class="primary-button icon-only" aria-label="添加横栏"><Plus /></button>
+          </form>
         </header>
-
-        <form class="lane-create" @submit.prevent="addLane">
-          <input v-model="laneName" placeholder="新增横栏名称" />
-          <button class="primary-button icon-only" title="添加横栏" aria-label="添加横栏"><Plus /></button>
-        </form>
 
         <div v-if="activeLanes.length === 0" class="empty-state">当前 qB 账户下还没有横栏。</div>
         <section
@@ -478,19 +477,16 @@
               <h2
                 v-else
                 draggable="true"
-                title="拖拽移动横栏，双击编辑名称"
                 @dragstart="startLaneDrag(lane.id, $event)"
                 @dragend="draggingLaneId = ''"
                 @dblclick="editLane(lane)"
               >{{ lane.name }}</h2>
             </div>
-            <button class="icon-button mobile-edit" :aria-label="`编辑横栏 ${lane.name}`" @click="editLane(lane)"><Pencil /></button>
-            <button class="icon-button" title="添加卡片" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
+            <button class="icon-button" aria-label="添加卡片" @click="createCard(lane.id)"><Plus /></button>
           </div>
           <div class="card-row">
-            <article v-for="(card, cardIndex) in cardsForLane(lane.id)" :key="card.id" class="binder-card" :class="{ dragging: draggingCardId === card.id, 'drag-over': cardDropTargetId === card.id && draggingCardId !== card.id }" :style="coverStyle(card)" draggable="true" @dragstart="startCardDrag(card, $event)" @dragover.prevent.stop="cardDropTargetId = card.id" @dragleave.stop="clearCardDrop(card.id)" @drop.prevent.stop="dropCard(lane.id, cardIndex)" @dragend="endCardDrag" @contextmenu.prevent="editingCard = cloneCard(card)">
+            <article v-for="(card, cardIndex) in cardsForLane(lane.id)" :key="card.id" class="binder-card" :data-card-id="card.id" :class="{ dragging: draggingCardId === card.id, 'drag-over': cardDropTargetId === card.id && draggingCardId !== card.id }" :style="coverStyle(card)" draggable="true" tabindex="0" :aria-label="card.name" @dragstart="startCardDrag(card, $event)" @dragover.prevent.stop="cardDropTargetId = card.id" @dragleave.stop="clearCardDrop(card.id)" @drop.prevent.stop="dropCard(lane.id, cardIndex)" @dragend="endCardDrag" @contextmenu.prevent="openCardContext(card, $event)" @touchstart="startCardTouch(card, $event)" @touchmove="moveCardTouch" @touchend="finishCardTouch" @touchcancel="cancelCardTouch" @click="tapCard(card, $event)" @keydown.enter.prevent="activateCard(card)" @keydown.f2.prevent="editingCard = cloneCard(card)">
               <input :ref="setFileInput(card.id)" type="file" multiple accept=".torrent,application/x-bittorrent" hidden @change="uploadFiles(card, $event)" />
-              <button class="icon-button mobile-edit" :aria-label="`编辑卡片 ${card.name}`" @click.stop="editingCard = cloneCard(card)"><Pencil /></button>
               <div class="card-content">
                 <FolderDown />
                 <h3>{{ card.name }}</h3>
@@ -499,7 +495,7 @@
                   <span v-for="tag in card.tags" :key="tag" :style="{ background: pickColor(tag) }">{{ tag }}</span>
                 </div>
               </div>
-              <button v-if="card.savePath" class="upload-overlay" :disabled="uploadingCardId === card.id" @click="fileInputs[card.id]?.click()">
+              <button v-if="card.savePath" class="upload-overlay" :disabled="uploadingCardId === card.id" @click.stop="activateCard(card)">
                 <Loader2 v-if="uploadingCardId === card.id" class="spin" />
                 <UploadCloud v-else />
                 <span>{{ uploadingCardId === card.id ? '上传中' : '添加种子' }}</span>
@@ -1609,10 +1605,95 @@ async function dropLane(targetIndex) {
 }
 
 function startCardDrag(card, event) {
+  if (cardTouch) { event.preventDefault(); return; }
   draggingCardId.value = card.id;
   draggingCardLaneId.value = card.laneId;
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', card.id);
+}
+
+function mobileLayout() {
+  return window.matchMedia('(max-width: 900px), (max-width: 1100px) and (pointer: coarse)').matches;
+}
+
+let cardTouch = null;
+let suppressCardClickUntil = 0;
+
+function activateCard(card) {
+  if (card.savePath && uploadingCardId.value !== card.id) fileInputs[card.id]?.click();
+  else if (!card.savePath) editingCard.value = cloneCard(card);
+}
+
+function tapCard(card, event) {
+  if (event.target instanceof HTMLInputElement || performance.now() < suppressCardClickUntil) return;
+  if (mobileLayout()) activateCard(card);
+}
+
+function openCardContext(card, event) {
+  if (cardTouch || event.pointerType === 'touch') return;
+  editingCard.value = cloneCard(card);
+}
+
+function startCardTouch(card, event) {
+  cancelCardTouch();
+  if (!mobileLayout() || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  cardTouch = { card, x: touch.clientX, y: touch.clientY, ready: false, moving: false };
+  cardTouch.timer = window.setTimeout(() => {
+    if (cardTouch) cardTouch.ready = true;
+  }, 450);
+  cardTouch.editTimer = window.setTimeout(() => {
+    if (!cardTouch || cardTouch.moving) return;
+    cardTouch.edited = true;
+    editingCard.value = cloneCard(cardTouch.card);
+  }, 850);
+}
+
+function moveCardTouch(event) {
+  if (!cardTouch) return;
+  if (event.touches.length !== 1) { cancelCardTouch(); return; }
+  if (cardTouch.edited) { event.preventDefault(); return; }
+  const touch = event.touches[0];
+  if (Math.hypot(touch.clientX - cardTouch.x, touch.clientY - cardTouch.y) < 10) return;
+  // A normal swipe scrolls; holding first reserves the gesture for sorting.
+  if (!cardTouch.ready) { cancelCardTouch(); return; }
+  event.preventDefault();
+  clearTimeout(cardTouch.editTimer);
+  cardTouch.moving = true;
+  draggingCardId.value = cardTouch.card.id;
+  draggingCardLaneId.value = cardTouch.card.laneId;
+  const element = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-card-id]');
+  const target = config.value.cards.find((card) => card.id === element?.dataset.cardId);
+  cardDropTargetId.value = target?.laneId === cardTouch.card.laneId ? target.id : '';
+  const edge = 80;
+  if (touch.clientY < edge) window.scrollBy(0, -16);
+  else if (touch.clientY > window.innerHeight - 100) window.scrollBy(0, 16);
+}
+
+function finishCardTouch(event) {
+  if (!cardTouch) return;
+  const gesture = cardTouch;
+  clearTimeout(gesture.timer);
+  clearTimeout(gesture.editTimer);
+  cardTouch = null;
+  if (!gesture.ready) return;
+  event.preventDefault();
+  suppressCardClickUntil = performance.now() + 800;
+  if (gesture.moving) {
+    const index = cardsForLane(gesture.card.laneId).findIndex((card) => card.id === cardDropTargetId.value);
+    if (index >= 0) void dropCard(gesture.card.laneId, index);
+    else endCardDrag();
+  } else if (!gesture.edited) editingCard.value = cloneCard(gesture.card);
+}
+
+function cancelCardTouch() {
+  if (cardTouch) {
+    clearTimeout(cardTouch.timer);
+    clearTimeout(cardTouch.editTimer);
+    suppressCardClickUntil = performance.now() + 800;
+  }
+  cardTouch = null;
+  endCardDrag();
 }
 
 function clearCardDrop(id) {
@@ -1891,11 +1972,25 @@ function showTrafficTooltip(item, event) {
   moveTrafficTooltip(event);
 }
 
+function hoverTrafficItem(key, item, event) {
+  if (mobileLayout() || event.pointerType === 'touch') return;
+  showTrafficTooltip(item, event);
+  highlightTrafficItem(key, item.name);
+}
+
+function tapTrafficItem(key, item) {
+  if (!mobileLayout()) return;
+  hideTrafficTooltip();
+  if (trafficHighlight.name && (trafficHighlight.key !== key || trafficHighlight.name !== item.name)) clearTrafficHighlight();
+  else highlightTrafficItem(key, item.name);
+}
+
 function hideTrafficTooltip() {
   trafficTooltip.visible = false;
 }
 
 function resetTrafficHover() {
+  if (mobileLayout()) return;
   clearTrafficHighlight();
   hideTrafficTooltip();
 }
@@ -2953,8 +3048,15 @@ function startColumnResize(column, event) {
 }
 
 function showTitleTooltip(event) {
-  if (window.matchMedia('(hover: none)').matches) return;
   const target = event.target instanceof Element ? event.target.closest('[title], [data-overflow-tooltip]') : null;
+  if (target && (mobileLayout() || target.closest('button, .lane-title'))) {
+    if (target.title) {
+      if (!target.getAttribute('aria-label')) target.setAttribute('aria-label', target.title);
+      target.removeAttribute('title');
+    }
+    return;
+  }
+  if (window.matchMedia('(hover: none)').matches) return;
   if (!target || titleTooltip.target === target) return;
   const text = target.dataset.overflowTooltip || target.title;
   if (!text) return;
@@ -3004,6 +3106,7 @@ function hideTitleTooltip(event) {
 }
 
 onUnmounted(() => {
+  cancelCardTouch();
   window.removeEventListener('hashchange', syncViewFromHash);
   window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   window.removeEventListener('keydown', handleGlobalKeydown);
