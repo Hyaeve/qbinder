@@ -30,7 +30,8 @@ let scrollFrame = 0;
 let position = null;
 function updateTarget() {
   if (!position || !rowElement || updating) return;
-  const listTop = rowElement.parentElement.getBoundingClientRect().top;
+  const list = rowElement.parentElement;
+  const listTop = list.getBoundingClientRect().top - list.scrollTop;
   const current = dockItems.value.findIndex(item => item.id === dragging.value);
   baseTop = listTop + current * rowStep;
   dragOffset.value = position.y - grabOffset - baseTop;
@@ -42,7 +43,7 @@ function updateTarget() {
   moveDockItem(dragging.value, target.value);
   nextTick(() => {
     if (rowElement && position) {
-      baseTop = rowElement.parentElement.getBoundingClientRect().top + dockItems.value.findIndex(item => item.id === dragging.value) * rowStep;
+      baseTop = rowElement.parentElement.getBoundingClientRect().top - rowElement.parentElement.scrollTop + dockItems.value.findIndex(item => item.id === dragging.value) * rowStep;
       dragOffset.value = position.y - grabOffset - baseTop;
     }
     updating = false;
@@ -50,8 +51,11 @@ function updateTarget() {
 }
 function scrollDrag() {
   if (pointer === null || !position) return;
-  const delta = position.y < 70 ? -10 : position.y > window.innerHeight - 100 ? 10 : 0;
-  if (delta) { window.scrollBy(0, delta); updateTarget(); }
+  const list = rowElement?.parentElement;
+  if (!list) return;
+  const bounds = list.getBoundingClientRect();
+  const delta = position.y < bounds.top + 32 ? -6 : position.y > bounds.bottom - 32 ? 6 : 0;
+  if (delta) { list.scrollTop += delta; updateTarget(); }
   scrollFrame = requestAnimationFrame(scrollDrag);
 }
 function startDrag(id, event) {

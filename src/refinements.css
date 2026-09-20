@@ -47,7 +47,12 @@ label.outlined-field { display: block; padding: 0; }
 .login-remember input { width: 21px; height: 21px; margin: 0; accent-color: #9b66ef; }
 .login-actions .login-submit { width: 100%; min-height: 52px; border-radius: 8px; background: #8f52fa; color: white; font-size: 18px; box-shadow: none; }
 
-.dock-settings-list { gap: 8px; }
+.app-shell .cards-page .top-tabs, .app-shell .tasks-page .task-toolbar { position: relative; top: auto; }
+.dock-settings-list {
+  gap: 8px; grid-auto-rows: 54px; max-height: 178px;
+  overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-width: none;
+}
+.dock-settings-list::-webkit-scrollbar { display: none; }
 .dock-setting-row { position: relative; flex-wrap: nowrap; gap: 12px; padding: 0 12px; height: 54px; background: #f0f3f5; border: 1px solid #e1e6e9; border-radius: 8px; }
 .dock-setting-row.dragging { opacity: 1; z-index: 3; box-shadow: 0 10px 24px #46596730; background: #fbfdfd; transition: none; }
 .dock-row-move { transition: transform .26s cubic-bezier(.2,.8,.2,1); }

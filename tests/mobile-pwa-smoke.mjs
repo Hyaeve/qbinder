@@ -109,6 +109,10 @@ try {
         }).slice(0, 8).map((e) => e.className)
       }));
       assert(overflow.scroll <= width + 1, `${width}/${route} overflow: ${JSON.stringify(overflow)}`);
+      if (route === 'cards' || route === 'view') {
+        const toolbar = page.locator(route === 'cards' ? '.top-tabs' : '.task-toolbar');
+        assert.equal(await toolbar.evaluate(e => getComputedStyle(e).position), 'relative', 'Toolbar scrolls with page');
+      }
       if (route === 'view' && mobile) {
         const accountBox = await page.locator('.task-toolbar .account-switcher').boundingBox();
         const filterBox = await page.getByRole('button', { name: '筛选任务', exact: true }).boundingBox();
@@ -239,6 +243,9 @@ try {
         assert(widths.every((w) => w > 200), `account inputs clipped: ${widths}`);
         const dockSettings = page.locator('.dock-settings');
         await dockSettings.scrollIntoViewIfNeeded();
+        const list = page.locator('.dock-settings-list');
+        assert.equal(await list.evaluate(e => e.clientHeight), 178, 'Exactly three rows and two gaps');
+        assert(await list.evaluate(e => e.scrollHeight > e.clientHeight && getComputedStyle(e).scrollbarWidth === 'none'));
         await page.screenshot({ path: `${output}/${width}-dock-settings.png` });
         const backupBox = await page.locator('.backup-panel').boundingBox();
         const settingsBox = await dockSettings.boundingBox();
@@ -250,15 +257,19 @@ try {
         const handle = page.getByRole('button', { name: '拖拽排序任务', exact: true });
         await handle.scrollIntoViewIfNeeded();
         const start = await handle.boundingBox();
-        const row = await page.locator('[data-dock-id="cards"]').boundingBox();
+        const listBox = await list.boundingBox();
+        const row = { x: listBox.x, y: listBox.y - 12 };
         if (process.env.TEST_BROWSER !== 'webkit') {
           await touchEvent(handle, 'touchstart', { x: start.x + start.width / 2, y: start.y + start.height / 2 });
           await touchEvent(handle, 'touchmove', { x: row.x + 35, y: row.y + 20 });
+          await page.waitForTimeout(600);
           await touchEvent(handle, 'touchend', { x: row.x + 35, y: row.y + 20 });
         } else {
           await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
           await page.mouse.down();
           await page.mouse.move(row.x + 35, row.y + 20, { steps: 8 });
+          await page.waitForTimeout(600);
+          if (process.env.TEST_BROWSER === 'webkit') await page.clock.runFor(600);
           await page.mouse.up();
         }
         assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['任务', '卡片', '更多']);
