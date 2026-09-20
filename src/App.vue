@@ -22,7 +22,7 @@
     </section>
   </main>
 
-  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }" :style="sidebarAccentStyle">
+  <div v-else class="app-shell" :inert="mobileSearchOpen && isMobileViewport" :class="{ 'sidebar-collapsed': sidebarCollapsed }" :style="sidebarAccentStyle">
     <aside class="sidebar desktop-sidebar">
       <div class="sidebar-top">
         <div class="brand-lockup">
@@ -56,11 +56,10 @@
         </span>
       </button>
     </aside>
-    <MobileDock :view="view" @navigate="navigateToView" />
+    <MobileDock :view="view" @navigate="navigateToView" @logout="logout" />
     <BackToTop :view="view" />
     <header class="mobile-app-header">
       <img src="/reference.png" alt="" /><strong>qBinder</strong>
-      <button class="icon-button" aria-label="退出登录" @click="logout"><LogOut /></button>
     </header>
 
     <div v-if="view === 'settings'" class="content settings-page">
@@ -276,7 +275,7 @@
             </div>
           </div>
           <div class="task-toolbar-actions">
-            <label class="task-search" :class="{ 'mobile-search-open': mobileSearchOpen }"><Search /><input ref="mobileSearchInput" v-model="taskSearch" aria-label="搜索种子" placeholder="搜索种子名称、标签或路径" @keydown.esc="mobileSearchOpen = false" /><button v-if="mobileSearchOpen" type="button" class="mobile-search-close" aria-label="关闭搜索" @click="mobileSearchOpen = false"><X /></button></label>
+            <label class="task-search"><Search /><input v-model="taskSearch" aria-label="搜索种子" placeholder="搜索种子名称、标签或路径" /></label>
             <button class="mobile-search-fab" :class="{ active: taskSearch }" aria-label="搜索种子" :aria-expanded="mobileSearchOpen" @click="openMobileSearch"><Search /></button>
             <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="toggleTaskFilter"><Filter /></button>
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="refreshTasks"><RefreshCw :key="refreshPulse.tasks" :class="{ 'refresh-spin': refreshPulse.tasks }" /></button>
@@ -800,6 +799,14 @@
       </section>
     </div>
 
+    <Teleport to="body">
+      <div v-if="mobileSearchOpen && isMobileViewport" class="mobile-search-backdrop" @click.self="closeMobileSearch" @keydown.esc="closeMobileSearch">
+        <section class="mobile-search-dialog" role="dialog" aria-modal="true" aria-label="搜索种子" @keydown.tab.prevent="cycleSearchFocus">
+          <Search /><input ref="mobileSearchInput" v-model="taskSearch" aria-label="搜索种子" placeholder="搜索种子名称、标签或路径" />
+          <button ref="mobileSearchClose" class="mobile-search-close" aria-label="关闭搜索" @click="closeMobileSearch"><X /></button>
+        </section>
+      </div>
+    </Teleport>
     <div v-if="titleTooltip.visible" ref="titleTooltipEl" class="ui-tooltip" :style="{ left: `${titleTooltip.x}px`, top: `${titleTooltip.y}px` }" role="tooltip">{{ titleTooltip.text }}</div>
   </div>
 </template>
@@ -919,6 +926,7 @@ const mobileMedia = window.matchMedia('(max-width: 900px), (max-width: 1100px) a
 const isMobileViewport = ref(mobileMedia.matches);
 const taskPageSize = computed(() => isMobileViewport.value ? 30 : 100);
 function updateMobileViewport() {
+  mobileSearchOpen.value = false;
   isMobileViewport.value = mobileMedia.matches;
   taskPage.value = 1;
 }
@@ -974,6 +982,14 @@ let taskFullRefreshPending = false;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
 const mobileSearchOpen = ref(false);
 const mobileSearchInput = ref(null);
+const mobileSearchClose = ref(null);
+function closeMobileSearch() {
+  mobileSearchOpen.value = false;
+  nextTick(() => document.querySelector('.mobile-search-fab')?.focus());
+}
+function cycleSearchFocus() {
+  (document.activeElement === mobileSearchInput.value ? mobileSearchClose.value : mobileSearchInput.value)?.focus();
+}
 function openMobileSearch() {
   mobileSearchOpen.value = !mobileSearchOpen.value;
   if (mobileSearchOpen.value) nextTick(() => mobileSearchInput.value?.focus());
@@ -1074,6 +1090,7 @@ function goLogPage(page) {
 }
 
 function onWindowScroll() {
+  if (mobileLayout() && trafficTooltip.visible) positionMobileTrafficTooltip();
   // A visible tip stays glued right under its trigger while the page moves.
   if (titleTooltip.visible) positionTitleTooltip();
 }
@@ -1221,6 +1238,7 @@ watch(config, (next) => {
 }, { immediate: true });
 
 watch(view, (next) => {
+  mobileSearchOpen.value = false;
   if (next === 'tasks') loadSchedules();
   if (next === 'logs') loadOperationLogs();
   if (next === 'traffic') {
@@ -2062,6 +2080,7 @@ async function loadTrafficStats(options = {}) {
 }
 
 function moveTrafficTooltip(event) {
+  if (mobileLayout()) return;
   const width = 220;
   const height = 58;
   trafficTooltip.x = Math.max(10, Math.min(event.clientX + 14, window.innerWidth - width - 10));
@@ -2081,8 +2100,19 @@ function hoverTrafficItem(key, item, event) {
 
 function tapTrafficItem(key, item) {
   if (!mobileLayout()) return;
-  hideTrafficTooltip();
   highlightTrafficItem(key, item.name);
+  Object.assign(trafficTooltip, { visible: true, name: item.name, bytes: item.bytes, percent: item.percent, color: item.color });
+  nextTick(positionMobileTrafficTooltip);
+}
+
+function positionMobileTrafficTooltip() {
+  const pie = document.querySelector('.traffic-pie-segment.active')?.closest('svg');
+  const tooltip = document.querySelector('.traffic-pie-tooltip');
+  if (!pie || !tooltip) return;
+  const bounds = pie.getBoundingClientRect();
+  const { width, height } = tooltip.getBoundingClientRect();
+  trafficTooltip.x = Math.max(10, Math.min(bounds.x + bounds.width / 2 - width / 2, innerWidth - width - 10));
+  trafficTooltip.y = Math.max(10, Math.min(bounds.top - height - 10, innerHeight - height - 10));
 }
 
 function hideTrafficTooltip() {

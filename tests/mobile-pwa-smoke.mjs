@@ -81,6 +81,10 @@ try {
     const mobile = width <= 1100;
     const context = await browser.newContext({ viewport: { width, height: width === 932 ? 430 : 844 }, hasTouch: mobile, serviceWorkers: 'block' });
     await context.addInitScript(() => localStorage.setItem('qbinder-sidebar-collapsed', 'true'));
+    await context.addInitScript(() => {
+      window.testVibrations = [];
+      Object.defineProperty(navigator, 'vibrate', { value: duration => { window.testVibrations.push(duration); return true; }, configurable: true });
+    });
     await mockAPI(context);
     const page = await context.newPage();
     if (process.env.TEST_BROWSER === 'webkit') await page.clock.install();
@@ -128,6 +132,11 @@ try {
         assert(accountBox.x < filterBox.x && Math.abs(accountBox.y - filterBox.y) < 3, 'Account and filter share row');
         assert.equal(await page.locator('.task-search').isVisible(), false);
         await page.locator('.mobile-search-fab').click();
+        assert(await page.locator('.mobile-search-backdrop').isVisible());
+        assert(await page.locator('.app-shell').evaluate(e => e.inert));
+        assert.equal(await page.locator('.tasks-page').evaluate(e => getComputedStyle(e).filter), 'blur(10px)');
+        assert(await page.locator('.mobile-search-backdrop').evaluate(e => (getComputedStyle(e).backdropFilter || getComputedStyle(e).webkitBackdropFilter).includes('blur')));
+        await page.screenshot({ path: `${output}/${width}-search-overlay.png` });
         await page.getByRole('textbox', { name: '搜索种子', exact: true }).fill('测试种子 0');
         assert.equal(await page.locator('.mobile-torrent').count(), 1);
         await page.getByRole('textbox', { name: '搜索种子', exact: true }).fill('');
@@ -192,7 +201,9 @@ try {
       if (route === 'cards' && mobile) {
         assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['卡片', '视图', '域流', '更多']);
         await page.getByRole('button', { name: '更多', exact: true }).click();
-        assert.deepEqual(await page.locator('.dock-more-menu button').allTextContents(), ['任务', '日志', '设置']);
+        assert.deepEqual(await page.locator('.dock-more-menu button').allTextContents(), ['任务', '日志', '设置', '退出']);
+        assert.equal(await page.locator('.mobile-app-header button').count(), 0);
+        await page.waitForTimeout(400);
         await page.screenshot({ path: `${output}/${width}-dock-more.png` });
         await page.locator('.mobile-app-header strong').click();
         await page.waitForTimeout(250);
@@ -248,7 +259,9 @@ try {
         await legend.nth(1).tap();
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Different legend switches selection');
         assert(await legend.nth(1).evaluate(e => e.classList.contains('active')));
-        assert.equal(await page.locator('.traffic-pie-tooltip').count(), 0, 'No hover tooltip on touch');
+        assert(await page.locator('.traffic-pie-tooltip').isVisible(), 'Tap shows traffic details');
+        assert(await page.locator('.traffic-pie-tooltip').innerText().then(text => text.includes('流量') && text.includes('%')));
+        await page.screenshot({ path: `${output}/${width}-traffic-tooltip.png` });
         const pieElement = page.locator('.traffic-pie').first();
         const pieSize = (await pieElement.boundingBox()).width;
         await pieElement.tap({ position: { x: pieSize * .75, y: pieSize * .5 } });
@@ -259,6 +272,7 @@ try {
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Other sector switches selection');
         await page.locator('.traffic-chart-heading').first().click();
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Blank chart heading clears selection');
+        assert.equal(await page.locator('.traffic-pie-tooltip').count(), 0);
         const refresh = await page.getByRole('button', { name: '刷新流量', exact: true }).boundingBox();
         const account = await page.locator('.traffic-account-switcher').boundingBox();
         const range = await page.locator('.traffic-range-picker').boundingBox();
@@ -317,8 +331,8 @@ try {
         await page.locator('.dock-settings').waitFor();
         assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['任务', '卡片', '更多'], 'Dock preferences survive reload');
         for (const label of ['视图', '域流', '日志', '设置']) await page.getByRole('switch', { name: `在 Dock 显示${label}`, exact: true }).check();
-        assert.equal(await page.locator('.mobile-dock nav button').count(), 6);
-        assert.equal(await page.locator('.dock-more-button').count(), 0);
+        assert.equal(await page.locator('.mobile-dock nav button').count(), 7);
+        assert.equal(await page.locator('.dock-more-button').count(), 1, 'Logout remains accessible through More');
         await page.getByRole('button', { name: '拖拽排序任务', exact: true }).press('ArrowDown');
         assert.equal(await page.locator('.mobile-dock nav button').first().textContent(), '卡片');
         await page.getByRole('button', { name: '拖拽排序任务', exact: true }).press('ArrowUp');
@@ -381,6 +395,38 @@ try {
           }
         }
       }
+    }
+    if (mobile) {
+      const positions = [];
+      for (const route of ['cards', 'view', 'tasks', 'logs']) {
+        await page.goto(`${base}/#/${route}`);
+        await page.locator('.mobile-dock').waitFor();
+        await page.evaluate(() => {
+          const spacer = document.createElement('div');
+          spacer.style.height = '2000px';
+          document.body.append(spacer);
+          window.scrollTo(0, 600);
+        });
+        const button = page.getByRole('button', { name: '回到顶部', exact: true });
+        await button.waitFor();
+        await page.waitForTimeout(300);
+        const style = await button.evaluate(e => {
+          const s = getComputedStyle(e);
+          return { position: s.position, bottom: s.bottom, right: s.right, radius: s.borderRadius };
+        });
+        assert.equal(style.position, 'fixed');
+        assert.equal(style.radius, '12px');
+        positions.push(style);
+      }
+      positions.forEach(position => assert.deepEqual(position, positions[0], 'Return button has identical viewport position on all four pages'));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: '更多', exact: true }).click();
+      assert((await page.evaluate(() => window.testVibrations)).includes(8), 'Dock requests a light 8ms haptic');
+      const logoutRequest = page.waitForRequest(request => request.url().endsWith('/api/auth/logout') && request.method() === 'POST');
+      await page.locator('.dock-more-menu').getByRole('button', { name: '退出', exact: true }).click();
+      await logoutRequest;
+      await page.locator('.login-panel').waitFor();
     }
     assert.deepEqual(errors, [], `JS errors at ${width}`);
     await context.close();

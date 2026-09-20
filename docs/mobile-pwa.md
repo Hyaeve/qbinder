@@ -13,16 +13,21 @@
   floating list of remaining pages. In Settings, the Dock panel beside Backup
   controls visible pages and ordering. Drag the right-hand handle; keyboard users
   can focus the handle and use Up/Down. Mobile Backup and Dock panels stack vertically.
-  At least one page must remain enabled; when all six are enabled More disappears.
+  At least one page must remain enabled. More always remains available, with
+  Logout as its last item; the mobile header no longer has a logout button.
   Preferences are saved per browser, not in server configuration backups.
 - Lane creation stays next to the account picker on both desktop and mobile.
   Mobile filters and refresh share the account picker row. A fixed lower-right
-  search icon opens the search input; closing it retains the current query.
+  rounded-square search icon opens a modal search field with a blurred background;
+  closing it retains the current query. The rounded-square return-to-top control
+  uses the same lower-right position across mobile pages.
 - The narrower glass Dock slides out while scrolling down and returns when scrolling
-  up. Selection and More transitions honor reduced-motion preferences.
+  up. Selection and More transitions honor reduced-motion preferences. Dock taps
+  request an optional 8ms vibration when supported; unsupported browsers skip it.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
   tapping a different sector or legend switches selection, and tapping elsewhere
-  clears selection. Legends sit on both sides of the pie;
+  clears selection. Tap selection includes the same traffic-data tooltip as desktop.
+  Legends sit on both sides of the pie;
   the account, time-range dropdown and refresh share a row. Desktop hover details remain.
 - Each torrent has an explicit actions button, multi-selection checkbox, and
   expandable path/tag/Tracker details. Desktop table preferences are preserved.

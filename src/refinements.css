@@ -10,7 +10,7 @@ html, body, body * { scrollbar-width: none !important; }
 .settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
 .tracker-mapping-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; color: #7e8390; font-size: 13px; }
 .tracker-mapping-columns span { padding-left: 14px; }
-.back-to-top { position: fixed; z-index: 19; right: 24px; bottom: 24px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #617b83; background: #f3f8f9dc; border: 1px solid #fff; box-shadow: 0 4px 18px #48677926; backdrop-filter: blur(18px); }
+.back-to-top { position: fixed; z-index: 19; right: 24px; bottom: 24px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; color: #617b83; background: #f3f8f9dc; border: 1px solid #fff; box-shadow: 0 4px 18px #48677926; backdrop-filter: blur(18px); }
 .back-to-top svg { width: 22px; height: 22px; }
 .back-to-top.on-torrents { bottom: 88px; }
 .back-top-enter-active, .back-top-leave-active { transition: opacity .2s, transform .2s; }
@@ -84,6 +84,14 @@ label.outlined-field { display: block; padding: 0; }
 .dock-setting-row .dock-drag-handle { min-width: 44px; width: 44px; height: 44px; flex-shrink: 0; }
 .dock-drag-handle svg { width: 20px !important; height: 20px !important; }
 .traffic-range-select, .traffic-range-picker, .mobile-search-fab, .mobile-search-close { display: none; }
+html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow: hidden; }
+.app-shell[inert] > * { filter: blur(10px); }
+.app-shell[inert] .mobile-search-fab { visibility: hidden; }
+.mobile-search-backdrop { position: fixed; inset: 0; z-index: 1300; background: #dce3e64d; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); display: flex; align-items: flex-end; padding: 16px 14px max(88px, env(safe-area-inset-bottom, 0px)); }
+.mobile-search-dialog { display: flex; align-items: center; position: relative; width: 100%; min-height: 54px; padding: 0 48px 0 14px; gap: 10px; border: 1px solid #d0dbdf; border-radius: 14px; background: #fafcfe; box-shadow: 0 5px 24px #55667726; }
+.mobile-search-dialog > svg { width: 20px; height: 20px; flex-shrink: 0; color: #6c8088; }
+.mobile-search-dialog input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 14px 0; font-size: 16px; box-shadow: none; }
+.mobile-search-dialog .mobile-search-close { display: grid; place-items: center; position: absolute; right: 3px; top: 5px; width: 44px; height: 44px; border-radius: 8px; background: transparent; color: #72838a; }
 
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
   html { touch-action: pan-x pan-y; }
@@ -114,33 +122,35 @@ label.outlined-field { display: block; padding: 0; }
   .settings-utilities > .setting-panel { padding: 18px; }
   .settings-utilities h2 { font-size: 24px; }
   .tracker-mapping-columns { gap: 6px; }
-  .back-to-top { right: 16px; bottom: calc(var(--mobile-nav-height) + 16px); }
-  .back-to-top.on-torrents { bottom: calc(var(--mobile-nav-height) + 136px); }
+  .back-to-top, .back-to-top.on-torrents { right: 16px; bottom: calc(var(--mobile-nav-height) + 6px); }
   :root { --mobile-nav-height: calc(66px + env(safe-area-inset-bottom, 0px)); }
   .app-shell .sidebar.mobile-dock {
     width: min(calc(var(--dock-count) * 64px + 12px), calc(100% - 24px));
     height: 58px; padding: 4px 6px; bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 8px));
-    background: rgba(243,247,248,.48); backdrop-filter: blur(28px) saturate(160%);
+    background: rgba(155,178,187,.64);
     -webkit-backdrop-filter: blur(28px) saturate(160%);
-    transition: transform .58s cubic-bezier(.22,1,.36,1);
+    backdrop-filter: blur(28px) saturate(160%);
+    transition: transform .3s cubic-bezier(.22,1,.36,1);
     transform: translate3d(0,0,0) scale(1);
     transform-origin: center bottom;
     will-change: transform;
   }
   .app-shell .sidebar.mobile-dock.dock-hidden {
     transform: translate3d(0,calc(100% + env(safe-area-inset-bottom, 0px) + 28px),0) scale(.94);
-    transition-timing-function: cubic-bezier(.55,-.12,.75,.45);
+    transition-duration: .24s;
+    transition-timing-function: cubic-bezier(.4,0,.7,.3);
     pointer-events: none;
   }
   .mobile-dock nav { position: relative; isolation: isolate; gap: 0 !important; }
   .app-shell .mobile-dock nav button { height: 48px; gap: 2px; background: transparent; box-shadow: none; transition: color .25s, transform .2s; }
-  .app-shell .mobile-dock nav button.active { background: transparent; box-shadow: none; color: #4a6570; }
+  .app-shell .mobile-dock nav button.active { background: transparent; box-shadow: none; color: #fff; }
   .app-shell .mobile-dock nav button:active { transform: scale(.91); }
   .mobile-dock nav button svg { transition: transform .3s cubic-bezier(.2,.9,.3,1.4); }
   .mobile-dock nav button.active svg { transform: translateY(-1px); }
-  .dock-selection { position: absolute; z-index: -1; left: 0; top: 0; width: calc(100% / var(--dock-count)); height: 48px; border-radius: 999px; border: 1px solid #ffffffc9; background: rgba(206,223,231,.48); box-shadow: inset 0 1px 7px #fff9, 0 3px 9px #55667718; backdrop-filter: blur(16px); transition: transform .38s cubic-bezier(.22,.85,.3,1.12); }
+  .dock-selection { position: absolute; z-index: -1; left: 0; top: 0; width: calc(100% / var(--dock-count)); height: 48px; border-radius: 999px; border: 1px solid #ffffff70; background: rgba(65,101,115,.88); box-shadow: inset 0 1px 5px #ffffff38, 0 3px 9px #344f6633; backdrop-filter: blur(16px); transition: transform .3s cubic-bezier(.2,.85,.25,1.08); }
   .dock-more-menu { right: -10px; width: 116px; padding: 6px; border-radius: 18px; background: #f5f8fac9; transform-origin: 80% 100%; }
   .dock-more-menu button { gap: 10px; padding: 10px; font-size: 14px; }
+  .dock-more-menu .dock-logout { margin-top: 4px; border-top: 1px solid #ccd8da; border-radius: 0 0 8px 8px; color: #77656c; }
   .dock-menu-enter-active { transition: transform .32s cubic-bezier(.18,.88,.28,1.18), opacity .2s; }
   .dock-menu-leave-active { transition: transform .18s ease-in, opacity .16s; }
   .dock-menu-enter-from, .dock-menu-leave-to { transform: translateY(12px) scale(.86); opacity: 0; }
@@ -156,11 +166,8 @@ label.outlined-field { display: block; padding: 0; }
   .app-shell .tasks-page .task-toolbar-actions { flex: 0 0 auto; width: auto; }
   .mobile-sort.outlined-field { display: flex; flex: 1; align-items: center; gap: 0; }
   .app-shell .tasks-page .task-search { display: none; }
-  .mobile-search-fab { display: grid; place-items: center; position: fixed; right: max(16px,env(safe-area-inset-right,0px)); bottom: calc(var(--mobile-nav-height) + 78px); width: 48px; height: 48px; border-radius: 50%; border: 1px solid #fff; background: #edf3f7cf; backdrop-filter: blur(20px); box-shadow: 0 4px 18px #4b68732a; color: #657f8a; z-index: 16; }
+  .mobile-search-fab { display: grid; place-items: center; position: fixed; right: max(16px,env(safe-area-inset-right,0px)); bottom: calc(var(--mobile-nav-height) + 62px); width: 46px; height: 46px; border-radius: 12px; border: 1px solid #fff; background: #edf3f7cf; backdrop-filter: blur(20px); box-shadow: 0 4px 18px #4b68732a; color: #657f8a; z-index: 16; }
   .mobile-search-fab.active { background: #d9e9e5; }
-  .app-shell .tasks-page .task-search.mobile-search-open { display: flex; align-items: center; position: fixed; top: auto; bottom: calc(var(--mobile-nav-height) + 136px); left: 14px; right: 14px; width: auto; height: 52px; padding: 0 44px; z-index: 17; border-radius: 14px; background: #fafcfef5; box-shadow: 0 5px 24px #55667726; }
-  .app-shell .tasks-page .task-search.mobile-search-open input { padding: 0; width: 100%; }
-  .mobile-search-close { display: grid; place-items: center; position: absolute; right: 0; top: 3px; width: 44px; height: 44px; background: transparent; color: #72838a; }
   .traffic-header > div:first-child { grid-column: 1 / -1; }
   .traffic-page .traffic-header { grid-template-columns: minmax(0,1fr) 90px 44px; gap: 10px 6px; }
   .traffic-header .traffic-account-switcher { grid-column: 1; grid-row: 2; width: 100%; min-width: 0; align-self: start; margin: 0; height: 44px; }
