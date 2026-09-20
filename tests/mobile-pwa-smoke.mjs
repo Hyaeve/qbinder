@@ -89,6 +89,7 @@ try {
     const page = await context.newPage();
     if (process.env.TEST_BROWSER === 'webkit') await page.clock.install();
     const errors = [];
+    const accountSizes = [];
     page.on('pageerror', (error) => errors.push(error.message));
     for (const [route, label] of [['cards', '卡片'], ['view', '视图'], ['tasks', '任务'], ['flow', '域流'], ['logs', '日志'], ['setting', '设置']]) {
       if (route === 'cards') await page.goto(base + '/#/cards');
@@ -125,6 +126,10 @@ try {
       if (route === 'cards' || route === 'view') {
         const toolbar = page.locator(route === 'cards' ? '.top-tabs' : '.task-toolbar');
         assert.equal(await toolbar.evaluate(e => getComputedStyle(e).position), 'relative', 'Toolbar scrolls with page');
+      }
+      if (['cards', 'view', 'flow'].includes(route)) {
+        const control = await page.locator('.content .account-switcher-trigger').boundingBox();
+        accountSizes.push({ width: control.width, height: control.height });
       }
       if (route === 'view' && mobile) {
         const accountBox = await page.locator('.task-toolbar .account-switcher').boundingBox();
@@ -199,6 +204,22 @@ try {
         assert.equal(await page.locator('.ui-tooltip').count(), 0, 'No button hover tooltip');
       }
       if (route === 'cards' && mobile) {
+        const dockTarget = page.locator('.mobile-dock nav').getByRole('button', { name: '视图', exact: true });
+        const selection = page.locator('.dock-selection');
+        const original = await selection.getAttribute('style');
+        await dockTarget.dispatchEvent('pointerdown', { button: 0, isPrimary: true, clientX: 10, clientY: 10 });
+        await page.waitForTimeout(550);
+        assert.notEqual(await selection.getAttribute('style'), original, 'Holding previews the target highlight');
+        assert(page.url().endsWith('/#/cards'), 'Preview does not navigate before release');
+        assert.equal(await dockTarget.evaluate(e => getComputedStyle(e).userSelect || getComputedStyle(e).webkitUserSelect), 'none');
+        await dockTarget.dispatchEvent('pointercancel');
+        assert.equal(await selection.getAttribute('style'), original, 'Cancelled hold restores current selection');
+        await dockTarget.dispatchEvent('pointerdown', { button: 0, isPrimary: true, clientX: 10, clientY: 10 });
+        await page.waitForTimeout(250);
+        await dockTarget.dispatchEvent('pointerup');
+        await dockTarget.dispatchEvent('click');
+        await page.waitForURL('**/#/view');
+        await page.locator('.mobile-dock nav').getByRole('button', { name: '卡片', exact: true }).click();
         assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['卡片', '视图', '域流', '更多']);
         await page.getByRole('button', { name: '更多', exact: true }).click();
         assert.deepEqual(await page.locator('.dock-more-menu button').allTextContents(), ['任务', '日志', '设置', '退出']);
@@ -252,6 +273,7 @@ try {
       if (route === 'flow' && mobile) {
         const panel = await page.locator('.traffic-chart-content').first().boundingBox();
         const pie = await page.locator('.traffic-pie').first().boundingBox();
+        assert(pie.width >= (width <= 320 ? 130 : 160), 'Mobile pie uses available panel space');
         assert(Math.abs((panel.x + panel.width / 2) - (pie.x + pie.width / 2)) < 2, 'Pie centered');
         const legend = page.locator('.traffic-chart-panel').first().locator('.traffic-legend-item');
         await legend.nth(0).tap();
@@ -396,6 +418,7 @@ try {
         }
       }
     }
+    accountSizes.forEach(size => assert.deepEqual(size, accountSizes[0], 'Account controls match across cards/view/flow'));
     if (mobile) {
       const positions = [];
       for (const route of ['cards', 'view', 'tasks', 'logs']) {
@@ -479,6 +502,7 @@ try {
   originUnavailable = false;
   await page.getByRole('link', { name: '重新连接' }).click();
   await page.locator('.login-panel').waitFor();
+  assert.equal(await page.locator('.login-page').evaluate(e => getComputedStyle(e).animationName), 'none');
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.screenshot({ path: `${output}/${width}-login.png` });

@@ -8,6 +8,18 @@ html, body, body * { scrollbar-width: none !important; }
 .settings-utilities h2 { font-size: 24px; }
 .settings-utilities .backup-panel .button-row { flex-direction: column; align-items: stretch; }
 .settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
+.backup-panel .monet-amber { background: #f0eee7; color: #736e5f; border: 1px solid #e3dfd4; box-shadow: none; }
+.backup-panel .monet-amber:hover { background: #e9e6dd; }
+.login-page { background: #e8edef; animation: none; }
+.login-page::before, .login-page::after { display: none; }
+.app-shell { --account-control-width: 360px; }
+.app-shell .cards-page .top-tabs .account-switcher,
+.app-shell .tasks-page .task-toolbar > .account-switcher,
+.app-shell .traffic-header .traffic-account-switcher { flex: 0 0 var(--account-control-width); width: var(--account-control-width); max-width: 100%; min-width: 0; }
+.app-shell .account-switcher-trigger { width: 100%; max-width: none; min-width: 0; height: 44px; padding-inline: 14px; }
+.app-shell .account-switcher-trigger span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traffic-page .traffic-chart-content { grid-template-columns: minmax(64px,1fr) minmax(180px,290px) minmax(64px,1fr); gap: 12px; }
+.traffic-chart-content .traffic-pie { width: 100%; }
 .tracker-mapping-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; color: #7e8390; font-size: 13px; }
 .tracker-mapping-columns span { padding-left: 14px; }
 .back-to-top { position: fixed; z-index: 19; right: 24px; bottom: 24px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; color: #617b83; background: #f3f8f9dc; border: 1px solid #fff; box-shadow: 0 4px 18px #48677926; backdrop-filter: blur(18px); }
@@ -94,6 +106,7 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
 .mobile-search-dialog .mobile-search-close { display: grid; place-items: center; position: absolute; right: 3px; top: 5px; width: 44px; height: 44px; border-radius: 8px; background: transparent; color: #72838a; }
 
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
+  .app-shell { --account-control-width: min(360px, calc(100vw - 174px)); }
   html { touch-action: pan-x pan-y; }
   .tasks-page, .schedule-page, .traffic-page, .settings-page {
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
@@ -127,9 +140,9 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
   .app-shell .sidebar.mobile-dock {
     width: min(calc(var(--dock-count) * 64px + 12px), calc(100% - 24px));
     height: 58px; padding: 4px 6px; bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 8px));
-    background: rgba(155,178,187,.64);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
-    backdrop-filter: blur(28px) saturate(160%);
+    background: rgba(199,214,221,.36);
+    -webkit-backdrop-filter: blur(36px) saturate(135%);
+    backdrop-filter: blur(36px) saturate(135%);
     transition: transform .3s cubic-bezier(.22,1,.36,1);
     transform: translate3d(0,0,0) scale(1);
     transform-origin: center bottom;
@@ -142,12 +155,14 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
     pointer-events: none;
   }
   .mobile-dock nav { position: relative; isolation: isolate; gap: 0 !important; }
+  .mobile-dock, .mobile-dock * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   .app-shell .mobile-dock nav button { height: 48px; gap: 2px; background: transparent; box-shadow: none; transition: color .25s, transform .2s; }
-  .app-shell .mobile-dock nav button.active { background: transparent; box-shadow: none; color: #fff; }
+  .app-shell .mobile-dock nav button.active { background: transparent; box-shadow: none; color: #354f5b; }
   .app-shell .mobile-dock nav button:active { transform: scale(.91); }
   .mobile-dock nav button svg { transition: transform .3s cubic-bezier(.2,.9,.3,1.4); }
   .mobile-dock nav button.active svg { transform: translateY(-1px); }
-  .dock-selection { position: absolute; z-index: -1; left: 0; top: 0; width: calc(100% / var(--dock-count)); height: 48px; border-radius: 999px; border: 1px solid #ffffff70; background: rgba(65,101,115,.88); box-shadow: inset 0 1px 5px #ffffff38, 0 3px 9px #344f6633; backdrop-filter: blur(16px); transition: transform .3s cubic-bezier(.2,.85,.25,1.08); }
+  .dock-selection { position: absolute; z-index: -1; left: 0; top: 0; width: calc(100% / var(--dock-count)); height: 48px; border-radius: 999px; border: 1px solid #ffffffa6; background: rgba(159,190,202,.5); box-shadow: inset 0 1px 5px #ffffff75, 0 3px 9px #344f6620; backdrop-filter: blur(18px); transition: transform .3s cubic-bezier(.2,.85,.25,1.08), background .2s; }
+  .dock-previewing .dock-selection { background: rgba(174,202,212,.6); }
   .dock-more-menu { right: -10px; width: 116px; padding: 6px; border-radius: 18px; background: #f5f8fac9; transform-origin: 80% 100%; }
   .dock-more-menu button { gap: 10px; padding: 10px; font-size: 14px; }
   .dock-more-menu .dock-logout { margin-top: 4px; border-top: 1px solid #ccd8da; border-radius: 0 0 8px 8px; color: #77656c; }
@@ -160,7 +175,7 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
   .settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
   .dock-setting-row { flex-wrap: nowrap; padding: 0 12px; }
   .app-shell .tasks-page .task-toolbar { flex-direction: row; align-items: center; flex-wrap: nowrap; backdrop-filter: none; }
-  .app-shell .tasks-page .task-toolbar > .account-switcher { flex: 1; min-width: 0; align-self: auto; }
+  .app-shell .tasks-page .task-toolbar > .account-switcher { flex: 0 0 var(--account-control-width); min-width: 0; align-self: auto; }
   .task-toolbar .account-switcher-trigger { max-width: 100%; min-width: 0; }
   .task-toolbar .account-switcher-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-shell .tasks-page .task-toolbar-actions { flex: 0 0 auto; width: auto; }
@@ -169,22 +184,20 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
   .mobile-search-fab { display: grid; place-items: center; position: fixed; right: max(16px,env(safe-area-inset-right,0px)); bottom: calc(var(--mobile-nav-height) + 62px); width: 46px; height: 46px; border-radius: 12px; border: 1px solid #fff; background: #edf3f7cf; backdrop-filter: blur(20px); box-shadow: 0 4px 18px #4b68732a; color: #657f8a; z-index: 16; }
   .mobile-search-fab.active { background: #d9e9e5; }
   .traffic-header > div:first-child { grid-column: 1 / -1; }
-  .traffic-page .traffic-header { grid-template-columns: minmax(0,1fr) 90px 44px; gap: 10px 6px; }
+  .traffic-page .traffic-header { grid-template-columns: var(--account-control-width) 90px 44px; gap: 10px 6px; padding-inline: 0; }
+  .traffic-header > div:first-child { padding-inline: 16px; }
   .traffic-header .traffic-account-switcher { grid-column: 1; grid-row: 2; width: 100%; min-width: 0; align-self: start; margin: 0; height: 44px; }
   .traffic-account-switcher .account-switcher-trigger { width: 100%; min-width: 0; padding-inline: 8px; height: 44px; }
   .traffic-account-switcher .account-switcher-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .traffic-header .traffic-range-switcher { display: none; }
   .traffic-range-select { display: block; grid-column: 2; grid-row: 2; width: 90px; height: 44px; padding: 8px 4px; border-radius: 12px; color: #617980; background: #f3f7f7; }
   .traffic-header .traffic-refresh { grid-column: 3; grid-row: 2; height: 44px; }
-  .traffic-page .traffic-chart-content { grid-template-columns: minmax(0,1fr) minmax(112px,200px) minmax(0,1fr); gap: 6px; min-height: 220px; }
+  .traffic-page .traffic-chart-content { grid-template-columns: minmax(0,1fr) min(54%,250px) minmax(0,1fr); gap: 6px; min-height: 250px; }
   .traffic-chart-content .traffic-pie { grid-column: 2; grid-row: 1; width: 100%; }
   .traffic-chart-content .traffic-legend-left { grid-column: 1; grid-row: 1; }
   .traffic-chart-content .traffic-legend-right { grid-column: 3; grid-row: 1; }
   .traffic-chart-content .traffic-legend { align-self: center; }
   .traffic-chart-content .traffic-legend-item { font-size: 11px; gap: 4px; }
-}
-@media (max-width: 400px) {
-  .traffic-page .traffic-chart-content { grid-template-columns: minmax(0,1fr) 112px minmax(0,1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .range-menu-enter-active, .range-menu-leave-active { transition: none; }

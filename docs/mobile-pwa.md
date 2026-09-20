@@ -24,6 +24,12 @@
 - The narrower glass Dock slides out while scrolling down and returns when scrolling
   up. Selection and More transitions honor reduced-motion preferences. Dock taps
   request an optional 8ms vibration when supported; unsupported browsers skip it.
+  Holding a Dock item previews its selection indicator before release activates
+  it. Moving away or cancelling restores the current selection. Dock text cannot
+  be selected by holding.
+- Cards, View and Domain Flow share 360px-wide account controls, constrained on
+  mobile to leave space for neighboring actions. Traffic pies use more of the
+  panel width while keeping legends on both sides.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
   tapping a different sector or legend switches selection, and tapping elsewhere
   clears selection. Tap selection includes the same traffic-data tooltip as desktop.
