@@ -130,6 +130,7 @@ try {
       if (['cards', 'view', 'flow'].includes(route)) {
         const control = await page.locator('.content .account-switcher-trigger').boundingBox();
         accountSizes.push({ width: control.width, height: control.height });
+        assert.equal(control.width, 120, 'Account control uses one-third of the previous 360px width');
       }
       if (route === 'view' && mobile) {
         const accountBox = await page.locator('.task-toolbar .account-switcher').boundingBox();
@@ -183,6 +184,12 @@ try {
         await page.locator('.task-path-modal').getByRole('button', { name: '关闭', exact: true }).click();
         assert(await page.locator('.task-summary .transfer-value').first().isVisible());
       }
+      if (route === 'tasks') {
+        const title = await page.locator('.schedule-header h1').boundingBox();
+        const create = await page.locator('.schedule-header .schedule-create-button').boundingBox();
+        assert(create.x >= title.x + title.width, 'New task action sits to the right of the title');
+        assert(Math.abs(create.y + create.height / 2 - title.y - title.height / 2) < 2, 'Title and new task action share a row');
+      }
       if (route === 'tasks' && mobile) {
         assert.equal(await page.locator('.schedule-card').count(), 1);
         const main = await page.locator('.schedule-card-main').boundingBox();
@@ -204,6 +211,7 @@ try {
         assert.equal(await page.locator('.ui-tooltip').count(), 0, 'No button hover tooltip');
       }
       if (route === 'cards' && mobile) {
+        assert(await page.locator('.mobile-dock').evaluate(e => (getComputedStyle(e).backdropFilter || getComputedStyle(e).webkitBackdropFilter).includes('blur(18px)')), 'Dock uses the reduced blur radius');
         const dockTarget = page.locator('.mobile-dock nav').getByRole('button', { name: '视图', exact: true });
         const selection = page.locator('.dock-selection');
         const original = await selection.getAttribute('style');

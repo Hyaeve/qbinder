@@ -12,7 +12,7 @@ html, body, body * { scrollbar-width: none !important; }
 .backup-panel .monet-amber:hover { background: #e9e6dd; }
 .login-page { background: #e8edef; animation: none; }
 .login-page::before, .login-page::after { display: none; }
-.app-shell { --account-control-width: 360px; }
+.app-shell { --account-control-width: 120px; }
 .app-shell .cards-page .top-tabs .account-switcher,
 .app-shell .tasks-page .task-toolbar > .account-switcher,
 .app-shell .traffic-header .traffic-account-switcher { flex: 0 0 var(--account-control-width); width: var(--account-control-width); max-width: 100%; min-width: 0; }
@@ -20,6 +20,12 @@ html, body, body * { scrollbar-width: none !important; }
 .app-shell .account-switcher-trigger span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .traffic-page .traffic-chart-content { grid-template-columns: minmax(64px,1fr) minmax(180px,290px) minmax(64px,1fr); gap: 12px; }
 .traffic-chart-content .traffic-pie { width: 100%; }
+.schedule-page > .schedule-header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 6px 12px; }
+.schedule-page > .schedule-header > div { display: contents; }
+.schedule-page > .schedule-header .eyebrow { grid-column: 1 / -1; grid-row: 1; }
+.schedule-page > .schedule-header h1 { grid-column: 1; grid-row: 2; }
+.schedule-page > .schedule-header p:not(.eyebrow) { grid-column: 1 / -1; grid-row: 3; }
+.schedule-page > .schedule-header .schedule-create-button { grid-column: 2; grid-row: 2; justify-self: end; white-space: nowrap; }
 .tracker-mapping-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; color: #7e8390; font-size: 13px; }
 .tracker-mapping-columns span { padding-left: 14px; }
 .back-to-top { position: fixed; z-index: 19; right: 24px; bottom: 24px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; color: #617b83; background: #f3f8f9dc; border: 1px solid #fff; box-shadow: 0 4px 18px #48677926; backdrop-filter: blur(18px); }
@@ -106,7 +112,10 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
 .mobile-search-dialog .mobile-search-close { display: grid; place-items: center; position: absolute; right: 3px; top: 5px; width: 44px; height: 44px; border-radius: 8px; background: transparent; color: #72838a; }
 
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
-  .app-shell { --account-control-width: min(360px, calc(100vw - 174px)); }
+  .app-shell { --account-control-width: 120px; }
+  .schedule-page > .schedule-header { padding: 18px 16px; }
+  .schedule-page > .schedule-header h1 { font-size: 24px; }
+  .schedule-page > .schedule-header .schedule-create-button { padding-inline: 12px; }
   html { touch-action: pan-x pan-y; }
   .tasks-page, .schedule-page, .traffic-page, .settings-page {
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
@@ -141,8 +150,8 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
     width: min(calc(var(--dock-count) * 64px + 12px), calc(100% - 24px));
     height: 58px; padding: 4px 6px; bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 8px));
     background: rgba(199,214,221,.36);
-    -webkit-backdrop-filter: blur(36px) saturate(135%);
-    backdrop-filter: blur(36px) saturate(135%);
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(18px) saturate(135%);
     transition: transform .3s cubic-bezier(.22,1,.36,1);
     transform: translate3d(0,0,0) scale(1);
     transform-origin: center bottom;

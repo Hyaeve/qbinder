@@ -27,8 +27,8 @@
   Holding a Dock item previews its selection indicator before release activates
   it. Moving away or cancelling restores the current selection. Dock text cannot
   be selected by holding.
-- Cards, View and Domain Flow share 360px-wide account controls, constrained on
-  mobile to leave space for neighboring actions. Traffic pies use more of the
+- Cards, View and Domain Flow share compact 120px-wide account controls.
+  The task creation action sits beside the task-page title. Traffic pies use more of the
   panel width while keeping legends on both sides.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
   tapping a different sector or legend switches selection, and tapping elsewhere
