@@ -57,6 +57,7 @@ async function touchEvent(locator, type, point) {
     });
     return;
   }
+  if (type === 'touchstart') await locator.page().clock.pauseAt(await locator.page().evaluate(() => Date.now()));
   await locator.evaluate((element, { type, point }) => {
     // WebKit exposes Touch but does not allow constructing it on Windows.
     const touch = { identifier: 1, target: element, clientX: point.x, clientY: point.y };
@@ -67,6 +68,7 @@ async function touchEvent(locator, type, point) {
     });
     element.dispatchEvent(event);
   }, { type, point });
+  if (type === 'touchend' || type === 'touchcancel') await locator.page().clock.resume();
 }
 
 async function holdTouch(page, milliseconds) {
@@ -86,7 +88,14 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     for (const [route, label] of [['cards', '卡片'], ['view', '视图'], ['tasks', '任务'], ['flow', '域流'], ['logs', '日志'], ['setting', '设置']]) {
       if (route === 'cards') await page.goto(base + '/#/cards');
-      else await page.locator('.sidebar nav').getByRole('button', { name: label, exact: true }).click();
+      else if (mobile) {
+        const direct = page.locator('.mobile-dock nav').getByRole('button', { name: label, exact: true });
+        if (await direct.count()) await direct.click();
+        else {
+          await page.locator('.mobile-dock').getByRole('button', { name: '更多', exact: true }).click();
+          await page.locator('.dock-more-menu').getByRole('button', { name: label, exact: true }).click();
+        }
+      } else await page.locator('.desktop-sidebar nav').getByRole('button', { name: label, exact: true }).click();
       await page.waitForTimeout(200);
       // Keep the emulated viewport fixed while checking landscape touch layouts.
       await page.screenshot({ path: `${output}/${width}-${route}.png` });
@@ -134,6 +143,12 @@ try {
         assert.equal(await page.locator('.ui-tooltip').count(), 0, 'No button hover tooltip');
       }
       if (route === 'cards' && mobile) {
+        assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['卡片', '视图', '域流', '更多']);
+        await page.getByRole('button', { name: '更多', exact: true }).click();
+        assert.deepEqual(await page.locator('.dock-more-menu button').allTextContents(), ['任务', '日志', '设置']);
+        await page.screenshot({ path: `${output}/${width}-dock-more.png` });
+        await page.locator('.mobile-app-header strong').click();
+        assert.equal(await page.locator('.dock-more-menu').count(), 0);
         const cards = page.locator('.binder-card');
         const first = await cards.nth(0).boundingBox();
         const second = await cards.nth(1).boundingBox();
@@ -143,7 +158,8 @@ try {
         const chooser = page.waitForEvent('filechooser');
         await cards.first().tap();
         await (await chooser).setFiles([]);
-        const point = { x: first.x + first.width / 2, y: first.y + first.height / 2 };
+        const touchBox = await cards.first().boundingBox();
+        const point = { x: touchBox.x + touchBox.width / 2, y: Math.max(90, touchBox.y + 40) };
         await touchEvent(cards.first(), 'touchstart', point);
         await holdTouch(page, 900);
         await page.getByRole('heading', { name: '卡片设置', exact: true }).waitFor({ timeout: 5000 });
@@ -151,9 +167,12 @@ try {
         await page.getByRole('heading', { name: '卡片设置', exact: true }).waitFor();
         assert(await page.locator('.modal').evaluate((e) => e.scrollWidth <= e.clientWidth + 1));
         await page.locator('.modal header button').click();
-        await touchEvent(cards.first(), 'touchstart', point);
+        await cards.first().scrollIntoViewIfNeeded();
+        const dragBox = await cards.first().boundingBox();
+        await touchEvent(cards.first(), 'touchstart', { x: dragBox.x + 40, y: Math.max(90, dragBox.y + 40) });
         await holdTouch(page, 500);
-        const target = { x: second.x + second.width / 2, y: second.y + second.height / 2 };
+        const targetBox = await cards.nth(1).boundingBox();
+        const target = { x: targetBox.x + targetBox.width / 2, y: Math.max(90, targetBox.y + 40) };
         await touchEvent(cards.first(), 'touchmove', target);
         const reordered = page.waitForResponse((r) => r.url().endsWith('/api/cards/reorder'));
         await touchEvent(cards.first(), 'touchend', target);
@@ -197,6 +216,56 @@ try {
       if (route === 'setting' && mobile) {
         const widths = await page.locator('.account-form-grid input').evaluateAll((els) => els.map((e) => e.clientWidth));
         assert(widths.every((w) => w > 200), `account inputs clipped: ${widths}`);
+        const dockSettings = page.locator('.dock-settings');
+        await dockSettings.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${output}/${width}-dock-settings.png` });
+        const backupBox = await page.locator('.backup-panel').boundingBox();
+        const settingsBox = await dockSettings.boundingBox();
+        assert(Math.abs(backupBox.width - settingsBox.width) < 2 && settingsBox.x > backupBox.x, 'Backup and Dock split equally');
+        await page.getByRole('checkbox', { name: '在 Dock 显示视图', exact: true }).uncheck();
+        await page.getByRole('checkbox', { name: '在 Dock 显示域流', exact: true }).uncheck();
+        assert(await page.getByRole('checkbox', { name: '在 Dock 显示卡片', exact: true }).isDisabled(), 'At least one page');
+        await page.getByRole('checkbox', { name: '在 Dock 显示任务', exact: true }).check();
+        const handle = page.getByRole('button', { name: '拖拽排序任务', exact: true });
+        await handle.scrollIntoViewIfNeeded();
+        const start = await handle.boundingBox();
+        const row = await page.locator('[data-dock-id="cards"]').boundingBox();
+        if (process.env.TEST_BROWSER !== 'webkit') {
+          await touchEvent(handle, 'touchstart', { x: start.x + start.width / 2, y: start.y + start.height / 2 });
+          await touchEvent(handle, 'touchmove', { x: row.x + 35, y: row.y + 20 });
+          await touchEvent(handle, 'touchend', { x: row.x + 35, y: row.y + 20 });
+        } else {
+          await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+          await page.mouse.down();
+          await page.mouse.move(row.x + 35, row.y + 20, { steps: 8 });
+          await page.mouse.up();
+        }
+        assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['任务', '卡片', '更多']);
+        await page.reload();
+        await page.locator('.dock-settings').waitFor();
+        assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['任务', '卡片', '更多'], 'Dock preferences survive reload');
+        for (const label of ['视图', '域流', '日志', '设置']) await page.getByRole('checkbox', { name: `在 Dock 显示${label}`, exact: true }).check();
+        assert.equal(await page.locator('.mobile-dock nav button').count(), 6);
+        assert.equal(await page.locator('.dock-more-button').count(), 0);
+        await page.getByRole('button', { name: '下移任务', exact: true }).click();
+        assert.equal(await page.locator('.mobile-dock nav button').first().textContent(), '卡片');
+        await page.getByRole('button', { name: '拖拽排序任务', exact: true }).press('ArrowUp');
+        assert.equal(await page.locator('.mobile-dock nav button').first().textContent(), '任务');
+        await page.evaluate(() => localStorage.setItem('qbinder-mobile-dock', JSON.stringify([{ id: 'invalid', enabled: true }, { id: 'cards', enabled: false }, { id: 'cards', enabled: true }])));
+        await page.reload();
+        await page.locator('.dock-settings').waitFor();
+        assert.equal(await page.locator('.dock-setting-row').count(), 6, 'Stored entries normalized');
+        assert(await page.locator('.mobile-dock nav button').count() >= 2);
+        await page.evaluate(() => {
+          const entries = [...document.querySelectorAll('[data-dock-id]')].map(row => ({ id: row.dataset.dockId, enabled: false }));
+          localStorage.setItem('qbinder-mobile-dock', JSON.stringify(entries));
+        });
+        await page.reload();
+        await page.locator('.dock-settings').waitFor();
+        assert.equal(await page.locator('.dock-settings input:checked').count(), 1, 'All-disabled storage repairs to one visible page');
+        await page.getByRole('button', { name: '更多', exact: true }).click();
+        await page.getByRole('button', { name: '更多', exact: true }).press('Escape');
+        assert.equal(await page.locator('.dock-more-menu').count(), 0, 'Escape closes More');
       }
     }
     assert.deepEqual(errors, [], `JS errors at ${width}`);

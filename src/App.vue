@@ -26,7 +26,7 @@
   </main>
 
   <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }" :style="sidebarAccentStyle">
-    <aside class="sidebar">
+    <aside class="sidebar desktop-sidebar">
       <div class="sidebar-top">
         <div class="brand-lockup">
           <img src="/reference.png" alt="qBinder" />
@@ -59,6 +59,7 @@
         </span>
       </button>
     </aside>
+    <MobileDock :view="view" @navigate="navigateToView" />
     <header class="mobile-app-header">
       <img src="/reference.png" alt="" /><strong>qBinder</strong>
       <button class="icon-button" aria-label="退出登录" @click="logout"><LogOut /></button>
@@ -135,6 +136,7 @@
             </section>
           </section>
 
+          <div class="settings-utilities">
           <section class="setting-panel backup-panel">
             <h2><Save />配置备份</h2>
             <div class="backup-summary">
@@ -150,6 +152,8 @@
               <button type="button" class="primary-button monet-mint" :disabled="backupBusy" @click="backupFileInput?.click()"><Upload />加载备份</button>
             </div>
           </section>
+          <DockSettings />
+          </div>
         </div>
       </section>
 
@@ -842,6 +846,8 @@ import {
   Zap
 } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import MobileDock from './components/MobileDock.vue';
+import DockSettings from './components/DockSettings.vue';
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
 const accentColors = ['#7d8fd7', '#8eb7a4', '#d0a49b', '#bfa6d9', '#d7bc76', '#8fb7c8', '#c6b4a4'];

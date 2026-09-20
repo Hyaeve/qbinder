@@ -1,4 +1,26 @@
 .mobile-app-header, .mobile-torrents, .mobile-edit { display: none; }
+.app-shell .mobile-dock { display: none; }
+.settings-utilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-utilities > .setting-panel { min-width: 0; padding: 16px; }
+.settings-utilities .backup-panel { display: flex; flex-direction: column; align-items: stretch; }
+.settings-utilities .backup-panel .button-row { flex-wrap: wrap; gap: 10px; }
+.settings-utilities h2 { font-size: 17px; gap: 6px; overflow-wrap: anywhere; }
+.dock-settings-list { display: grid; }
+.dock-setting-row { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid #e5e9e7; }
+.dock-setting-row.dragging { opacity: .5; }
+.dock-setting-row.drag-over { background: #e5efeb; box-shadow: inset 0 2px #83afa5; }
+.dock-setting-row button { display: grid; place-items: center; padding: 0; min-width: 26px; width: 26px; height: 44px; color: #71877e; background: transparent; border-radius: 6px; }
+.dock-setting-row button:disabled { opacity: .3; }
+.dock-setting-row button svg { width: 16px; height: 16px; }
+.dock-setting-row .dock-drag-handle { touch-action: none; cursor: grab; }
+.dock-setting-row .dock-setting-toggle { display: flex; align-items: center; gap: 6px; margin: 0; flex: 1; min-width: 0; font-size: 13px; cursor: pointer; }
+.dock-setting-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #789e90; }
+.dock-setting-toggle span { white-space: nowrap; }
+.dock-order-actions { display: flex; }
+.dock-more-menu { position: absolute; right: 0; bottom: calc(100% + 10px); width: 160px; padding: 8px; border: 1px solid rgba(255,255,255,.85); border-radius: 18px; background: rgba(248,251,249,.95); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 8px 28px rgba(42,62,57,.16); max-height: calc(100dvh - 110px - env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+.dock-more-menu button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px; background: transparent; border-radius: 8px; color: #63716d; }
+.dock-more-menu button.active { background: var(--sidebar-monet-bg, #dceae3); color: var(--sidebar-monet-fg, #405d51); }
+.dock-more-menu button svg { width: 20px; height: 20px; }
 
 .cards-page .top-tabs { justify-content: space-between; }
 .cards-page .top-tabs .account-switcher { flex: 0 1 auto; min-width: 0; }
@@ -10,7 +32,7 @@
 
 /* Viewport-based layout also responds to rotation, split view and desktop resizing. */
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
-  :root { --mobile-nav-height: calc(82px + env(safe-area-inset-bottom, 0px)); }
+  :root { --mobile-nav-height: calc(74px + env(safe-area-inset-bottom, 0px)); }
   html, body { min-width: 320px; }
   .app-shell, .app-shell.sidebar-collapsed { display: block; min-height: 100dvh; }
   .app-shell .mobile-app-header {
@@ -22,14 +44,15 @@
   .mobile-app-header strong { font-size: 20px; }
   .mobile-app-header button { margin-left: auto; }
   .app-shell .sidebar, .app-shell.sidebar-collapsed .sidebar {
-    position: fixed; inset: auto 12px calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 18;
+    position: fixed; inset: auto 12px calc(2px + env(safe-area-inset-bottom, 0px)); z-index: 18;
     width: min(540px, calc(100% - 24px)); height: 64px; margin-inline: auto;
-    display: block; padding: 4px 8px;
+    display: block; padding: 4px 8px; overflow: visible;
     border: 1px solid rgba(255,255,255,.8); border-radius: 999px;
     background: rgba(250,252,251,.76); backdrop-filter: blur(22px) saturate(140%);
     -webkit-backdrop-filter: blur(22px) saturate(140%);
     box-shadow: 0 8px 28px rgba(42,62,57,.16);
   }
+  .app-shell .sidebar.desktop-sidebar { display: none; }
   .app-shell .sidebar-top, .app-shell .sidebar-toggle, .app-shell .sidebar > .logout { display: none; }
   .app-shell .sidebar nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; width: 100%; }
   .app-shell .sidebar nav button, .app-shell.sidebar-collapsed .sidebar nav button {
@@ -46,6 +69,17 @@
   .page-header, .account-panel-header, .schedule-header, .operation-log-header { flex-wrap: wrap; gap: 12px; }
   .page-header h1, .empty-workspace h1 { font-size: 24px; }
   .app-shell .settings-grid, .app-shell .settings-column, .app-shell .account-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .settings-utilities { gap: 8px; }
+  .settings-utilities > .setting-panel { padding: 12px 8px; }
+  .settings-utilities h2 { font-size: 15px; }
+  .settings-utilities h2 svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .settings-utilities .backup-summary { gap: 6px; }
+  .settings-utilities .backup-summary span { padding: 6px 8px; }
+  .settings-utilities .backup-panel .button-row > button { width: 100%; min-width: 0; padding-inline: 6px; font-size: 13px; }
+  .dock-setting-row { flex-wrap: wrap; padding-block: 3px; }
+  .dock-setting-row .dock-drag-handle { width: 32px; min-width: 32px; }
+  .dock-setting-row .dock-order-actions { width: 100%; justify-content: flex-end; }
+  .dock-order-actions button { width: 44px; min-width: 44px; }
   .app-shell .account-form-grid { grid-auto-flow: row; grid-template-rows: none; }
   .account-form-grid label { min-width: 0; }
   .setting-panel { min-width: 0; padding: 18px; }
@@ -153,4 +187,9 @@
   .traffic-chart-content .traffic-legend-name { overflow-wrap: anywhere; white-space: normal; }
   .login-page { min-height: 100dvh; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
   .login-panel { padding: 24px; }
+}
+
+@media (min-width: 600px) {
+  .dock-setting-row { flex-wrap: nowrap; }
+  .dock-setting-row .dock-order-actions { width: auto; }
 }

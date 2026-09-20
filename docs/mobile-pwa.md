@@ -9,6 +9,11 @@
   square covers, in two columns. Tap to add torrents; long press to edit
   (850ms, or release after 450ms). Hold for 450ms then move to sort within the same lane.
   Swiping without holding scrolls the page. Desktop drag and context editing remain.
+- The Dock defaults to Cards, View, Domain Flow and More. More opens a vertical
+  floating list of remaining pages. In Settings, the Dock panel beside Backup
+  controls visible pages and ordering (drag the handle or use arrow buttons).
+  At least one page must remain enabled; when all six are enabled More disappears.
+  Preferences are saved per browser, not in server configuration backups.
 - Lane creation stays next to the account picker on both desktop and mobile.
   Torrent search, filters and refresh share one row below the mobile account picker.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
