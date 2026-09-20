@@ -45,8 +45,8 @@ function scroll() {
   if (y < 12) { hidden.value = false; distance = 0; return; }
   if (Math.sign(delta) !== Math.sign(distance)) distance = 0;
   distance += delta;
-  if (distance > 18) { hidden.value = true; closeMore(); }
-  else if (distance < -12) hidden.value = false;
+  if (distance > 36) { hidden.value = true; closeMore(); }
+  else if (distance < -20) hidden.value = false;
 }
 function closeMore(focus = false) {
   open.value = false;

@@ -21,10 +21,15 @@
 - The narrower glass Dock slides out while scrolling down and returns when scrolling
   up. Selection and More transitions honor reduced-motion preferences.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
-  tapping a different sector clears selection. Legends sit on both sides of the pie;
+  tapping a different sector or legend switches selection, and tapping elsewhere
+  clears selection. Legends sit on both sides of the pie;
   the account, time-range dropdown and refresh share a row. Desktop hover details remain.
 - Each torrent has an explicit actions button, multi-selection checkbox, and
   expandable path/tag/Tracker details. Desktop table preferences are preserved.
+- Mobile torrents are paged at 30 per page (desktop stays at 100). The transfer
+  footer follows the list at the bottom of the page rather than staying on screen.
+- Mobile layout disables two-finger page zoom and long-press selection on View,
+  Tasks, Domain Flow and Settings. Editable inputs retain text selection.
 - Install on iOS: open the deployed HTTPS URL in Safari, choose Share, then
   Add to Home Screen. No App Store package is required.
 - Service workers require HTTPS (localhost is allowed for development). An

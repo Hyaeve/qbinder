@@ -180,7 +180,7 @@
       </template>
     </div>
 
-    <div v-else-if="view === 'traffic'" class="content traffic-page">
+    <div v-else-if="view === 'traffic'" class="content traffic-page" @click="clearTrafficHighlight(); hideTrafficTooltip()">
       <header class="schedule-header traffic-header">
         <div><p class="eyebrow">DOMAIN FLOW</p><h1>域流</h1><p>按 Tracker 域查看上传与下载流量的历史变化。</p></div>
         <div class="traffic-header-actions">
@@ -195,7 +195,7 @@
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
-          <select v-model="trafficRange" class="traffic-range-select" aria-label="统计时间范围"><option v-for="option in trafficRangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+          <TrafficRangePicker v-model="trafficRange" :options="trafficRangeOptions" />
           <button class="secondary-button traffic-refresh" aria-label="刷新流量" :disabled="trafficLoading" @click="refreshTraffic"><RefreshCw :key="refreshPulse.traffic" :class="{ 'refresh-spin': refreshPulse.traffic }" /><span>刷新</span></button>
         </div>
       </header>
@@ -408,7 +408,7 @@
         </footer>
         <nav v-if="taskPageCount > 1" class="task-pagination" aria-label="任务分页">
           <button :disabled="taskPage === 1" @click="goToTaskPage(taskPage - 1)">上一页</button>
-          <span>第 {{ taskPage }} / {{ taskPageCount }} 页 · 每页 100 个</span>
+          <span>第 {{ taskPage }} / {{ taskPageCount }} 页 · 每页 {{ taskPageSize }} 个</span>
           <button :disabled="taskPage === taskPageCount" @click="goToTaskPage(taskPage + 1)">下一页</button>
         </nav>
 
@@ -852,6 +852,7 @@ import {
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import MobileDock from './components/MobileDock.vue';
 import BackToTop from './components/BackToTop.vue';
+import TrafficRangePicker from './components/TrafficRangePicker.vue';
 import DockSettings from './components/DockSettings.vue';
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
@@ -914,7 +915,16 @@ const backupMessage = ref('');
 const backupOk = ref(false);
 const tasks = ref([]);
 const taskPage = ref(1);
-const taskPageSize = 100;
+const mobileMedia = window.matchMedia('(max-width: 900px), (max-width: 1100px) and (pointer: coarse)');
+const isMobileViewport = ref(mobileMedia.matches);
+const taskPageSize = computed(() => isMobileViewport.value ? 30 : 100);
+function updateMobileViewport() {
+  isMobileViewport.value = mobileMedia.matches;
+  taskPage.value = 1;
+}
+function preventMobilePinch(event) {
+  if (mobileMedia.matches && (event.type.startsWith('gesture') || event.touches?.length > 1)) event.preventDefault();
+}
 const tasksLoading = ref(false);
 const tasksError = ref('');
 const taskSearch = ref('');
@@ -1174,6 +1184,10 @@ function accountPayload(form) {
 }
 
 onMounted(async () => {
+  mobileMedia.addEventListener('change', updateMobileViewport);
+  document.addEventListener('touchmove', preventMobilePinch, { passive: false });
+  document.addEventListener('gesturestart', preventMobilePinch, { passive: false });
+  document.addEventListener('gesturechange', preventMobilePinch, { passive: false });
   window.addEventListener('hashchange', syncViewFromHash);
   window.addEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   window.addEventListener('pointerover', showTitleTooltip, true);
@@ -1358,13 +1372,13 @@ const filteredTasks = computed(() => {
   });
   return result.sort((left, right) => compareTasks(left, right, taskSort.key, taskSort.direction));
 });
-const taskPageCount = computed(() => Math.max(1, Math.ceil(filteredTasks.value.length / taskPageSize)));
+const taskPageCount = computed(() => Math.max(1, Math.ceil(filteredTasks.value.length / taskPageSize.value)));
 const pagedTasks = computed(() => {
-  const start = (taskPage.value - 1) * taskPageSize;
-  return filteredTasks.value.slice(start, start + taskPageSize);
+  const start = (taskPage.value - 1) * taskPageSize.value;
+  return filteredTasks.value.slice(start, start + taskPageSize.value);
 });
-const taskRangeStart = computed(() => filteredTasks.value.length ? (taskPage.value - 1) * taskPageSize + 1 : 0);
-const taskRangeEnd = computed(() => Math.min(taskPage.value * taskPageSize, filteredTasks.value.length));
+const taskRangeStart = computed(() => filteredTasks.value.length ? (taskPage.value - 1) * taskPageSize.value + 1 : 0);
+const taskRangeEnd = computed(() => Math.min(taskPage.value * taskPageSize.value, filteredTasks.value.length));
 const taskTotals = computed(() => filteredTasks.value.reduce((totals, task) => ({ down: totals.down + task.dlspeed, up: totals.up + task.upspeed }), { down: 0, up: 0 }));
 
 watch([taskSearch, () => taskFilters.status, () => taskFilters.path, () => taskFilters.tags, () => taskFilters.tracker, () => taskSort.key, () => taskSort.direction], () => {
@@ -1377,6 +1391,7 @@ watch(taskPageCount, (count) => {
 
 function goToTaskPage(page) {
   taskPage.value = Math.min(Math.max(page, 1), taskPageCount.value);
+  if (isMobileViewport.value) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 // A 401 means this browser no longer holds a valid backend session (cookie expired, or the server
@@ -2067,8 +2082,7 @@ function hoverTrafficItem(key, item, event) {
 function tapTrafficItem(key, item) {
   if (!mobileLayout()) return;
   hideTrafficTooltip();
-  if (trafficHighlight.name && (trafficHighlight.key !== key || trafficHighlight.name !== item.name)) clearTrafficHighlight();
-  else highlightTrafficItem(key, item.name);
+  highlightTrafficItem(key, item.name);
 }
 
 function hideTrafficTooltip() {
@@ -3192,6 +3206,10 @@ function hideTitleTooltip(event) {
 }
 
 onUnmounted(() => {
+  mobileMedia.removeEventListener('change', updateMobileViewport);
+  document.removeEventListener('touchmove', preventMobilePinch);
+  document.removeEventListener('gesturestart', preventMobilePinch);
+  document.removeEventListener('gesturechange', preventMobilePinch);
   cancelCardTouch();
   window.removeEventListener('hashchange', syncViewFromHash);
   window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);

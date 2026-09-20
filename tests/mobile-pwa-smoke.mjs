@@ -19,7 +19,7 @@ const config = {
   lanes: [{ id: 'lane1', qbId: 'qb1', name: '影视' }],
   cards: Array.from({ length: 4 }, (_, i) => ({ id: `card${i + 1}`, qbId: 'qb1', laneId: 'lane1', name: ['电影收藏', '剧集', '音乐收藏', '纪录片'][i], savePath: '/media/movies', tags: ['电影'], cover: { type: 'monet', value: '#d8e8e2' } }))
 };
-const tasks = Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
+const tasks = Object.fromEntries(Array.from({ length: 38 }, (_, index) => {
   const hash = String(index).padStart(40, '0');
   return [hash, { hash, name: `测试种子 ${index} · 超长电影名称与中文标签`, size: 1024 ** 3, progress: 0.5, state: 'downloading', dlspeed: 102400, upspeed: 51200, tags: '电影,收藏', save_path: '/media/movies', tracker: 'https://tracker.example.test/announce', amount_left: 1024 ** 3 / 2 }];
 }));
@@ -109,6 +109,15 @@ try {
         }).slice(0, 8).map((e) => e.className)
       }));
       assert(overflow.scroll <= width + 1, `${width}/${route} overflow: ${JSON.stringify(overflow)}`);
+      if (route === 'cards') {
+        const pinchPrevented = await page.evaluate(() => {
+          const event = new Event('touchmove', { bubbles: true, cancelable: true });
+          Object.defineProperty(event, 'touches', { value: [{}, {}] });
+          document.dispatchEvent(event);
+          return event.defaultPrevented;
+        });
+        assert.equal(pinchPrevented, mobile, 'Two-finger page zoom blocked only in mobile layout');
+      }
       if (route === 'cards' || route === 'view') {
         const toolbar = page.locator(route === 'cards' ? '.top-tabs' : '.task-toolbar');
         assert.equal(await toolbar.evaluate(e => getComputedStyle(e).position), 'relative', 'Toolbar scrolls with page');
@@ -125,6 +134,14 @@ try {
         await page.getByRole('button', { name: '关闭搜索', exact: true }).click();
         await page.waitForTimeout(500);
         await page.evaluate(() => window.scrollTo(0, 300));
+        await page.waitForTimeout(100);
+        if (process.env.TEST_BROWSER !== 'webkit') {
+          const intermediate = await page.locator('.mobile-dock').evaluate(e => {
+            const style = getComputedStyle(e);
+            return { y: new DOMMatrix(style.transform).m42, opacity: style.opacity };
+          });
+          assert(intermediate.y < 80 && intermediate.opacity === '1', 'Dock slides out visibly instead of fading away');
+        }
         await page.waitForTimeout(500);
         assert(await page.locator('.mobile-dock').evaluate(e => e.classList.contains('dock-hidden')), 'Scroll down hides Dock');
         await page.evaluate(() => window.scrollTo(0, 200));
@@ -135,7 +152,15 @@ try {
         await page.getByRole('button', { name: '回到顶部', exact: true }).click();
         await page.waitForFunction(() => window.scrollY < 2);
         await page.evaluate(() => window.scrollTo(0, 0));
+        assert.equal(await page.locator('.mobile-torrent').count(), 30);
+        assert(await page.locator('.task-pagination').innerText().then(text => text.includes('每页 30 个')));
+        await page.getByRole('button', { name: '下一页', exact: true }).click();
         assert.equal(await page.locator('.mobile-torrent').count(), 8);
+        await page.getByRole('button', { name: '上一页', exact: true }).click();
+        assert.equal(await page.locator('.mobile-torrent').count(), 30);
+        assert.equal(await page.locator('.task-summary').evaluate(e => getComputedStyle(e).position), 'relative');
+        assert(await page.locator('.task-summary').evaluate(e => e.getBoundingClientRect().top > innerHeight), 'Footer follows list rather than viewport');
+        assert.equal(await page.locator('.tasks-page').evaluate(e => getComputedStyle(e).userSelect || getComputedStyle(e).webkitUserSelect), 'none');
         await page.locator('.mobile-torrent').first().getByRole('button').click();
         await page.locator('.task-menu').getByRole('button', { name: '更改保存路径', exact: true }).click();
         await page.locator('.task-path-modal').waitFor();
@@ -221,7 +246,8 @@ try {
         await legend.nth(0).tap();
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1);
         await legend.nth(1).tap();
-        assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Different sector clears selection');
+        assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Different legend switches selection');
+        assert(await legend.nth(1).evaluate(e => e.classList.contains('active')));
         assert.equal(await page.locator('.traffic-pie-tooltip').count(), 0, 'No hover tooltip on touch');
         const pieElement = page.locator('.traffic-pie').first();
         const pieSize = (await pieElement.boundingBox()).width;
@@ -230,18 +256,28 @@ try {
         await pieElement.tap({ position: { x: pieSize * .75, y: pieSize * .5 } });
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Same sector retains selection');
         await pieElement.tap({ position: { x: pieSize * .25, y: pieSize * .35 } });
-        assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Other sector clears selection');
+        assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Other sector switches selection');
+        await page.locator('.traffic-chart-heading').first().click();
+        assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Blank chart heading clears selection');
         const refresh = await page.getByRole('button', { name: '刷新流量', exact: true }).boundingBox();
         const account = await page.locator('.traffic-account-switcher').boundingBox();
-        const range = await page.locator('.traffic-range-select').boundingBox();
+        const range = await page.locator('.traffic-range-picker').boundingBox();
         assert(Math.abs(refresh.y - account.y) < 2 && Math.abs(range.y - account.y) < 2, 'Traffic controls aligned');
-        await page.locator('.traffic-range-select').selectOption('7d');
-        assert.equal(await page.locator('.traffic-range-select').inputValue(), '7d');
+        await page.getByRole('button', { name: '统计时间范围', exact: true }).click();
+        await page.waitForTimeout(300);
+        if (process.env.TEST_BROWSER === 'webkit') await page.clock.runFor(300);
+        await page.screenshot({ path: `${output}/${width}-traffic-range.png` });
+        await page.getByRole('option', { name: '近 1 周', exact: true }).click();
+        assert.equal(await page.locator('.traffic-range-trigger span').textContent(), '近 1 周');
+        const tapHighlight = await page.locator('.traffic-pie').first().evaluate(e => getComputedStyle(e).getPropertyValue('-webkit-tap-highlight-color'));
+        if (tapHighlight) assert.equal(tapHighlight, 'rgba(0, 0, 0, 0)');
+        assert.equal(await page.locator('.traffic-page').evaluate(e => getComputedStyle(e).userSelect || getComputedStyle(e).webkitUserSelect), 'none');
       }
       if (route === 'flow' && !mobile) {
         await page.locator('.traffic-legend-item').first().hover();
         assert(await page.locator('.traffic-pie-tooltip').isVisible(), 'Desktop traffic hover details preserved');
       }
+      if (route === 'view' && !mobile) assert.equal(await page.locator('.task-row').count(), 38, 'Desktop keeps 100-item page capacity');
       if (route === 'setting' && mobile) {
         const widths = await page.locator('.account-form-grid input').evaluateAll((els) => els.map((e) => e.clientWidth));
         assert(widths.every((w) => w > 200), `account inputs clipped: ${widths}`);
