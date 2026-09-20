@@ -1,33 +1,52 @@
 <template>
   <section class="setting-panel dock-settings">
-    <h2><PanelsTopLeft />Dock 栏设置</h2>
-    <div class="dock-settings-list">
-      <div v-for="(item, index) in dockItems" :key="item.id" class="dock-setting-row" :class="{ dragging: dragging === item.id, 'drag-over': target === index }" :data-dock-id="item.id">
-        <button class="dock-drag-handle" :aria-label="`拖拽排序${item.label}`" @pointerdown="startDrag(item.id, $event)" @pointermove="moveDrag" @pointerup="finishDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag" @keydown.up.prevent="moveDockItem(item.id, index - 1)" @keydown.down.prevent="moveDockItem(item.id, index + 1)"><GripVertical /></button>
-        <label class="dock-setting-toggle"><input type="checkbox" :checked="item.enabled" :disabled="item.enabled && visibleDockItems.length === 1" :aria-label="`在 Dock 显示${item.label}`" @change="toggleDockItem(item.id)" /><span>{{ item.label }}</span></label>
-        <div class="dock-order-actions">
-          <button :disabled="index === 0" :aria-label="`上移${item.label}`" @click="moveDockItem(item.id, index - 1)"><ChevronUp /></button>
-          <button :disabled="index === dockItems.length - 1" :aria-label="`下移${item.label}`" @click="moveDockItem(item.id, index + 1)"><ChevronDown /></button>
-        </div>
+    <h2><PanelsTopLeft />Dock 标签栏</h2>
+    <TransitionGroup name="dock-row" tag="div" class="dock-settings-list">
+      <div v-for="(item, index) in dockItems" :key="item.id" class="dock-setting-row" :class="{ dragging: dragging === item.id }" :data-dock-id="item.id" :style="dragging === item.id ? { transform: `translateY(${dragOffset}px)` } : undefined">
+        <label class="dock-setting-toggle"><input type="checkbox" role="switch" :checked="item.enabled" :disabled="item.enabled && visibleDockItems.length === 1" :aria-label="`在 Dock 显示${item.label}`" @change="toggleDockItem(item.id)" /><span class="dock-toggle-track" aria-hidden="true"></span><component :is="item.icon" /><span>{{ item.label }}</span></label>
+        <button class="dock-drag-handle" :aria-label="`拖拽排序${item.label}`" @pointerdown="startDrag(item.id, $event)" @keydown.up.prevent="moveDockItem(item.id, index - 1)" @keydown.down.prevent="moveDockItem(item.id, index + 1)"><Menu /></button>
       </div>
-    </div>
+    </TransitionGroup>
     <p v-if="dockSaveError" class="form-error">{{ dockSaveError }}</p>
   </section>
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue';
-import { PanelsTopLeft, GripVertical, ChevronUp, ChevronDown } from '@lucide/vue';
-import { dockItems, visibleDockItems, dockSaveError, toggleDockItem, moveDockItem } from '../dock';
+import { ref, nextTick, onUnmounted } from 'vue';
+import { PanelsTopLeft, Menu } from '@lucide/vue';
+import { dockEntries, dockItems, visibleDockItems, dockSaveError, toggleDockItem, moveDockItem } from '../dock';
 const dragging = ref('');
 const target = ref(-1);
+const dragOffset = ref(0);
+let original = null;
+let rowElement = null;
+let grabOffset = 0;
+let baseTop = 0;
+let updating = false;
+let rowHeight = 54;
+let rowStep = 62;
 let pointer = null;
 let scrollFrame = 0;
 let position = null;
 function updateTarget() {
-  if (!position) return;
-  const row = document.elementFromPoint(position.x, position.y)?.closest('[data-dock-id]');
-  target.value = dockItems.value.findIndex((item) => item.id === row?.dataset.dockId);
+  if (!position || !rowElement || updating) return;
+  const listTop = rowElement.parentElement.getBoundingClientRect().top;
+  const current = dockItems.value.findIndex(item => item.id === dragging.value);
+  baseTop = listTop + current * rowStep;
+  dragOffset.value = position.y - grabOffset - baseTop;
+  // Hit-test stable row slots, not the animated/transformed sibling rectangles.
+  target.value = Math.max(0, Math.min(dockItems.value.length - 1,
+    Math.floor((position.y - grabOffset + rowHeight / 2 - listTop) / rowStep)));
+  if (target.value === current) return;
+  updating = true;
+  moveDockItem(dragging.value, target.value);
+  nextTick(() => {
+    if (rowElement && position) {
+      baseTop = rowElement.parentElement.getBoundingClientRect().top + dockItems.value.findIndex(item => item.id === dragging.value) * rowStep;
+      dragOffset.value = position.y - grabOffset - baseTop;
+    }
+    updating = false;
+  });
 }
 function scrollDrag() {
   if (pointer === null || !position) return;
@@ -38,10 +57,18 @@ function scrollDrag() {
 function startDrag(id, event) {
   if (!event.isPrimary || event.button !== 0) return;
   dragging.value = id;
+  original = dockEntries.value.map(entry => ({ ...entry }));
+  rowElement = event.currentTarget.closest('[data-dock-id]');
+  baseTop = rowElement.getBoundingClientRect().top;
+  rowHeight = rowElement.getBoundingClientRect().height;
+  rowStep = rowHeight + parseFloat(getComputedStyle(rowElement.parentElement).rowGap || '0');
+  grabOffset = event.clientY - baseTop;
   pointer = event.pointerId;
   position = { x: event.clientX, y: event.clientY };
   scrollFrame = requestAnimationFrame(scrollDrag);
-  event.currentTarget.setPointerCapture(pointer);
+  window.addEventListener('pointermove', moveDrag);
+  window.addEventListener('pointerup', finishDrag);
+  window.addEventListener('pointercancel', cancelDrag);
   event.preventDefault();
 }
 function moveDrag(event) {
@@ -51,12 +78,16 @@ function moveDrag(event) {
 }
 function finishDrag(event) {
   if (event.pointerId !== pointer) return;
-  moveDrag(event);
-  moveDockItem(dragging.value, target.value);
+  original = null;
   cancelDrag();
 }
 function cancelDrag() {
+  window.removeEventListener('pointermove', moveDrag);
+  window.removeEventListener('pointerup', finishDrag);
+  window.removeEventListener('pointercancel', cancelDrag);
   cancelAnimationFrame(scrollFrame);
+  if (original) dockEntries.value = original;
+  original = null; rowElement = null; dragOffset.value = 0;
   dragging.value = ''; target.value = -1; pointer = null; position = null;
 }
 onUnmounted(cancelDrag);

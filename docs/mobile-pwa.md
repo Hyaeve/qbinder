@@ -11,13 +11,18 @@
   Swiping without holding scrolls the page. Desktop drag and context editing remain.
 - The Dock defaults to Cards, View, Domain Flow and More. More opens a vertical
   floating list of remaining pages. In Settings, the Dock panel beside Backup
-  controls visible pages and ordering (drag the handle or use arrow buttons).
+  controls visible pages and ordering. Drag the right-hand handle; keyboard users
+  can focus the handle and use Up/Down. Mobile Backup and Dock panels stack vertically.
   At least one page must remain enabled; when all six are enabled More disappears.
   Preferences are saved per browser, not in server configuration backups.
 - Lane creation stays next to the account picker on both desktop and mobile.
-  Torrent search, filters and refresh share one row below the mobile account picker.
+  Mobile filters and refresh share the account picker row. A fixed lower-right
+  search icon opens the search input; closing it retains the current query.
+- The narrower glass Dock slides out while scrolling down and returns when scrolling
+  up. Selection and More transitions honor reduced-motion preferences.
 - Mobile traffic charts are centered: tap a sector or legend to highlight it;
-  tapping a different sector clears selection. Desktop hover details remain.
+  tapping a different sector clears selection. Legends sit on both sides of the pie;
+  the account, time-range dropdown and refresh share a row. Desktop hover details remain.
 - Each torrent has an explicit actions button, multi-selection checkbox, and
   expandable path/tag/Tracker details. Desktop table preferences are preserved.
 - Install on iOS: open the deployed HTTPS URL in Safari, choose Share, then

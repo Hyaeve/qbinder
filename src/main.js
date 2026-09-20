@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import './styles.css';
 import './mobile.css';
+import './refinements.css';
 
 if ('serviceWorker' in navigator && window.isSecureContext && import.meta.env.PROD) {
   window.addEventListener('load', () => {

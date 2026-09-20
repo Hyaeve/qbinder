@@ -11,15 +11,12 @@
         </div>
       </div>
       <form class="login-form" @submit.prevent="login">
-        <label>账号<input v-model="loginForm.username" autocomplete="username" /></label>
-        <label>密码<span class="password-field"><input v-model="loginForm.password" :type="passwordVisibility.login ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.login ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.login" @click="togglePassword('login')"><EyeOff v-if="passwordVisibility.login" /><Eye v-else /></button></span></label>
+        <label class="login-icon-field"><UserRound /><input v-model="loginForm.username" aria-label="用户名" placeholder="用户名" autocomplete="username" /></label>
+        <label class="login-icon-field"><LockKeyhole /><input v-model="loginForm.password" aria-label="密码" placeholder="密码" :type="passwordVisibility.login ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.login ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.login" @click="togglePassword('login')"><EyeOff v-if="passwordVisibility.login" /><Eye v-else /></button></label>
         <p v-if="error" class="form-error">{{ error }}</p>
         <div class="login-actions">
-          <button type="button" class="task-switch login-save-toggle" :class="{ on: saveLoginEnabled }" role="switch" :aria-checked="saveLoginEnabled" @click="toggleSaveLogin">
-            <span class="task-switch-track" aria-hidden="true"><i></i></span>
-            <span class="task-switch-label">保存登录</span>
-          </button>
-          <button class="primary-button" :disabled="busy"><Loader2 v-if="busy" class="spin" /><KeyRound v-else />登录</button>
+          <label class="login-remember"><input type="checkbox" :checked="saveLoginEnabled" @change="toggleSaveLogin" /><span>保持登录</span></label>
+          <button class="primary-button login-submit" :disabled="busy"><Loader2 v-if="busy" class="spin" /><LogIn v-else />登录</button>
         </div>
       </form>
     </section>
@@ -36,7 +33,7 @@
       <nav>
         <button :class="{ active: view === 'cards' }" aria-label="卡片" @click="navigateToView('cards')"><Boxes /><span>卡片</span></button>
         <button :class="{ active: view === 'torrents' }" aria-label="视图" @click="navigateToView('torrents')"><Table2 /><span>视图</span></button>
-        <button :class="{ active: view === 'tasks' }" aria-label="任务" @click="navigateToView('tasks')"><svg class="sidebar-task-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="2" width="18" height="20" rx="3.5" /><path d="M7 7h.01M7 12h.01M7 17h.01M10 7h8M10 12h8M10 17h5" /></svg><span>任务</span></button>
+        <button :class="{ active: view === 'tasks' }" aria-label="任务" @click="navigateToView('tasks')"><ListTodo /><span>任务</span></button>
         <button :class="{ active: view === 'traffic' }" aria-label="域流" @click="navigateToView('traffic')"><Gauge /><span>域流</span></button>
         <button :class="{ active: view === 'logs' }" aria-label="日志" @click="navigateToView('logs')"><ScrollText /><span>日志</span></button>
         <button :class="{ active: view === 'settings' }" aria-label="设置" @click="navigateToView('settings')"><Settings /><span>设置</span></button>
@@ -70,8 +67,8 @@
         <div class="settings-column settings-column-left">
           <form class="setting-panel" @submit.prevent="saveCredentials">
             <h2><KeyRound />登录账号</h2>
-            <label>账号<input v-model="credentialForm.username" /></label>
-            <label>密码<span class="password-field"><input v-model="credentialForm.password" :type="passwordVisibility.credential ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.credential ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.credential" @click="togglePassword('credential')"><EyeOff v-if="passwordVisibility.credential" /><Eye v-else /></button></span></label>
+            <label class="outlined-field"><span class="field-caption">账号</span><input v-model="credentialForm.username" /></label>
+            <label class="outlined-field"><span class="field-caption">密码</span><span class="password-field"><input v-model="credentialForm.password" :type="passwordVisibility.credential ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.credential ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.credential" @click="togglePassword('credential')"><EyeOff v-if="passwordVisibility.credential" /><Eye v-else /></button></span></label>
             <button class="primary-button monet-sidebar"><Save />保存</button>
           </form>
 
@@ -80,8 +77,8 @@
             <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
             <div class="tracker-mapping-list">
               <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
-                <input v-model="mapping.keyword" placeholder="关键词" aria-label="Tracker 域名关键词" />
-                <input v-model="mapping.name" placeholder="展示名称" aria-label="Tracker 展示名称" />
+                <label class="outlined-field"><span class="field-caption">关键词</span><input v-model="mapping.keyword" aria-label="Tracker 域名关键词" /></label>
+                <label class="outlined-field"><span class="field-caption">展示名称</span><input v-model="mapping.name" aria-label="Tracker 展示名称" /></label>
                 <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
               </div>
             </div>
@@ -105,10 +102,10 @@
               </div>
             </header>
             <div class="qb-form account-form-grid">
-              <label>名称<input v-model="qbForm.alias" @input="verified = false" /></label>
-              <label>地址<input v-model="qbForm.address" @input="verified = false" /></label>
-              <label>账户<input v-model="qbForm.username" @input="verified = false" /></label>
-              <label>密码<span class="password-field"><input v-model="qbForm.password" :type="passwordVisibility.account ? 'text' : 'password'" @input="verified = false" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.account ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.account" @click="togglePassword('account')"><EyeOff v-if="passwordVisibility.account" /><Eye v-else /></button></span></label>
+              <label class="outlined-field"><span class="field-caption">名称</span><input v-model="qbForm.alias" @input="verified = false" /></label>
+              <label class="outlined-field"><span class="field-caption">地址</span><input v-model="qbForm.address" @input="verified = false" /></label>
+              <label class="outlined-field"><span class="field-caption">账户</span><input v-model="qbForm.username" @input="verified = false" /></label>
+              <label class="outlined-field"><span class="field-caption">密码</span><span class="password-field"><input v-model="qbForm.password" :type="passwordVisibility.account ? 'text' : 'password'" @input="verified = false" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.account ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.account" @click="togglePassword('account')"><EyeOff v-if="passwordVisibility.account" /><Eye v-else /></button></span></label>
             </div>
             <p v-if="message" :class="verified ? 'form-ok' : 'form-error'">{{ message }}</p>
             <section class="configured-qb-accounts" aria-label="已配置账户">
@@ -197,6 +194,7 @@
           <div class="traffic-range-switcher" role="group" aria-label="统计时间范围">
             <button v-for="option in trafficRangeOptions" :key="option.value" class="traffic-range-button" :class="{ active: trafficRange === option.value }" @click="trafficRange = option.value">{{ option.label }}</button>
           </div>
+          <select v-model="trafficRange" class="traffic-range-select" aria-label="统计时间范围"><option v-for="option in trafficRangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
           <button class="secondary-button traffic-refresh" aria-label="刷新流量" :disabled="trafficLoading" @click="refreshTraffic"><RefreshCw :key="refreshPulse.traffic" :class="{ 'refresh-spin': refreshPulse.traffic }" /><span>刷新</span></button>
         </div>
       </header>
@@ -277,7 +275,8 @@
             </div>
           </div>
           <div class="task-toolbar-actions">
-            <label class="task-search"><Search /><input v-model="taskSearch" placeholder="搜索种子名称、标签或路径" /></label>
+            <label class="task-search" :class="{ 'mobile-search-open': mobileSearchOpen }"><Search /><input ref="mobileSearchInput" v-model="taskSearch" aria-label="搜索种子" placeholder="搜索种子名称、标签或路径" @keydown.esc="mobileSearchOpen = false" /><button v-if="mobileSearchOpen" type="button" class="mobile-search-close" aria-label="关闭搜索" @click="mobileSearchOpen = false"><X /></button></label>
+            <button class="mobile-search-fab" :class="{ active: taskSearch }" aria-label="搜索种子" :aria-expanded="mobileSearchOpen" @click="openMobileSearch"><Search /></button>
             <button class="icon-button" title="筛选任务" aria-label="筛选任务" :class="{ selected: hasTaskFilters }" @click="toggleTaskFilter"><Filter /></button>
             <button class="icon-button" title="刷新任务" aria-label="刷新任务" :disabled="tasksLoading" @click="refreshTasks"><RefreshCw :key="refreshPulse.tasks" :class="{ 'refresh-spin': refreshPulse.tasks }" /></button>
           </div>
@@ -333,7 +332,7 @@
 
         <p v-if="tasksError" class="form-error task-error">{{ tasksError }}</p>
         <section class="mobile-torrents" aria-label="种子列表">
-          <label class="mobile-sort">排序
+          <label class="mobile-sort outlined-field"><span class="field-caption">排序</span>
             <select :value="taskSort.key" @change="sortTasks($event.target.value)">
               <option v-for="column in visibleTaskColumns" :key="column.key" :value="column.key">{{ column.label }}</option>
             </select>
@@ -459,7 +458,7 @@
             </div>
           </div>
           <form class="lane-create" @submit.prevent="addLane">
-            <input v-model="laneName" placeholder="新增横栏名称" aria-label="新增横栏名称" />
+            <label class="outlined-field"><span class="field-caption">新增横栏</span><input v-model="laneName" aria-label="新增横栏名称" /></label>
             <button class="primary-button icon-only" aria-label="添加横栏"><Plus /></button>
           </form>
         </header>
@@ -523,10 +522,10 @@
           <button class="icon-button" @click="editingQb = null"><X /></button>
         </header>
         <div class="qb-form account-form-grid">
-          <label>名称<input v-model="editingQb.alias" /></label>
-          <label>地址<input v-model="editingQb.address" /></label>
-          <label>账户<input v-model="editingQb.username" /></label>
-          <label>密码<span class="password-field"><input v-model="editingQb.password" :type="passwordVisibility.editing ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.editing ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.editing" @click="togglePassword('editing')"><EyeOff v-if="passwordVisibility.editing" /><Eye v-else /></button></span></label>
+          <label class="outlined-field"><span class="field-caption">名称</span><input v-model="editingQb.alias" /></label>
+          <label class="outlined-field"><span class="field-caption">地址</span><input v-model="editingQb.address" /></label>
+          <label class="outlined-field"><span class="field-caption">账户</span><input v-model="editingQb.username" /></label>
+          <label class="outlined-field"><span class="field-caption">密码</span><span class="password-field"><input v-model="editingQb.password" :type="passwordVisibility.editing ? 'text' : 'password'" /><button type="button" class="password-toggle" :aria-label="passwordVisibility.editing ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisibility.editing" @click="togglePassword('editing')"><EyeOff v-if="passwordVisibility.editing" /><Eye v-else /></button></span></label>
         </div>
         <p class="field-hint">密码留空表示不修改当前密码。</p>
         <p v-if="editQbMessage" class="form-error">{{ editQbMessage }}</p>
@@ -559,7 +558,7 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskRenameDialog"><X /></button>
         </header>
         <p>为已选种子设置新的名称。</p>
-        <label>种子名称<input v-model.trim="taskRenameDialog.name" autofocus /></label>
+        <label class="outlined-field"><span class="field-caption">种子名称</span><input v-model.trim="taskRenameDialog.name" autofocus /></label>
         <p v-if="taskRenameDialog.error" class="form-error">{{ taskRenameDialog.error }}</p>
         <div class="modal-actions">
           <button class="primary-button monet-mint" :disabled="!taskRenameDialog.name">确认重命名</button>
@@ -574,8 +573,7 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskPathDialog"><X /></button>
         </header>
         <p>将把已选 {{ selectedTaskHashes.length }} 个种子移动到以下保存路径。</p>
-        <label>保存路径
-          <input v-model.trim="taskPathDialog.savePath" list="task-path-presets" autofocus placeholder="/downloads/movies" />
+        <label class="outlined-field"><span class="field-caption">保存路径</span><input v-model.trim="taskPathDialog.savePath" list="task-path-presets" autofocus placeholder="/downloads/movies" />
           <datalist id="task-path-presets">
             <option v-for="option in taskPathOptions" :key="option.path" :value="option.path" :label="option.name" />
           </datalist>
@@ -597,7 +595,8 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskTagsDialog"><X /></button>
         </header>
         <p>为已选 {{ selectedTaskHashes.length }} 个种子设置标签；输入后按回车添加。</p>
-        <div class="task-tags-editor" @click="tagEditorInput?.focus()">
+        <div class="task-tags-editor outlined-tag-field" @click="tagEditorInput?.focus()">
+          <span class="field-caption">种子标签</span>
           <span v-for="tag in taskTagsDialog.tags" :key="tag" class="task-edit-tag">{{ tag }}<button type="button" :title="`删除标签 ${tag}`" @click.stop="removeTaskTag(tag)"><X /></button></span>
           <input ref="tagEditorInput" v-model="taskTagsDialog.input" aria-label="添加标签" placeholder="输入标签后按回车" @keydown.enter.prevent="addTaskTag" />
         </div>
@@ -666,8 +665,8 @@
           <button type="button" class="icon-button" title="关闭" aria-label="关闭" @click="closeTaskUploadLimitDialog"><X /></button>
         </header>
         <div class="upload-limit-control">
-          <label class="upload-limit-field">
-            <span>上传限制</span>
+          <label class="upload-limit-field outlined-field">
+            <span class="field-caption">上传限制</span>
             <div>
               <input v-model.trim="taskUploadLimitDialog.uploadLimit" type="text" inputmode="numeric" autofocus aria-label="上传限制，单位 KiB 每秒" />
               <em>KiB/s</em>
@@ -720,8 +719,8 @@
     <div v-if="scheduleEditor.open" class="modal-backdrop" @click.self="closeScheduleEditor">
       <form class="modal schedule-editor" @submit.prevent="saveSchedule">
         <header><div><p class="eyebrow">CRON AUTOMATION</p><h2>{{ scheduleEditor.id ? '编辑定时任务' : '新建定时任务' }}</h2></div><button type="button" class="icon-button" @click="closeScheduleEditor"><X /></button></header>
-        <div class="schedule-form-grid"><label>任务名称<input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label>执行操作<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleActionMenuOpen }" :aria-expanded="scheduleActionMenuOpen" aria-haspopup="listbox" @click="scheduleActionMenuOpen = !scheduleActionMenuOpen"><span>{{ scheduleActionLabel(scheduleEditor.action) }}</span><ChevronDown /></button><div v-if="scheduleActionMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="option in scheduleActionOptions" :key="option.value" type="button" :class="{ selected: scheduleEditor.action === option.value }" role="option" :aria-selected="scheduleEditor.action === option.value" @click="selectScheduleAction(option.value)"><Check v-if="scheduleEditor.action === option.value" /><span>{{ option.label }}</span></button></div></div></label></div>
-        <div class="schedule-form-grid schedule-form-grid-cron"><label>下载服务<div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" aria-haspopup="listbox" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span class="schedule-service-value"><img v-if="scheduleEditorAccount" class="schedule-service-icon" :src="accountTypeIcon(scheduleEditorAccount)" alt="" /><b>{{ scheduleEditorAccount?.alias || '请选择下载服务' }}</b><em v-if="scheduleEditorAccount">{{ accountTypeLabel(scheduleEditorAccount) }}</em></span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><img class="schedule-service-icon" :src="accountTypeIcon(account)" alt="" /><span>{{ account.alias }}</span><em>{{ accountTypeLabel(account) }}</em><Check v-if="account.id === scheduleEditor.qbId" /></button></div></div></label><label class="schedule-cron-field">Cron 表达式<input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" @mousemove="moveCronPreview" @mouseleave="hideCronPreview" @focus="anchorCronPreview" @blur="hideCronPreview" /><span v-if="cronPreview.visible" class="schedule-cron-preview" :style="{ left: `${cronPreview.x}px`, top: `${cronPreview.y}px` }" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
+        <div class="schedule-form-grid"><label class="outlined-field"><span class="field-caption">任务名称</span><input v-model.trim="scheduleEditor.name" placeholder="例如：深夜开始做种" autofocus /></label><label class="outlined-field"><span class="field-caption">执行操作</span><div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleActionMenuOpen }" :aria-expanded="scheduleActionMenuOpen" aria-haspopup="listbox" @click="scheduleActionMenuOpen = !scheduleActionMenuOpen"><span>{{ scheduleActionLabel(scheduleEditor.action) }}</span><ChevronDown /></button><div v-if="scheduleActionMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="option in scheduleActionOptions" :key="option.value" type="button" :class="{ selected: scheduleEditor.action === option.value }" role="option" :aria-selected="scheduleEditor.action === option.value" @click="selectScheduleAction(option.value)"><Check v-if="scheduleEditor.action === option.value" /><span>{{ option.label }}</span></button></div></div></label></div>
+        <div class="schedule-form-grid schedule-form-grid-cron"><label class="outlined-field"><span class="field-caption">下载服务</span><div class="schedule-picker"><button type="button" class="schedule-picker-trigger" :class="{ open: scheduleQbMenuOpen }" :aria-expanded="scheduleQbMenuOpen" aria-haspopup="listbox" @click="scheduleQbMenuOpen = !scheduleQbMenuOpen"><span class="schedule-service-value"><img v-if="scheduleEditorAccount" class="schedule-service-icon" :src="accountTypeIcon(scheduleEditorAccount)" alt="" /><b>{{ scheduleEditorAccount?.alias || '请选择下载服务' }}</b><em v-if="scheduleEditorAccount">{{ accountTypeLabel(scheduleEditorAccount) }}</em></span><ChevronDown /></button><div v-if="scheduleQbMenuOpen" class="schedule-picker-menu" role="listbox"><button v-for="account in config.qbittorrents" :key="account.id" type="button" :class="{ selected: account.id === scheduleEditor.qbId }" role="option" :aria-selected="account.id === scheduleEditor.qbId" @click="selectScheduleQb(account.id)"><img class="schedule-service-icon" :src="accountTypeIcon(account)" alt="" /><span>{{ account.alias }}</span><em>{{ accountTypeLabel(account) }}</em><Check v-if="account.id === scheduleEditor.qbId" /></button></div></div></label><label class="schedule-cron-field outlined-field"><span class="field-caption">Cron 表达式</span><input v-model.trim="scheduleEditor.cron" placeholder="0 2 * * *" @mousemove="moveCronPreview" @mouseleave="hideCronPreview" @focus="anchorCronPreview" @blur="hideCronPreview" /><span v-if="cronPreview.visible" class="schedule-cron-preview" :style="{ left: `${cronPreview.x}px`, top: `${cronPreview.y}px` }" role="tooltip">{{ scheduleCronPreview }}</span></label></div>
         <template v-if="requiresScheduleTargets">
           <div class="schedule-filter"><div class="schedule-filter-columns"><section class="schedule-filter-status"><small>状态</small><button v-for="option in statusOptions" :key="option.key" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.status.includes(option.key) }" @click="toggleScheduleFilterValue(scheduleFilter.status, option.key)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.status.includes(option.key)" /></span><b>{{ option.label }}</b></button></section><section class="schedule-filter-tags"><small>标签</small><button v-for="tag in scheduleTagOptions" :key="tag" type="button" class="schedule-filter-option" :class="{ selected: scheduleFilter.tags.includes(tag) }" :title="tag" @click="toggleScheduleFilterValue(scheduleFilter.tags, tag)"><span class="schedule-filter-checkbox"><Check v-if="scheduleFilter.tags.includes(tag)" /></span><b>{{ tag }}</b></button><i v-if="!scheduleTagOptions.length">暂无标签</i></section><section class="schedule-filter-torrents"><small>种子 <em>已选 {{ scheduleEditor.hashes.length }} 个</em></small><button v-for="task in scheduleFilteredTasks" :key="task.hash" type="button" class="schedule-filter-option schedule-torrent-option" :class="{ selected: scheduleEditor.hashes.includes(task.hash) }" @click="toggleScheduleFilterValue(scheduleEditor.hashes, task.hash)"><span class="schedule-filter-checkbox"><Check v-if="scheduleEditor.hashes.includes(task.hash)" /></span><b :title="task.name">{{ shortScheduleTaskName(task.name) }}</b></button><i v-if="!scheduleFilteredTasks.length">没有匹配的种子</i></section></div></div>
           <div v-if="scheduleEditor.action === 'delete'" class="task-delete-options schedule-delete-options">
@@ -741,7 +740,7 @@
             <p class="field-hint">到点会把该服务的备用速度设置为所选状态；若本来就是该状态，不会重复操作，更不会反向切换。</p>
           </div>
         </template>
-        <template v-else-if="scheduleEditor.action === 'addURLs'"><label>种子链接（可选）<textarea v-model.trim="scheduleEditor.torrentUrls" placeholder="每行一个 magnet 或 .torrent URL"></textarea></label><label class="schedule-file-upload"><span>电脑种子文件（可选）</span><input ref="scheduleFileInput" type="file" accept=".torrent,application/x-bittorrent" multiple hidden @change="uploadScheduleTorrentFiles" /><button type="button" class="secondary-button" :disabled="scheduleEditor.uploading" @click="scheduleFileInput?.click()"><UploadCloud />{{ scheduleEditor.uploading ? '上传中…' : '选择 .torrent 文件' }}</button><small v-if="scheduleEditor.torrentFiles.length">已保存 {{ scheduleEditor.torrentFiles.length }} 个文件，将在计划时间添加。</small></label><div class="schedule-form-grid"><label>保存路径（可选）<input v-model.trim="scheduleEditor.savePath" placeholder="/downloads" /></label><label>标签（逗号分隔）<input v-model="scheduleTagsText" placeholder="movie, night" /></label></div><p class="field-hint">这批种子只提交一次：执行成功后会自动清空，任务本身保留。列表为空时到点不会做任何事，需要时再补种子即可。</p></template>
+        <template v-else-if="scheduleEditor.action === 'addURLs'"><label class="outlined-field"><span class="field-caption">种子链接（可选）</span><textarea v-model.trim="scheduleEditor.torrentUrls" placeholder="每行一个 magnet 或 .torrent URL"></textarea></label><label class="schedule-file-upload"><span>电脑种子文件（可选）</span><input ref="scheduleFileInput" type="file" accept=".torrent,application/x-bittorrent" multiple hidden @change="uploadScheduleTorrentFiles" /><button type="button" class="secondary-button" :disabled="scheduleEditor.uploading" @click="scheduleFileInput?.click()"><UploadCloud />{{ scheduleEditor.uploading ? '上传中…' : '选择 .torrent 文件' }}</button><small v-if="scheduleEditor.torrentFiles.length">已保存 {{ scheduleEditor.torrentFiles.length }} 个文件，将在计划时间添加。</small></label><div class="schedule-form-grid"><label class="outlined-field"><span class="field-caption">保存路径（可选）</span><input v-model.trim="scheduleEditor.savePath" placeholder="/downloads" /></label><label class="outlined-field"><span class="field-caption">标签（逗号分隔）</span><input v-model="scheduleTagsText" placeholder="movie, night" /></label></div><p class="field-hint">这批种子只提交一次：执行成功后会自动清空，任务本身保留。列表为空时到点不会做任何事，需要时再补种子即可。</p></template>
         <p v-if="scheduleEditor.error" class="form-error">{{ scheduleEditor.error }}</p><div class="modal-actions"><button type="button" class="secondary-button" @click="closeScheduleEditor">取消</button><button class="primary-button">{{ scheduleEditor.id ? '保存任务' : '创建任务' }}</button></div>
       </form>
     </div>
@@ -752,10 +751,10 @@
           <h2>卡片设置</h2>
           <button class="icon-button" @click="editingCard = null"><X /></button>
         </header>
-        <label>卡片名称<input v-model="editingCard.name" /></label>
-        <label>保存路径<input v-model="editingCard.savePath" placeholder="/downloads/movies" /></label>
-        <div class="field-block">
-          <span><Tags />种子标签</span>
+        <label class="outlined-field"><span class="field-caption">卡片名称</span><input v-model="editingCard.name" /></label>
+        <label class="outlined-field"><span class="field-caption">保存路径</span><input v-model="editingCard.savePath" placeholder="/downloads/movies" /></label>
+        <div class="field-block outlined-tag-field">
+          <span class="field-caption">种子标签</span>
           <div class="tag-editor">
             <button v-for="tag in editingCard.tags" :key="tag" :style="{ background: pickColor(tag) }" @click="removeTag(tag)">{{ tag }}<X /></button>
             <input v-model="tagInput" placeholder="输入后回车" @keydown.enter.prevent="addTag(tagInput)" />
@@ -774,7 +773,7 @@
             <button :class="{ active: coverMode === 'image' }" @click="coverMode = 'image'">图片</button>
           </div>
           <div v-if="coverMode === 'image'" class="cover-inputs">
-            <input :value="imageUrlValue" placeholder="图片地址" @input="setImageUrl" />
+            <label class="outlined-field"><span class="field-caption">图片地址</span><input :value="imageUrlValue" @input="setImageUrl" /></label>
             <label class="file-button">上传图片<input type="file" accept="image/*" hidden @change="loadLocalCover" /></label>
           </div>
         </div>
@@ -806,6 +805,10 @@
 
 <script setup>
 import {
+  UserRound,
+  LockKeyhole,
+  LogIn,
+  ListTodo,
   Boxes,
   CheckCircle2,
   Download,
@@ -957,6 +960,12 @@ let taskSyncRid = 0;
 let taskSyncQbId = '';
 let taskFullRefreshPending = false;
 const sidebarCollapsed = ref(localStorage.getItem('qbinder-sidebar-collapsed') === 'true');
+const mobileSearchOpen = ref(false);
+const mobileSearchInput = ref(null);
+function openMobileSearch() {
+  mobileSearchOpen.value = !mobileSearchOpen.value;
+  if (mobileSearchOpen.value) nextTick(() => mobileSearchInput.value?.focus());
+}
 const schedules = ref([]);
 const scheduleError = ref('');
 const draggingScheduleId = ref('');

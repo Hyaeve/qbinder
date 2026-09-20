@@ -15,7 +15,7 @@ const browser = process.env.TEST_BROWSER === 'webkit'
 let pwaServer;
 const account = { id: 'qb1', alias: '家庭下载服务器', type: 'qbittorrent', protocol: 'http', host: 'localhost', port: 8080 };
 const config = {
-  username: 'test', qbittorrents: [account], tagPool: ['电影', '收藏'], trackerMappings: [],
+  username: 'test', qbittorrents: [account], tagPool: ['电影', '收藏'], trackerMappings: Array.from({ length: 7 }, (_, index) => ({ keyword: `tracker${index}`, name: `站点${index}` })),
   lanes: [{ id: 'lane1', qbId: 'qb1', name: '影视' }],
   cards: Array.from({ length: 4 }, (_, i) => ({ id: `card${i + 1}`, qbId: 'qb1', laneId: 'lane1', name: ['电影收藏', '剧集', '音乐收藏', '纪录片'][i], savePath: '/media/movies', tags: ['电影'], cover: { type: 'monet', value: '#d8e8e2' } }))
 };
@@ -57,7 +57,7 @@ async function touchEvent(locator, type, point) {
     });
     return;
   }
-  if (type === 'touchstart') await locator.page().clock.pauseAt(await locator.page().evaluate(() => Date.now()));
+  if (type === 'touchstart') await locator.page().clock.pauseAt(await locator.page().evaluate(() => Date.now() + 1000));
   await locator.evaluate((element, { type, point }) => {
     // WebKit exposes Touch but does not allow constructing it on Windows.
     const touch = { identifier: 1, target: element, clientX: point.x, clientY: point.y };
@@ -89,6 +89,8 @@ try {
     for (const [route, label] of [['cards', '卡片'], ['view', '视图'], ['tasks', '任务'], ['flow', '域流'], ['logs', '日志'], ['setting', '设置']]) {
       if (route === 'cards') await page.goto(base + '/#/cards');
       else if (mobile) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(500);
         const direct = page.locator('.mobile-dock nav').getByRole('button', { name: label, exact: true });
         if (await direct.count()) await direct.click();
         else {
@@ -109,10 +111,22 @@ try {
       assert(overflow.scroll <= width + 1, `${width}/${route} overflow: ${JSON.stringify(overflow)}`);
       if (route === 'view' && mobile) {
         const accountBox = await page.locator('.task-toolbar .account-switcher').boundingBox();
-        const searchBox = await page.locator('.task-search').boundingBox();
         const filterBox = await page.getByRole('button', { name: '筛选任务', exact: true }).boundingBox();
-        assert(Math.abs(accountBox.x - searchBox.x) < 2, 'Account remains left aligned');
-        assert(Math.abs(searchBox.y - filterBox.y) < 2, 'Search and filter share a row');
+        assert(accountBox.x < filterBox.x && Math.abs(accountBox.y - filterBox.y) < 3, 'Account and filter share row');
+        assert.equal(await page.locator('.task-search').isVisible(), false);
+        await page.locator('.mobile-search-fab').click();
+        await page.getByRole('textbox', { name: '搜索种子', exact: true }).fill('测试种子 0');
+        assert.equal(await page.locator('.mobile-torrent').count(), 1);
+        await page.getByRole('textbox', { name: '搜索种子', exact: true }).fill('');
+        await page.getByRole('button', { name: '关闭搜索', exact: true }).click();
+        await page.waitForTimeout(500);
+        await page.evaluate(() => window.scrollTo(0, 300));
+        await page.waitForTimeout(500);
+        assert(await page.locator('.mobile-dock').evaluate(e => e.classList.contains('dock-hidden')), 'Scroll down hides Dock');
+        await page.evaluate(() => window.scrollTo(0, 200));
+        await page.waitForTimeout(500);
+        assert.equal(await page.locator('.mobile-dock').evaluate(e => e.classList.contains('dock-hidden')), false, 'Scroll up reveals Dock');
+        await page.evaluate(() => window.scrollTo(0, 0));
         assert.equal(await page.locator('.mobile-torrent').count(), 8);
         await page.locator('.mobile-torrent').first().getByRole('button').click();
         await page.locator('.task-menu').getByRole('button', { name: '更改保存路径', exact: true }).click();
@@ -148,6 +162,9 @@ try {
         assert.deepEqual(await page.locator('.dock-more-menu button').allTextContents(), ['任务', '日志', '设置']);
         await page.screenshot({ path: `${output}/${width}-dock-more.png` });
         await page.locator('.mobile-app-header strong').click();
+        await page.waitForTimeout(250);
+        if (process.env.TEST_BROWSER === 'webkit') await page.clock.runFor(500);
+        await page.locator('.dock-more-menu').waitFor({ state: 'detached' });
         assert.equal(await page.locator('.dock-more-menu').count(), 0);
         const cards = page.locator('.binder-card');
         const first = await cards.nth(0).boundingBox();
@@ -199,15 +216,19 @@ try {
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Different sector clears selection');
         assert.equal(await page.locator('.traffic-pie-tooltip').count(), 0, 'No hover tooltip on touch');
         const pieElement = page.locator('.traffic-pie').first();
-        await pieElement.tap({ position: { x: 150, y: 100 } });
+        const pieSize = (await pieElement.boundingBox()).width;
+        await pieElement.tap({ position: { x: pieSize * .75, y: pieSize * .5 } });
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Sector tap selects');
-        await pieElement.tap({ position: { x: 150, y: 100 } });
+        await pieElement.tap({ position: { x: pieSize * .75, y: pieSize * .5 } });
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 1, 'Same sector retains selection');
-        await pieElement.tap({ position: { x: 50, y: 70 } });
+        await pieElement.tap({ position: { x: pieSize * .25, y: pieSize * .35 } });
         assert.equal(await page.locator('.traffic-pie-segment.active').count(), 0, 'Other sector clears selection');
         const refresh = await page.getByRole('button', { name: '刷新流量', exact: true }).boundingBox();
-        const header = await page.locator('.traffic-header').boundingBox();
-        assert(refresh.y < header.y + 25 && refresh.x > header.x + header.width / 2, 'Refresh top right');
+        const account = await page.locator('.traffic-account-switcher').boundingBox();
+        const range = await page.locator('.traffic-range-select').boundingBox();
+        assert(Math.abs(refresh.y - account.y) < 2 && Math.abs(range.y - account.y) < 2, 'Traffic controls aligned');
+        await page.locator('.traffic-range-select').selectOption('7d');
+        assert.equal(await page.locator('.traffic-range-select').inputValue(), '7d');
       }
       if (route === 'flow' && !mobile) {
         await page.locator('.traffic-legend-item').first().hover();
@@ -221,11 +242,11 @@ try {
         await page.screenshot({ path: `${output}/${width}-dock-settings.png` });
         const backupBox = await page.locator('.backup-panel').boundingBox();
         const settingsBox = await dockSettings.boundingBox();
-        assert(Math.abs(backupBox.width - settingsBox.width) < 2 && settingsBox.x > backupBox.x, 'Backup and Dock split equally');
-        await page.getByRole('checkbox', { name: '在 Dock 显示视图', exact: true }).uncheck();
-        await page.getByRole('checkbox', { name: '在 Dock 显示域流', exact: true }).uncheck();
-        assert(await page.getByRole('checkbox', { name: '在 Dock 显示卡片', exact: true }).isDisabled(), 'At least one page');
-        await page.getByRole('checkbox', { name: '在 Dock 显示任务', exact: true }).check();
+        assert(Math.abs(backupBox.x - settingsBox.x) < 2 && settingsBox.y >= backupBox.y + backupBox.height, 'Backup and Dock stacked');
+        await page.getByRole('switch', { name: '在 Dock 显示视图', exact: true }).uncheck();
+        await page.getByRole('switch', { name: '在 Dock 显示域流', exact: true }).uncheck();
+        assert(await page.getByRole('switch', { name: '在 Dock 显示卡片', exact: true }).isDisabled(), 'At least one page');
+        await page.getByRole('switch', { name: '在 Dock 显示任务', exact: true }).check();
         const handle = page.getByRole('button', { name: '拖拽排序任务', exact: true });
         await handle.scrollIntoViewIfNeeded();
         const start = await handle.boundingBox();
@@ -244,10 +265,10 @@ try {
         await page.reload();
         await page.locator('.dock-settings').waitFor();
         assert.deepEqual(await page.locator('.mobile-dock nav button').allTextContents(), ['任务', '卡片', '更多'], 'Dock preferences survive reload');
-        for (const label of ['视图', '域流', '日志', '设置']) await page.getByRole('checkbox', { name: `在 Dock 显示${label}`, exact: true }).check();
+        for (const label of ['视图', '域流', '日志', '设置']) await page.getByRole('switch', { name: `在 Dock 显示${label}`, exact: true }).check();
         assert.equal(await page.locator('.mobile-dock nav button').count(), 6);
         assert.equal(await page.locator('.dock-more-button').count(), 0);
-        await page.getByRole('button', { name: '下移任务', exact: true }).click();
+        await page.getByRole('button', { name: '拖拽排序任务', exact: true }).press('ArrowDown');
         assert.equal(await page.locator('.mobile-dock nav button').first().textContent(), '卡片');
         await page.getByRole('button', { name: '拖拽排序任务', exact: true }).press('ArrowUp');
         assert.equal(await page.locator('.mobile-dock nav button').first().textContent(), '任务');
@@ -265,7 +286,28 @@ try {
         assert.equal(await page.locator('.dock-settings input:checked').count(), 1, 'All-disabled storage repairs to one visible page');
         await page.getByRole('button', { name: '更多', exact: true }).click();
         await page.getByRole('button', { name: '更多', exact: true }).press('Escape');
+        await page.waitForTimeout(250);
+        if (process.env.TEST_BROWSER === 'webkit') await page.clock.runFor(500);
+        await page.locator('.dock-more-menu').waitFor({ state: 'detached' });
         assert.equal(await page.locator('.dock-more-menu').count(), 0, 'Escape closes More');
+      }
+      if (route === 'setting') {
+        const visibleRows = await page.locator('.tracker-mapping-list').evaluate(list => {
+          const bounds = list.getBoundingClientRect();
+          return [...list.children].filter(row => row.getBoundingClientRect().bottom <= bounds.bottom + 1).length;
+        });
+        assert.equal(visibleRows, 5, 'Five Tracker mappings fit before scrolling');
+        await page.locator('.tracker-mapping-panel').scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${output}/${width}-fields.png` });
+        if (!mobile) {
+          for (const collapsed of [true, false]) {
+            await page.evaluate(value => localStorage.setItem('qbinder-sidebar-collapsed', String(value)), collapsed);
+            if (!collapsed) await page.getByRole('button', { name: '展开侧栏', exact: true }).click();
+            const navIcon = await page.locator('.desktop-sidebar nav button svg').first().boundingBox();
+            const logoutIcon = await page.locator('.desktop-sidebar .logout svg').boundingBox();
+            assert(Math.abs(navIcon.x - logoutIcon.x) < 2, 'Sidebar logout icon aligned');
+          }
+        }
       }
     }
     assert.deepEqual(errors, [], `JS errors at ${width}`);
@@ -319,6 +361,19 @@ try {
   originUnavailable = false;
   await page.getByRole('link', { name: '重新连接' }).click();
   await page.locator('.login-panel').waitFor();
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.screenshot({ path: `${output}/${width}-login.png` });
+    assert(await page.getByRole('textbox', { name: '用户名', exact: true }).isVisible());
+    await page.getByRole('checkbox', { name: '保持登录', exact: true }).check();
+    const remember = await page.locator('.login-remember').boundingBox();
+    const submit = await page.locator('.login-submit').boundingBox();
+    assert(submit.y >= remember.y + remember.height, 'Login button below remember preference');
+    await page.getByRole('button', { name: '显示密码', exact: true }).click();
+    assert.equal(await page.locator('input[autocomplete="current-password"]').getAttribute('type'), 'text');
+    await page.getByRole('button', { name: '隐藏密码', exact: true }).click();
+    assert(await page.locator('.login-panel').evaluate(e => e.scrollWidth <= e.clientWidth + 1));
+  }
   await context.close();
   console.log('PASS PWA: manifest, icons, worker activation, offline fallback, reconnect, API not cached');
 } finally {
