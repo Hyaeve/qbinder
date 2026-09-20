@@ -1,4 +1,20 @@
 /* Notched captions share the panel surface; input labels remain native labels. */
+html, body, body * { scrollbar-width: none !important; }
+::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
+.task-horizontal-scrollbar { display: none; }
+.settings-page .dock-settings-list, .settings-page .tracker-mapping-list,
+.settings-page .configured-qb-scroller { overscroll-behavior: auto; }
+.settings-utilities > .setting-panel { padding: 24px; }
+.settings-utilities h2 { font-size: 24px; }
+.settings-utilities .backup-panel .button-row { flex-direction: column; align-items: stretch; }
+.settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
+.tracker-mapping-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; color: #7e8390; font-size: 13px; }
+.tracker-mapping-columns span { padding-left: 14px; }
+.back-to-top { position: fixed; z-index: 19; right: 24px; bottom: 24px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #617b83; background: #f3f8f9dc; border: 1px solid #fff; box-shadow: 0 4px 18px #48677926; backdrop-filter: blur(18px); }
+.back-to-top svg { width: 22px; height: 22px; }
+.back-to-top.on-torrents { bottom: 88px; }
+.back-top-enter-active, .back-top-leave-active { transition: opacity .2s, transform .2s; }
+.back-top-enter-from, .back-top-leave-to { opacity: 0; transform: translateY(12px); }
 .outlined-field, .outlined-tag-field {
   position: relative; min-width: 0; margin-top: 7px;
   border: 1px solid #cfd4db; border-radius: 14px; background: rgba(250,251,253,.55);
@@ -70,6 +86,11 @@ label.outlined-field { display: block; padding: 0; }
 .traffic-range-select, .mobile-search-fab, .mobile-search-close { display: none; }
 
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
+  .settings-utilities > .setting-panel { padding: 18px; }
+  .settings-utilities h2 { font-size: 24px; }
+  .tracker-mapping-columns { gap: 6px; }
+  .back-to-top { right: 16px; bottom: calc(var(--mobile-nav-height) + 16px); }
+  .back-to-top.on-torrents { bottom: calc(var(--mobile-nav-height) + 136px); }
   :root { --mobile-nav-height: calc(66px + env(safe-area-inset-bottom, 0px)); }
   .app-shell .sidebar.mobile-dock {
     width: min(calc(var(--dock-count) * 64px + 12px), calc(100% - 24px));
@@ -94,8 +115,8 @@ label.outlined-field { display: block; padding: 0; }
   .dock-menu-enter-from, .dock-menu-leave-to { transform: translateY(12px) scale(.86); opacity: 0; }
   .settings-utilities { grid-template-columns: minmax(0,1fr); gap: 16px; }
   .settings-utilities > .setting-panel { padding: 18px; }
-  .settings-utilities .backup-panel .button-row { flex-wrap: nowrap; }
-  .settings-utilities .backup-panel .button-row > button { width: auto; flex: 1; }
+  .settings-utilities .backup-panel .button-row { flex-wrap: nowrap; flex-direction: column; }
+  .settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
   .dock-setting-row { flex-wrap: nowrap; padding: 0 12px; }
   .app-shell .tasks-page .task-toolbar { flex-direction: row; align-items: center; flex-wrap: nowrap; backdrop-filter: none; }
   .app-shell .tasks-page .task-toolbar > .account-switcher { flex: 1; min-width: 0; align-self: auto; }
@@ -128,6 +149,7 @@ label.outlined-field { display: block; padding: 0; }
   .traffic-page .traffic-chart-content { grid-template-columns: minmax(0,1fr) 112px minmax(0,1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .back-top-enter-active, .back-top-leave-active { transition: none; }
   .app-shell .sidebar.mobile-dock, .dock-selection, .dock-row-move,
   .dock-menu-enter-active, .dock-menu-leave-active { transition: none; }
 }

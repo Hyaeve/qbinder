@@ -57,6 +57,7 @@
       </button>
     </aside>
     <MobileDock :view="view" @navigate="navigateToView" />
+    <BackToTop :view="view" />
     <header class="mobile-app-header">
       <img src="/reference.png" alt="" /><strong>qBinder</strong>
       <button class="icon-button" aria-label="退出登录" @click="logout"><LogOut /></button>
@@ -73,12 +74,12 @@
           </form>
 
           <section class="setting-panel tracker-mapping-panel">
-            <h2><Table2 />Tracker 展示名称</h2>
-            <p class="setting-note">关键词匹配 Tracker 域名或地址，优先展示自定义站点名称。</p>
+            <h2><Table2 />Tracker 映射</h2>
+            <div class="tracker-mapping-columns"><span>匹配字段</span><span>映射名称</span></div>
             <div class="tracker-mapping-list">
               <div v-for="(mapping, index) in trackerMappings" :key="`${mapping.keyword}-${index}`" class="tracker-mapping-row">
-                <label class="outlined-field"><span class="field-caption">关键词</span><input v-model="mapping.keyword" aria-label="Tracker 域名关键词" /></label>
-                <label class="outlined-field"><span class="field-caption">展示名称</span><input v-model="mapping.name" aria-label="Tracker 展示名称" /></label>
+                <input v-model="mapping.keyword" aria-label="匹配字段" />
+                <input v-model="mapping.name" aria-label="映射名称" />
                 <button type="button" class="icon-button" title="删除映射" aria-label="删除映射" @click="removeTrackerMapping(index)"><X /></button>
               </div>
             </div>
@@ -113,7 +114,7 @@
                 <h3>已配置账户</h3>
                 <span>{{ config.qbittorrents.length }} 个账户</span>
               </div>
-              <div class="configured-qb-scroller" @wheel.prevent="scrollQbAccounts">
+              <div class="configured-qb-scroller" @wheel="scrollQbAccounts">
                 <article v-for="account in config.qbittorrents" :key="account.id" class="configured-qb-card">
                   <div class="configured-qb-card-main">
                     <img class="configured-qb-icon" :src="accountTypeIcon(account)" :alt="accountTypeLabel(account)" />
@@ -850,6 +851,7 @@ import {
 } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import MobileDock from './components/MobileDock.vue';
+import BackToTop from './components/BackToTop.vue';
 import DockSettings from './components/DockSettings.vue';
 
 const monetColors = ['#d8e8e2', '#eadfd2', '#d7ddea', '#e8d9dd', '#dce6cf', '#d6e3ea', '#e7e0c9', '#d9d2e7'];
@@ -1579,7 +1581,15 @@ async function addQb() {
 }
 
 function scrollQbAccounts(event) {
-  event.currentTarget.scrollLeft += event.deltaY || event.deltaX;
+  if (event.ctrlKey) return;
+  const element = event.currentTarget;
+  const delta = event.deltaY || event.deltaX;
+  const maximum = element.scrollWidth - element.clientWidth;
+  if ((delta > 0 && element.scrollLeft < maximum - 1) || (delta < 0 && element.scrollLeft > 1)) {
+    event.preventDefault();
+    const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1;
+    element.scrollLeft += delta * scale;
+  }
 }
 
 function editQb(account) {

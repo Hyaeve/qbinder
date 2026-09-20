@@ -130,6 +130,10 @@ try {
         await page.evaluate(() => window.scrollTo(0, 200));
         await page.waitForTimeout(500);
         assert.equal(await page.locator('.mobile-dock').evaluate(e => e.classList.contains('dock-hidden')), false, 'Scroll up reveals Dock');
+        await page.evaluate(() => window.scrollTo(0, 500));
+        await page.getByRole('button', { name: '回到顶部', exact: true }).waitFor();
+        await page.getByRole('button', { name: '回到顶部', exact: true }).click();
+        await page.waitForFunction(() => window.scrollY < 2);
         await page.evaluate(() => window.scrollTo(0, 0));
         assert.equal(await page.locator('.mobile-torrent').count(), 8);
         await page.locator('.mobile-torrent').first().getByRole('button').click();
@@ -303,6 +307,27 @@ try {
         assert.equal(await page.locator('.dock-more-menu').count(), 0, 'Escape closes More');
       }
       if (route === 'setting') {
+        assert(await page.getByRole('heading', { name: 'Tracker 映射', exact: true }).isVisible());
+        assert.deepEqual(await page.locator('.tracker-mapping-columns span').allTextContents(), ['匹配字段', '映射名称']);
+        assert.equal(await page.locator('.tracker-mapping-row .field-caption').count(), 0);
+        const backupButtons = page.locator('.backup-panel .button-row button');
+        const firstButton = await backupButtons.nth(0).boundingBox();
+        const secondButton = await backupButtons.nth(1).boundingBox();
+        assert(secondButton.y >= firstButton.y + firstButton.height && Math.abs(firstButton.x - secondButton.x) < 2);
+        assert.equal(await page.locator('.dock-settings-list').evaluate(e => getComputedStyle(e).getPropertyValue('overscroll-behavior-y') || 'auto'), 'auto');
+        const accountsWheel = await page.locator('.configured-qb-scroller').evaluate(e => {
+          const dispatch = deltaY => {
+            const event = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+            e.dispatchEvent(event);
+            return event.defaultPrevented;
+          };
+          e.scrollLeft = 0;
+          const start = dispatch(-100);
+          e.scrollLeft = e.scrollWidth;
+          const end = dispatch(100);
+          return { start, end };
+        });
+        assert.deepEqual(accountsWheel, { start: false, end: false }, 'Account scroller releases wheel at both boundaries');
         const visibleRows = await page.locator('.tracker-mapping-list').evaluate(list => {
           const bounds = list.getBoundingClientRect();
           return [...list.children].filter(row => row.getBoundingClientRect().bottom <= bounds.bottom + 1).length;
