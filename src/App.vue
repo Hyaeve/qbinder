@@ -710,6 +710,33 @@
       </form>
     </div>
 
+    <div v-if="duplicateUploadDialog.open" class="modal-backdrop" @click.self="closeDuplicateUploadDialog">
+      <section class="modal duplicate-upload-modal" role="dialog" aria-modal="true" :aria-label="duplicateUploadDialog.torrents.length ? '更换已有种子的保存目录' : '添加结果'">
+        <header>
+          <h2>{{ duplicateUploadDialog.torrents.length ? '更换保存目录？' : '添加结果' }}</h2>
+          <button type="button" class="icon-button" aria-label="关闭" :disabled="duplicateUploadDialog.submitting" @click="closeDuplicateUploadDialog"><X /></button>
+        </header>
+        <template v-if="duplicateUploadDialog.torrents.length">
+          <p>以下种子已添加，当前保存目录与本次选择不同。确认后将更换保存目录并移动文件。</p>
+          <div class="duplicate-upload-list">
+            <div v-for="torrent in duplicateUploadDialog.torrents" :key="torrent.hash" class="duplicate-upload-item">
+              <strong>{{ torrent.name || torrent.filename }}</strong>
+              <dl><dt>当前目录</dt><dd>{{ torrent.savePath || '未知' }}</dd></dl>
+            </div>
+          </div>
+          <dl class="duplicate-upload-target"><dt>新目录</dt><dd>{{ duplicateUploadDialog.savePath }}</dd></dl>
+        </template>
+        <div v-if="duplicateUploadDialog.failures.length" class="duplicate-upload-failures">
+          <p v-for="(file, index) in duplicateUploadDialog.failures" :key="index" class="form-error">{{ file.filename }}：{{ file.error }}</p>
+        </div>
+        <p v-if="duplicateUploadDialog.error" class="form-error">{{ duplicateUploadDialog.error }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" :disabled="duplicateUploadDialog.submitting" @click="closeDuplicateUploadDialog">{{ duplicateUploadDialog.torrents.length ? '保留原目录' : '完成' }}</button>
+          <button v-if="duplicateUploadDialog.torrents.length" type="button" class="primary-button monet-mint" :disabled="duplicateUploadDialog.submitting" @click="confirmDuplicateUploadMove"><Loader2 v-if="duplicateUploadDialog.submitting" class="spin" /><FolderInput v-else />{{ duplicateUploadDialog.submitting ? '更换中' : '确认更换目录' }}</button>
+        </div>
+      </section>
+    </div>
+
     <div v-if="uploadNotice.visible" class="upload-result-toast" :class="`is-${uploadNotice.tone}`" role="status" aria-live="polite">
       <CheckCircle2 v-if="uploadNotice.tone === 'success'" />
       <X v-else />
@@ -822,6 +849,7 @@ import {
   Download,
   FolderCog,
   FolderDown,
+  FolderInput,
   Image as ImageIcon,
   KeyRound,
   Layers,
@@ -904,6 +932,7 @@ const tagInput = ref('');
 const uploadingCardId = ref('');
 const fileInputs = reactive({});
 const pendingCardUpload = reactive({ open: false, card: null, files: [], input: null, error: '', submitting: false });
+const duplicateUploadDialog = reactive({ open: false, qbId: '', savePath: '', torrents: [], failures: [], error: '', submitting: false });
 const uploadNotice = reactive({ visible: false, text: '', tone: 'success' });
 let uploadNoticeTimer = null;
 const editQbMessage = ref('');
@@ -1904,9 +1933,20 @@ async function confirmCardUpload() {
   uploadingCardId.value = card.id;
   try {
     const result = await api(`/api/cards/${card.id}/upload`, { method: 'POST', body: form });
-    const count = Number(result?.count) || files.length;
+    const outcomes = result?.results || [];
+    const added = result?.added ?? (Number(result?.count) || files.length);
+    const duplicate = Number(result?.duplicate) || 0;
+    const failed = Number(result?.failed) || 0;
+    const moves = [...new Map(outcomes.filter(item => item.status === 'duplicate' && item.needsMove).map(item => [item.hash, item])).values()];
     closeCardUploadDialogAfterSubmit();
-    showUploadNotice(`成功添加 ${count} 个种子`);
+    const messages = [];
+    if (added) messages.push(`成功添加 ${added} 个种子`);
+    if (duplicate) messages.push(`${duplicate} 个种子已添加，无需重复添加`);
+    if (failed) messages.push(`${failed} 个种子添加失败`);
+    showUploadNotice(messages.join('；'), failed ? 'error' : 'success');
+    if (moves.length || failed) {
+      Object.assign(duplicateUploadDialog, { open: true, qbId: card.qbId, savePath: result.savePath || card.savePath, torrents: moves, failures: outcomes.filter(item => item.status === 'failed'), error: '', submitting: false });
+    }
   } catch (requestError) {
     pendingCardUpload.error = requestError.message || '添加种子失败';
   } finally {
@@ -1918,6 +1958,32 @@ async function confirmCardUpload() {
 function closeCardUploadDialogAfterSubmit() {
   pendingCardUpload.input && (pendingCardUpload.input.value = '');
   Object.assign(pendingCardUpload, { open: false, card: null, files: [], input: null, error: '', submitting: false });
+}
+
+function closeDuplicateUploadDialog() {
+  if (duplicateUploadDialog.submitting) return;
+  Object.assign(duplicateUploadDialog, { open: false, qbId: '', savePath: '', torrents: [], failures: [], error: '', submitting: false });
+}
+
+async function confirmDuplicateUploadMove() {
+  if (duplicateUploadDialog.submitting || !duplicateUploadDialog.torrents.length) return;
+  duplicateUploadDialog.submitting = true;
+  duplicateUploadDialog.error = '';
+  try {
+    await api(`/api/qb/${duplicateUploadDialog.qbId}/torrents/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'setLocation', hashes: duplicateUploadDialog.torrents.map(item => item.hash), savePath: duplicateUploadDialog.savePath })
+    });
+    duplicateUploadDialog.submitting = false;
+    const count = duplicateUploadDialog.torrents.length;
+    closeDuplicateUploadDialog();
+    showUploadNotice(`已提交 ${count} 个种子的保存目录更换`);
+    if (view.value === 'torrents') await loadTasks();
+  } catch (requestError) {
+    duplicateUploadDialog.error = requestError.message || '更换保存目录失败';
+  } finally {
+    duplicateUploadDialog.submitting = false;
+  }
 }
 
 function addTag(value) {
@@ -2774,6 +2840,7 @@ function handleGlobalKeydown(event) {
   if (taskDeleteDialog.open) { closeTaskDeleteDialog(); return; }
   if (torrentExportDialog.open) { closeTorrentExportDialog(); return; }
   if (taskUploadLimitDialog.open) { closeTaskUploadLimitDialog(); return; }
+  if (duplicateUploadDialog.open) { closeDuplicateUploadDialog(); return; }
   if (pendingCardUpload.open) { closeCardUploadDialog(); return; }
   if (pendingBackupRestore.open) { closeBackupRestoreDialog(); }
 }

@@ -2946,69 +2946,7 @@ func (s *Server) uploadCard(w http.ResponseWriter, r *http.Request, config Confi
 		}
 	}
 
-	// Build a complete multipart request so qBittorrent receives a Content-Length.
-	// Some WebUI/proxy combinations reject the chunked request produced by io.Pipe.
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	for _, header := range files {
-		file, err := header.Open()
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-		part, err := writer.CreateFormFile("torrents", header.Filename)
-		if err == nil {
-			_, err = io.Copy(part, file)
-		}
-		file.Close()
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
-	}
-	if err := writer.WriteField("savepath", card.SavePath); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := writer.WriteField("autoTMM", "false"); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if len(card.Tags) > 0 {
-		if err := writer.WriteField("tags", strings.Join(card.Tags, ",")); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	}
-	if err := writer.Close(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/api/v2/torrents/add", &body)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	request.Header.Set("Content-Type", writer.FormDataContentType())
-	request.Header.Set("Cookie", cookie)
-	response, err := qBHTTPClient.Do(request)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		message, _ := io.ReadAll(io.LimitReader(response.Body, maxQBResponseSize))
-		writeErrorText(w, http.StatusBadGateway, fmt.Sprintf("qBittorrent add torrents failed: %d %s", response.StatusCode, strings.TrimSpace(string(message))))
-		return
-	}
-	fileNames := make([]string, 0, len(files))
-	for _, file := range files {
-		fileNames = append(fileNames, strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
-	}
-	s.appendOperationLog(OperationLog{Source: "manual", Status: "success", Action: "addURLs", QBID: account.ID, QBAlias: account.Alias, Target: fmt.Sprintf("通过卡片“%s”添加种子", card.Name), Count: len(files), TorrentNames: fileNames, Detail: "保存路径：" + card.SavePath})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(files)})
+	s.uploadQBTorrents(w, r, account, card, baseURL, cookie, files)
 }
 
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {

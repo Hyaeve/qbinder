@@ -10,6 +10,17 @@ html, body, body * { scrollbar-width: none !important; }
 .settings-utilities .backup-panel .button-row > button { width: 100%; flex: none; }
 .backup-panel .monet-amber { background: #f0eee7; color: #736e5f; border: 1px solid #e3dfd4; box-shadow: none; }
 .backup-panel .monet-amber:hover { background: #e9e6dd; }
+.duplicate-upload-modal { width: min(600px, calc(100vw - 28px)); }
+.duplicate-upload-modal > p { color: #63727b; line-height: 1.65; }
+.duplicate-upload-list, .duplicate-upload-failures { max-height: 32dvh; overflow-y: auto; overscroll-behavior: contain; }
+.duplicate-upload-item { padding-block: 12px; border-bottom: 1px solid #e2e8eb; }
+.duplicate-upload-item strong { display: block; overflow-wrap: anywhere; color: #526d73; font-size: 14px; }
+.duplicate-upload-modal dl { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 10px; margin: 10px 0 0; font-size: 13px; }
+.duplicate-upload-modal dt { color: #839097; }
+.duplicate-upload-modal dd { margin: 0; overflow-wrap: anywhere; color: #5d747d; }
+.duplicate-upload-target { padding-block: 12px; }
+.duplicate-upload-failures .form-error { overflow-wrap: anywhere; }
+.duplicate-upload-modal .modal-actions { flex-wrap: wrap; }
 .login-page { background: #e8edef; animation: none; }
 .login-page::before, .login-page::after { display: none; }
 .app-shell { --account-control-width: 120px; }
