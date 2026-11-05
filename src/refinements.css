@@ -135,6 +135,9 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
   .schedule-page > .schedule-header h1 { font-size: 24px; }
   .schedule-page > .schedule-header .schedule-create-button { padding-inline: 12px; }
   html { touch-action: pan-x pan-y; }
+  .upload-result-toast { top: calc(var(--safe-area-top) + 16px); right: max(16px, env(safe-area-inset-right, 0px)); max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 32px); }
+  .mobile-search-backdrop { padding-top: calc(var(--safe-area-top) + 16px); padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px)); }
+  .dock-more-menu { max-height: calc(100dvh - var(--safe-area-top) - 110px - env(safe-area-inset-bottom, 0px)); }
   .tasks-page, .schedule-page, .traffic-page, .settings-page {
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
@@ -145,7 +148,7 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
   .traffic-page, .traffic-page * { -webkit-tap-highlight-color: transparent; }
   .traffic-page .traffic-pie-segment:hover { filter: none; transform: none; }
   .traffic-page .traffic-pie-segment.active { filter: brightness(1.08); transform: scale(1.025); }
-  .app-shell .tasks-page { display: flex; flex-direction: column; min-height: calc(100dvh - 56px); padding-bottom: calc(var(--mobile-nav-height) + 18px); }
+  .app-shell .tasks-page { display: flex; flex-direction: column; min-height: calc(100dvh - 56px - var(--safe-area-top)); padding-bottom: calc(var(--mobile-nav-height) + 18px); }
   .app-shell .tasks-page .task-summary, .app-shell.sidebar-collapsed .tasks-page .task-summary {
     position: relative; inset: auto; order: 2; width: 100%; margin-top: auto;
     min-height: 64px; box-shadow: none; z-index: auto;

@@ -836,6 +836,9 @@
     </Teleport>
     <div v-if="titleTooltip.visible" ref="titleTooltipEl" class="ui-tooltip" :style="{ left: `${titleTooltip.x}px`, top: `${titleTooltip.y}px` }" role="tooltip">{{ titleTooltip.text }}</div>
   </div>
+  <Teleport to="body">
+    <div class="mobile-safe-area" aria-hidden="true" @pointerdown.stop.prevent @click.stop.prevent @touchstart.stop @touchmove.prevent @wheel.prevent @contextmenu.prevent></div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -1240,6 +1243,7 @@ onMounted(async () => {
   window.addEventListener('pointerout', hideTitleTooltip, true);
   window.addEventListener('keydown', handleGlobalKeydown);
   window.addEventListener('scroll', onWindowScroll, { passive: true });
+  window.addEventListener('resize', onWindowScroll, { passive: true });
   syncViewFromHash();
   try {
     const response = await api('/api/config');
@@ -2178,7 +2182,11 @@ function positionMobileTrafficTooltip() {
   const bounds = pie.getBoundingClientRect();
   const { width, height } = tooltip.getBoundingClientRect();
   trafficTooltip.x = Math.max(10, Math.min(bounds.x + bounds.width / 2 - width / 2, innerWidth - width - 10));
-  trafficTooltip.y = Math.max(10, Math.min(bounds.top - height - 10, innerHeight - height - 10));
+  trafficTooltip.y = Math.max(mobileSafeAreaTop() + 10, Math.min(bounds.top - height - 10, innerHeight - height - 10));
+}
+
+function mobileSafeAreaTop() {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-top')) || 0;
 }
 
 function hideTrafficTooltip() {
@@ -2873,7 +2881,7 @@ async function openTaskMenu(task, event) {
   const margin = 10;
   taskMenu.value = {
     x: Math.max(margin, Math.min(taskMenu.value.x, window.innerWidth - margin - width)),
-    y: Math.max(margin, Math.min(taskMenu.value.y, window.innerHeight - margin - height))
+    y: Math.max(margin + (mobileLayout() ? mobileSafeAreaTop() : 0), Math.min(taskMenu.value.y, window.innerHeight - margin - height))
   };
 }
 
@@ -3312,6 +3320,7 @@ onUnmounted(() => {
   window.removeEventListener('pointerdown', closeTaskMenusOnOutsidePointer);
   window.removeEventListener('keydown', handleGlobalKeydown);
   window.removeEventListener('scroll', onWindowScroll);
+  window.removeEventListener('resize', onWindowScroll);
   window.removeEventListener('pointerover', showTitleTooltip, true);
   window.removeEventListener('pointerout', hideTitleTooltip, true);
   if (titleTooltip.target?.dataset.uiTooltip) {

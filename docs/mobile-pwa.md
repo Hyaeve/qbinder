@@ -43,6 +43,11 @@
   Tasks, Domain Flow and Settings. Editable inputs retain text selection.
 - Install on iOS: open the deployed HTTPS URL in Safari, choose Share, then
   Add to Home Screen. No App Store package is required.
+- iOS standalone uses a translucent status bar. A fixed frosted strip covers only
+  `env(safe-area-inset-top)` and blocks taps on content scrolled behind it. The
+  header, notices, filters, dialogs and search stay below that inset; devices
+  without a top inset get no extra strip. Cards/View toolbars still scroll normally.
+  Restart an installed PWA after updating its status-bar metadata.
 - Service workers require HTTPS (localhost is allowed for development). An
   ordinary HTTP LAN address still loads the responsive UI, but cannot register
   the offline worker. Use a trusted TLS certificate for installation testing.
@@ -68,3 +73,6 @@ external runtime. `TEST_BROWSER=webkit` exercises WebKit; the default is install
 Edge. Install the corresponding Playwright WebKit browser before that run.
 `TEST_URL` overrides the preview URL and `TEST_OUTPUT` selects the screenshots
 directory (default `.gocache/mobile-qa`, which must not be committed).
+`node tests/safe-area-smoke.mjs` checks safe-area hit blocking and overlay bounds
+using simulated insets in Edge/WebKit. Physical iPhone status-bar rendering still
+requires a real-device check.
