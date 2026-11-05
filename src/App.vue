@@ -458,8 +458,8 @@
             </div>
           </div>
           <form class="lane-create" @submit.prevent="addLane">
-            <label class="outlined-field"><span class="field-caption">新增横栏</span><input v-model="laneName" aria-label="新增横栏名称" /></label>
-            <button class="primary-button icon-only" aria-label="添加横栏"><Plus /></button>
+            <input v-model="laneName" aria-label="新增横栏名称" placeholder="新增横栏" autocomplete="off" enterkeyhint="done" />
+            <button class="primary-button icon-only" aria-label="添加横栏" :disabled="!laneName.trim()"><Plus /></button>
           </form>
         </header>
 

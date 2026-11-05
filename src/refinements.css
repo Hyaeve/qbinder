@@ -67,7 +67,10 @@ label.outlined-field { display: block; padding: 0; }
 .outlined-tag-field { padding: 14px 12px 10px; }
 .outlined-tag-field .tag-editor { border: 0; padding: 0; background: transparent; }
 .outlined-tag-field .tag-editor input, .task-tags-editor input { background: transparent; }
-.cards-page .lane-create .outlined-field { flex: 1; margin-top: 0; }
+.cards-page .top-tabs .lane-create { align-items: center; }
+.cards-page .lane-create input { flex: 1; height: 44px; min-height: 44px; border-radius: 14px; }
+.cards-page .lane-create input::placeholder { color: #7c8792; opacity: 1; }
+.cards-page .lane-create .icon-only { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; }
 .tracker-mapping-panel { align-content: start; }
 .tracker-mapping-list { grid-auto-rows: 54px; gap: 8px; max-height: 310px; padding-top: 7px; }
 .tracker-mapping-row .outlined-field { margin: 0; }
@@ -124,6 +127,10 @@ html:has(.mobile-search-backdrop), body:has(.mobile-search-backdrop) { overflow:
 
 @media (max-width: 900px), (max-width: 1100px) and (pointer: coarse) {
   .app-shell { --account-control-width: 120px; }
+  .cards-page .top-tabs .lane-create { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 8px; }
+  .cards-page .top-tabs .lane-create input { padding: 0 10px; font-size: 16px; }
+  .cards-page .top-tabs .lane-create .icon-only { color: #52756b; background: #e1ece8; border: 1px solid #cfdfd8; border-radius: 14px; box-shadow: none; }
+  .cards-page .top-tabs .lane-create .icon-only:active:not(:disabled) { background: #d2e3db; }
   .schedule-page > .schedule-header { padding: 18px 16px; }
   .schedule-page > .schedule-header h1 { font-size: 24px; }
   .schedule-page > .schedule-header .schedule-create-button { padding-inline: 12px; }
